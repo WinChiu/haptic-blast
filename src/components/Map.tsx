@@ -42,48 +42,50 @@ const Map: React.FC<MapProps> = ({ onLocationSelect }) => {
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const userMarkerRef = useRef<L.Marker | null>(null);
   const destinationMarkerRef = useRef<L.Marker | null>(null);
-  const [userLocation, setUserLocation] = useState<[number, number] | null>(null);
 
-  // Initialize map
+  // Start with a sensible default (San Francisco) so we never block on geolocation
+  const [userLocation, setUserLocation] = useState<[number, number]>([37.7749, -122.4194]);
+
+  // Create map once on mount
   useEffect(() => {
     if (!mapContainerRef.current || mapRef.current) return;
 
-    // Get user's location first
-    if (navigator.geolocation) {
-      navigator.geolocation.getCurrentPosition(
-        (position) => {
-          const coords: [number, number] = [position.coords.latitude, position.coords.longitude];
-          setUserLocation(coords);
-        },
-        (error) => {
-          console.error('Error getting location:', error);
-          setUserLocation([37.7749, -122.4194]);
-        }
-      );
-    } else {
-      setUserLocation([37.7749, -122.4194]);
-    }
-  }, []);
-
-  // Create map once we have user location
-  useEffect(() => {
-    if (!mapContainerRef.current || !userLocation || mapRef.current) return;
-
-    // Create map
     const map = L.map(mapContainerRef.current).setView(userLocation, 14);
     mapRef.current = map;
 
     // Add tile layer
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
     }).addTo(map);
 
-    // Add user location marker
+    // Add initial user marker at default location
     userMarkerRef.current = L.marker(userLocation, { icon: userIcon })
       .addTo(map)
       .bindPopup('Your Location');
 
-    // Handle map clicks
+    // Try to update with real geolocation asynchronously, but don't block rendering
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          const coords: [number, number] = [position.coords.latitude, position.coords.longitude];
+          setUserLocation(coords);
+
+          // Update map view and marker if map still exists
+          if (mapRef.current) {
+            mapRef.current.setView(coords, 15);
+          }
+          if (userMarkerRef.current) {
+            userMarkerRef.current.setLatLng(coords);
+          }
+        },
+        (error) => {
+          console.warn('Geolocation unavailable, using default location:', error);
+        },
+        { enableHighAccuracy: true, timeout: 5000 }
+      );
+    }
+
+    // Handle map clicks for destination
     map.on('click', (e: L.LeafletMouseEvent) => {
       const { lat, lng } = e.latlng;
 
@@ -104,15 +106,8 @@ const Map: React.FC<MapProps> = ({ onLocationSelect }) => {
       map.remove();
       mapRef.current = null;
     };
-  }, [userLocation, onLocationSelect]);
-
-  if (!userLocation) {
-    return (
-      <div className="w-full h-full flex items-center justify-center bg-background">
-        <p className="text-muted-foreground">Loading map...</p>
-      </div>
-    );
-  }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   return (
     <div className="relative w-full h-full">
