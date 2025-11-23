@@ -1,20 +1,14 @@
-import React, { useState, useEffect } from 'react';
-import { MapContainer, TileLayer, Marker, Popup, useMapEvents } from 'react-leaflet';
+import React, { useState, useEffect, useRef } from 'react';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 
-// Fix for default marker icons in React-Leaflet
-import icon from 'leaflet/dist/images/marker-icon.png';
-import iconShadow from 'leaflet/dist/images/marker-shadow.png';
-
-let DefaultIcon = L.icon({
-  iconUrl: icon,
-  shadowUrl: iconShadow,
-  iconSize: [25, 41],
-  iconAnchor: [12, 41],
+// Fix for default marker icons
+delete (L.Icon.Default.prototype as any)._getIconUrl;
+L.Icon.Default.mergeOptions({
+  iconRetinaUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon-2x.png',
+  iconUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon.png',
+  shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png',
 });
-
-L.Marker.prototype.options.icon = DefaultIcon;
 
 // Custom marker icons
 const userIcon = new L.Icon({
@@ -43,50 +37,23 @@ interface MapProps {
   onLocationSelect: (lat: number, lng: number) => void;
 }
 
-interface MapInternalsProps {
-  onLocationSelect: (lat: number, lng: number) => void;
-  userLocation: [number, number];
-}
-
-const MapInternals: React.FC<MapInternalsProps> = ({ onLocationSelect, userLocation }) => {
-  const [destination, setDestination] = useState<[number, number] | null>(null);
-
-  useMapEvents({
-    click(e) {
-      const newDest: [number, number] = [e.latlng.lat, e.latlng.lng];
-      setDestination(newDest);
-      onLocationSelect(e.latlng.lat, e.latlng.lng);
-    },
-  });
-
-  return (
-    <>
-      <TileLayer
-        attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-        url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-      />
-      
-      <Marker position={userLocation} icon={userIcon}>
-        <Popup>Your Location</Popup>
-      </Marker>
-
-      {destination && (
-        <Marker position={destination} icon={destinationIcon}>
-          <Popup>Destination</Popup>
-        </Marker>
-      )}
-    </>
-  );
-};
-
 const Map: React.FC<MapProps> = ({ onLocationSelect }) => {
+  const mapRef = useRef<L.Map | null>(null);
+  const mapContainerRef = useRef<HTMLDivElement>(null);
+  const userMarkerRef = useRef<L.Marker | null>(null);
+  const destinationMarkerRef = useRef<L.Marker | null>(null);
   const [userLocation, setUserLocation] = useState<[number, number] | null>(null);
 
+  // Initialize map
   useEffect(() => {
+    if (!mapContainerRef.current || mapRef.current) return;
+
+    // Get user's location first
     if (navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(
         (position) => {
-          setUserLocation([position.coords.latitude, position.coords.longitude]);
+          const coords: [number, number] = [position.coords.latitude, position.coords.longitude];
+          setUserLocation(coords);
         },
         (error) => {
           console.error('Error getting location:', error);
@@ -98,6 +65,47 @@ const Map: React.FC<MapProps> = ({ onLocationSelect }) => {
     }
   }, []);
 
+  // Create map once we have user location
+  useEffect(() => {
+    if (!mapContainerRef.current || !userLocation || mapRef.current) return;
+
+    // Create map
+    const map = L.map(mapContainerRef.current).setView(userLocation, 14);
+    mapRef.current = map;
+
+    // Add tile layer
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+    }).addTo(map);
+
+    // Add user location marker
+    userMarkerRef.current = L.marker(userLocation, { icon: userIcon })
+      .addTo(map)
+      .bindPopup('Your Location');
+
+    // Handle map clicks
+    map.on('click', (e: L.LeafletMouseEvent) => {
+      const { lat, lng } = e.latlng;
+
+      // Remove existing destination marker
+      if (destinationMarkerRef.current) {
+        destinationMarkerRef.current.remove();
+      }
+
+      // Add new destination marker
+      destinationMarkerRef.current = L.marker([lat, lng], { icon: destinationIcon })
+        .addTo(map)
+        .bindPopup('Destination');
+
+      onLocationSelect(lat, lng);
+    });
+
+    return () => {
+      map.remove();
+      mapRef.current = null;
+    };
+  }, [userLocation, onLocationSelect]);
+
   if (!userLocation) {
     return (
       <div className="w-full h-full flex items-center justify-center bg-background">
@@ -108,14 +116,7 @@ const Map: React.FC<MapProps> = ({ onLocationSelect }) => {
 
   return (
     <div className="relative w-full h-full">
-      <MapContainer
-        center={userLocation}
-        zoom={14}
-        className="w-full h-full"
-        zoomControl={true}
-      >
-        <MapInternals onLocationSelect={onLocationSelect} userLocation={userLocation} />
-      </MapContainer>
+      <div ref={mapContainerRef} className="w-full h-full" />
 
       <div className="absolute top-4 left-4 bg-card/95 backdrop-blur-sm px-4 py-3 rounded-lg border border-primary/20 shadow-lg z-[1000]">
         <p className="text-sm font-medium text-foreground">Tap anywhere to set destination</p>
