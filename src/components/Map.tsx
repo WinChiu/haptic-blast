@@ -43,21 +43,46 @@ interface MapProps {
   onLocationSelect: (lat: number, lng: number) => void;
 }
 
-const MapClickHandler: React.FC<{ onLocationSelect: (lat: number, lng: number) => void }> = ({ onLocationSelect }) => {
+interface MapInternalsProps {
+  onLocationSelect: (lat: number, lng: number) => void;
+  userLocation: [number, number];
+}
+
+const MapInternals: React.FC<MapInternalsProps> = ({ onLocationSelect, userLocation }) => {
+  const [destination, setDestination] = useState<[number, number] | null>(null);
+
   useMapEvents({
     click(e) {
+      const newDest: [number, number] = [e.latlng.lat, e.latlng.lng];
+      setDestination(newDest);
       onLocationSelect(e.latlng.lat, e.latlng.lng);
     },
   });
-  return null;
+
+  return (
+    <>
+      <TileLayer
+        attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+        url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+      />
+      
+      <Marker position={userLocation} icon={userIcon}>
+        <Popup>Your Location</Popup>
+      </Marker>
+
+      {destination && (
+        <Marker position={destination} icon={destinationIcon}>
+          <Popup>Destination</Popup>
+        </Marker>
+      )}
+    </>
+  );
 };
 
 const Map: React.FC<MapProps> = ({ onLocationSelect }) => {
   const [userLocation, setUserLocation] = useState<[number, number] | null>(null);
-  const [destination, setDestination] = useState<[number, number] | null>(null);
 
   useEffect(() => {
-    // Get user's current location
     if (navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(
         (position) => {
@@ -65,7 +90,6 @@ const Map: React.FC<MapProps> = ({ onLocationSelect }) => {
         },
         (error) => {
           console.error('Error getting location:', error);
-          // Default to San Francisco if location access denied
           setUserLocation([37.7749, -122.4194]);
         }
       );
@@ -73,11 +97,6 @@ const Map: React.FC<MapProps> = ({ onLocationSelect }) => {
       setUserLocation([37.7749, -122.4194]);
     }
   }, []);
-
-  const handleLocationSelect = (lat: number, lng: number) => {
-    setDestination([lat, lng]);
-    onLocationSelect(lat, lng);
-  };
 
   if (!userLocation) {
     return (
@@ -95,23 +114,7 @@ const Map: React.FC<MapProps> = ({ onLocationSelect }) => {
         className="w-full h-full"
         zoomControl={true}
       >
-        <TileLayer
-          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-          url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-        />
-        <MapClickHandler onLocationSelect={handleLocationSelect} />
-        
-        {/* User location marker */}
-        <Marker position={userLocation} icon={userIcon}>
-          <Popup>Your Location</Popup>
-        </Marker>
-
-        {/* Destination marker */}
-        {destination && (
-          <Marker position={destination} icon={destinationIcon}>
-            <Popup>Destination</Popup>
-          </Marker>
-        )}
+        <MapInternals onLocationSelect={onLocationSelect} userLocation={userLocation} />
       </MapContainer>
 
       <div className="absolute top-4 left-4 bg-card/95 backdrop-blur-sm px-4 py-3 rounded-lg border border-primary/20 shadow-lg z-[1000]">
