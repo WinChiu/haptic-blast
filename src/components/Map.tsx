@@ -35,13 +35,15 @@ const destinationIcon = new L.Icon({
 
 interface MapProps {
   onLocationSelect: (lat: number, lng: number) => void;
+  selectedLocation: { lat: number; lng: number } | null;
 }
 
-const Map: React.FC<MapProps> = ({ onLocationSelect }) => {
+const Map: React.FC<MapProps> = ({ onLocationSelect, selectedLocation }) => {
   const mapRef = useRef<L.Map | null>(null);
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const userMarkerRef = useRef<L.Marker | null>(null);
   const destinationMarkerRef = useRef<L.Marker | null>(null);
+  const routeLineRef = useRef<L.Polyline | null>(null);
 
   // Start with a sensible default (San Francisco) so we never block on geolocation
   const [userLocation, setUserLocation] = useState<[number, number]>([37.7749, -122.4194]);
@@ -108,6 +110,38 @@ const Map: React.FC<MapProps> = ({ onLocationSelect }) => {
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Update route line when selectedLocation changes
+  useEffect(() => {
+    if (!mapRef.current) return;
+
+    // Remove existing route line
+    if (routeLineRef.current) {
+      routeLineRef.current.remove();
+      routeLineRef.current = null;
+    }
+
+    // Draw route line if we have a selected location
+    if (selectedLocation) {
+      const routeLine = L.polyline(
+        [userLocation, [selectedLocation.lat, selectedLocation.lng]],
+        {
+          color: '#00FF94',
+          weight: 4,
+          opacity: 0.8,
+          dashArray: '10, 10'
+        }
+      ).addTo(mapRef.current);
+      
+      routeLineRef.current = routeLine;
+
+      // Fit bounds to show both points
+      mapRef.current.fitBounds([
+        userLocation,
+        [selectedLocation.lat, selectedLocation.lng]
+      ], { padding: [50, 50] });
+    }
+  }, [selectedLocation, userLocation]);
 
   return (
     <div className="relative w-full h-full">
