@@ -111,7 +111,7 @@ const Map: React.FC<MapProps> = ({ onLocationSelect, selectedLocation }) => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Update route line when selectedLocation changes
+  // Fetch and draw walking route when selectedLocation changes
   useEffect(() => {
     if (!mapRef.current) return;
 
@@ -123,23 +123,63 @@ const Map: React.FC<MapProps> = ({ onLocationSelect, selectedLocation }) => {
 
     // Draw route line if we have a selected location
     if (selectedLocation) {
-      const routeLine = L.polyline(
-        [userLocation, [selectedLocation.lat, selectedLocation.lng]],
-        {
-          color: '#00FF94',
-          weight: 4,
-          opacity: 0.8,
-          dashArray: '10, 10'
-        }
-      ).addTo(mapRef.current);
-      
-      routeLineRef.current = routeLine;
+      // Fetch walking route from OSRM (Open Source Routing Machine)
+      const fetchRoute = async () => {
+        try {
+          const url = `https://router.project-osrm.org/route/v1/foot/${userLocation[1]},${userLocation[0]};${selectedLocation.lng},${selectedLocation.lat}?overview=full&geometries=geojson`;
+          
+          const response = await fetch(url);
+          const data = await response.json();
+          
+          if (data.code === 'Ok' && data.routes && data.routes.length > 0) {
+            const route = data.routes[0];
+            const coordinates: [number, number][] = route.geometry.coordinates.map(
+              (coord: [number, number]) => [coord[1], coord[0]] // OSRM returns [lng, lat], Leaflet needs [lat, lng]
+            );
+            
+            // Draw the route on the map
+            const routeLine = L.polyline(coordinates, {
+              color: '#00FF94',
+              weight: 5,
+              opacity: 0.8,
+            }).addTo(mapRef.current!);
+            
+            routeLineRef.current = routeLine;
 
-      // Fit bounds to show both points
-      mapRef.current.fitBounds([
-        userLocation,
-        [selectedLocation.lat, selectedLocation.lng]
-      ], { padding: [50, 50] });
+            // Fit bounds to show the entire route
+            mapRef.current!.fitBounds(routeLine.getBounds(), { padding: [50, 50] });
+          } else {
+            console.error('No route found');
+            // Fallback to straight line
+            drawStraightLine();
+          }
+        } catch (error) {
+          console.error('Error fetching route:', error);
+          // Fallback to straight line
+          drawStraightLine();
+        }
+      };
+
+      const drawStraightLine = () => {
+        const routeLine = L.polyline(
+          [userLocation, [selectedLocation.lat, selectedLocation.lng]],
+          {
+            color: '#00FF94',
+            weight: 4,
+            opacity: 0.8,
+            dashArray: '10, 10'
+          }
+        ).addTo(mapRef.current!);
+        
+        routeLineRef.current = routeLine;
+
+        mapRef.current!.fitBounds([
+          userLocation,
+          [selectedLocation.lat, selectedLocation.lng]
+        ], { padding: [50, 50] });
+      };
+
+      fetchRoute();
     }
   }, [selectedLocation, userLocation]);
 
