@@ -1,6 +1,17 @@
 import React, { useEffect, useState, useCallback } from 'react';
-import { Navigation, X } from 'lucide-react';
+import { Navigation, X, MapPin } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 
 interface DirectionOverlayProps {
   targetLat: number;
@@ -129,9 +140,30 @@ const DirectionOverlay: React.FC<DirectionOverlayProps> = ({ targetLat, targetLn
       {/* Header */}
       <div className="flex items-center justify-between p-4 border-b border-border">
         <h2 className="text-xl font-bold text-foreground">Navigate to Destination</h2>
-        <Button variant="ghost" size="icon" onClick={onClose}>
-          <X className="w-5 h-5" />
-        </Button>
+        <div className="flex gap-2">
+          <AlertDialog>
+            <AlertDialogTrigger asChild>
+              <Button variant="outline" size="icon">
+                <MapPin className="w-5 h-5" />
+              </Button>
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Change Destination?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  This will stop your current navigation and allow you to select a new destination on the map.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                <AlertDialogAction onClick={onClose}>Change Destination</AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+          <Button variant="ghost" size="icon" onClick={onClose}>
+            <X className="w-5 h-5" />
+          </Button>
+        </div>
       </div>
 
       {/* Main compass area */}

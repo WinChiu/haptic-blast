@@ -187,7 +187,7 @@ const Map: React.FC<MapProps> = ({ onLocationSelect, selectedLocation }) => {
     <div className="relative w-full h-full">
       <div ref={mapContainerRef} className="w-full h-full" />
 
-      <div className="absolute top-4 left-4 bg-card/95 backdrop-blur-sm px-4 py-3 rounded-lg border border-primary/20 shadow-lg z-[1000]">
+      <div className="absolute bottom-4 left-4 bg-card/95 backdrop-blur-sm px-4 py-3 rounded-lg border border-primary/20 shadow-lg z-[1000]">
         <p className="text-sm font-medium text-foreground">Tap anywhere to set destination</p>
         <p className="text-xs text-muted-foreground mt-1">Your location is marked in blue</p>
       </div>
