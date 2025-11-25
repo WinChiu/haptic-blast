@@ -40,3 +40,14 @@
 .read-the-docs {
   color: #888;
 }
+
+.heading-marker .heading-arrow {
+  width: 0;
+  height: 0;
+  border-left: 8px solid transparent;
+  border-right: 8px solid transparent;
+  border-bottom: 18px solid #0EA5E9; /* same blue as your wave button */
+  filter: drop-shadow(0 0 8px #0EA5E9);
+  transition: transform 0.15s linear;
+}
+
