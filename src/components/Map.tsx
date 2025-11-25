@@ -46,6 +46,7 @@ const Map: React.FC<MapProps> = ({ onLocationSelect, selectedLocation }) => {
   const userMarkerRef = useRef<L.Marker | null>(null);
   const destinationMarkerRef = useRef<L.Marker | null>(null);
   const routeLineRef = useRef<L.Polyline | null>(null);
+  const [searchQuery, setSearchQuery] = useState('');
 
   // Start with a sensible default (San Francisco) so we never block on geolocation
   const [userLocation, setUserLocation] = useState<[number, number]>([37.7749, -122.4194]);
@@ -54,7 +55,9 @@ const Map: React.FC<MapProps> = ({ onLocationSelect, selectedLocation }) => {
   useEffect(() => {
     if (!mapContainerRef.current || mapRef.current) return;
 
-    const map = L.map(mapContainerRef.current).setView(userLocation, 14);
+    const map = L.map(mapContainerRef.current, {
+      zoomControl: false // Disable zoom controls
+    }).setView(userLocation, 14);
     mapRef.current = map;
 
     // Add dark blue tile layer
@@ -187,24 +190,64 @@ const Map: React.FC<MapProps> = ({ onLocationSelect, selectedLocation }) => {
     }
   }, [selectedLocation, userLocation]);
 
+  // Handle search
+  const handleSearch = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!searchQuery.trim()) return;
+
+    try {
+      // Use Nominatim for geocoding
+      const response = await fetch(
+        `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(searchQuery)}&limit=1`
+      );
+      const data = await response.json();
+
+      if (data && data.length > 0) {
+        const { lat, lon } = data[0];
+        const latNum = parseFloat(lat);
+        const lngNum = parseFloat(lon);
+
+        // Update map view
+        if (mapRef.current) {
+          mapRef.current.setView([latNum, lngNum], 15);
+        }
+
+        // Remove existing destination marker
+        if (destinationMarkerRef.current) {
+          destinationMarkerRef.current.remove();
+        }
+
+        // Add new destination marker
+        if (mapRef.current) {
+          destinationMarkerRef.current = L.marker([latNum, lngNum], { icon: destinationIcon })
+            .addTo(mapRef.current)
+            .bindPopup(data[0].display_name);
+        }
+
+        // Trigger location select
+        onLocationSelect(latNum, lngNum);
+        setSearchQuery('');
+      }
+    } catch (error) {
+      console.error('Error searching location:', error);
+    }
+  };
+
   return (
     <div className="relative w-full h-full">
       <div ref={mapContainerRef} className="w-full h-full" />
 
       {/* Search bar at top */}
       <div className="absolute top-4 left-4 right-4 z-[1000]">
-        <div className="relative max-w-md mx-auto">
-          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+        <form onSubmit={handleSearch} className="relative max-w-md mx-auto">
+          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
           <Input 
             placeholder="Search Maps" 
             className="pl-10 bg-card/95 backdrop-blur-sm border-border/50 h-11 rounded-xl"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
           />
-        </div>
-      </div>
-
-      <div className="absolute bottom-4 left-4 bg-card/95 backdrop-blur-sm px-4 py-3 rounded-lg border border-primary/20 shadow-lg z-[1000]">
-        <p className="text-sm font-medium text-foreground">Tap anywhere to set destination</p>
-        <p className="text-xs text-muted-foreground mt-1">Your location is marked in blue</p>
+        </form>
       </div>
     </div>
   );
