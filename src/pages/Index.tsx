@@ -3,6 +3,7 @@ import Map from '@/components/Map';
 import DirectionOverlay from '@/components/DirectionOverlay';
 import RouteConfirmation from '@/components/RouteConfirmation';
 import HapticCalibration from '@/components/HapticCalibration';
+import BottomNav from '@/components/BottomNav';
 import { Button } from '@/components/ui/button';
 import { Waves } from 'lucide-react';
 
@@ -50,12 +51,17 @@ const Index = () => {
         selectedLocation={selectedLocation}
       />
       
+      {/* Bottom Navigation */}
+      {!showHapticOverlay && !showCalibration && !isNavigating && (
+        <BottomNav />
+      )}
+
       {/* Floating Haptic Sensor Button - always visible */}
       {!showHapticOverlay && !showCalibration && (
         <Button
           onClick={selectedLocation ? handleToggleHapticOverlay : undefined}
           disabled={!selectedLocation}
-          className="fixed bottom-6 right-6 z-[2000] h-14 w-14 rounded-full shadow-lg"
+          className="fixed bottom-20 right-6 z-[2000] h-14 w-14 rounded-full shadow-lg"
           size="icon"
         >
           <Waves className="h-6 w-6" />
