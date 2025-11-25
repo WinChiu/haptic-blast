@@ -50,10 +50,11 @@ const Index = () => {
         selectedLocation={selectedLocation}
       />
       
-      {/* Floating Haptic Sensor Button - only show when route is selected */}
-      {selectedLocation && !showHapticOverlay && !showCalibration && !isNavigating && (
+      {/* Floating Haptic Sensor Button - always visible */}
+      {!showHapticOverlay && !showCalibration && (
         <Button
-          onClick={handleToggleHapticOverlay}
+          onClick={selectedLocation ? handleToggleHapticOverlay : undefined}
+          disabled={!selectedLocation}
           className="fixed bottom-6 right-6 z-[2000] h-14 w-14 rounded-full shadow-lg"
           size="icon"
         >
