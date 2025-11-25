@@ -6,7 +6,7 @@ interface HapticCalibrationProps {
   onContinue: (delay: number) => void;
 }
 
-// Helper to normalize angles to [0, 360)
+// Normalize to [0, 360)
 const normalizeAngle = (angle: number) => {
   let a = angle % 360;
   if (a < 0) a += 360;
@@ -17,45 +17,56 @@ const HapticCalibration: React.FC<HapticCalibrationProps> = ({
   onContinue,
 }) => {
   const [hapticDelay, setHapticDelay] = useState(2.0);
-  const [heading, setHeading] = useState(0); // smoothed compass-like heading
-  const [targetAngle] = useState(0); // 0° = "forward" / reference direction
 
-  // Device orientation → heading (in degrees, 0–360, 0 ≈ North)
+  // This is the *relative* heading: 0° = "forward" (initial orientation)
+  const [heading, setHeading] = useState(0);
+
+  // Store the first absolute heading we see as "base"
+  const [baseHeading, setBaseHeading] = useState<number | null>(null);
+
+  // Target is "straight ahead" (0° in this relative frame)
+  const targetAngle = 0;
+  const coneAngle = 30; // ±15° around target
+
+  // Device orientation → smooth relative heading
   useEffect(() => {
     const handleOrientation = (event: DeviceOrientationEvent) => {
-      let rawHeading: number | null = null;
+      let absoluteHeading: number | null = null;
       const anyEvent = event as any;
 
-      // iOS Safari provides webkitCompassHeading (0 = North, clockwise)
+      // iOS Safari: webkitCompassHeading (0 = North, increases clockwise)
       if (typeof anyEvent.webkitCompassHeading === "number") {
-        rawHeading = anyEvent.webkitCompassHeading;
+        absoluteHeading = anyEvent.webkitCompassHeading;
       } else if (event.alpha != null) {
-        // Fallback: use alpha, try to interpret as compass-ish
-        // alpha is rotation around Z-axis (0–360), 0 is device "facing" some reference.
-        // We invert to roughly align with compass-like heading.
-        rawHeading = 360 - event.alpha;
+        // Fallback: alpha is rotation around Z-axis (0–360)
+        // We invert it to roughly match compass direction
+        absoluteHeading = 360 - event.alpha;
       }
 
-      if (rawHeading == null) return;
+      if (absoluteHeading == null) return;
+      absoluteHeading = normalizeAngle(absoluteHeading);
 
-      rawHeading = normalizeAngle(rawHeading);
+      // On first reading, set the current direction as "forward"
+      setBaseHeading((prevBase) => prevBase ?? absoluteHeading);
 
-      // Smooth the heading to avoid jitter and wild spins
-      setHeading((prev) => {
-        const current = prev;
-        const target = rawHeading;
+      const base = baseHeading ?? absoluteHeading;
+      const rawRelative = normalizeAngle(absoluteHeading - base);
 
-        // Compute shortest signed difference
+      // Smooth movement so it doesn’t jump/spin
+      setHeading((current) => {
+        const target = rawRelative;
+
+        // shortest signed difference in (-180, 180]
         let diff = normalizeAngle(target - current);
-        if (diff > 180) diff -= 360; // now diff in (-180, 180]
+        if (diff > 180) diff -= 360;
 
-        const smoothing = 0.2; // 0 = no movement, 1 = jump immediately
+        const smoothing = 0.2; // lower = smoother, higher = more reactive
         const next = current + diff * smoothing;
         return normalizeAngle(next);
       });
     };
 
-    // iOS: need explicit permission
+    // iOS permission flow
     if (typeof (DeviceOrientationEvent as any).requestPermission === "function") {
       (DeviceOrientationEvent as any)
         .requestPermission()
@@ -72,17 +83,17 @@ const HapticCalibration: React.FC<HapticCalibrationProps> = ({
     return () => {
       window.removeEventListener("deviceorientation", handleOrientation);
     };
-  }, []);
+  }, [baseHeading]);
 
-  // Demo haptic feedback (based on angle error)
+  // Haptics: vibrate when outside cone
   useEffect(() => {
     if (!navigator.vibrate) return;
 
     const angleDiff = Math.abs(
       ((targetAngle - heading + 180) % 360) - 180
-    ); // shortest distance
+    ); // shortest angular distance
 
-    if (angleDiff <= 15) return;
+    if (angleDiff <= coneAngle / 2) return;
 
     const intensity = Math.min(angleDiff / 180, 1);
     const vibrationPattern = Math.floor(100 + intensity * 200);
@@ -92,21 +103,21 @@ const HapticCalibration: React.FC<HapticCalibrationProps> = ({
     }, hapticDelay * 1000);
 
     return () => clearInterval(interval);
-  }, [heading, targetAngle, hapticDelay]);
+  }, [heading, targetAngle, hapticDelay, coneAngle]);
 
   const handleContinue = () => {
     onContinue(hapticDelay);
   };
 
-  const coneAngle = 30; // Acceptable cone around target direction
-  const pointerRotation = targetAngle - heading; // rotate pointer relative to heading
+  // Pointer rotation: relative heading around the circle
+  // If this feels inverted on device, flip the sign: -heading instead of heading
+  const pointerRotation = heading;
 
   return (
     <div className="fixed inset-0 bg-background z-[3000] flex flex-col items-center justify-between p-8">
-      {/* Compass and cone visualization */}
+      {/* Compass + cone */}
       <div className="flex-1 flex flex-col items-center justify-center">
         <div className="relative w-72 h-72 mb-12">
-          {/* Background circle */}
           <svg className="absolute inset-0 w-full h-full" viewBox="0 0 200 200">
             {/* Outer circle */}
             <circle
@@ -118,11 +129,11 @@ const HapticCalibration: React.FC<HapticCalibrationProps> = ({
               strokeWidth="3"
             />
 
-            {/* Acceptance cone arcs */}
+            {/* Acceptance cone (top) */}
+            {/* right side arc */}
             <path
               d={`M 100 10 A 90 90 0 0 1 ${
-                100 +
-                90 * Math.sin((coneAngle / 2) * Math.PI / 180)
+                100 + 90 * Math.sin((coneAngle / 2) * Math.PI / 180)
               } ${
                 10 +
                 90 * (1 - Math.cos((coneAngle / 2) * Math.PI / 180))
@@ -136,10 +147,10 @@ const HapticCalibration: React.FC<HapticCalibrationProps> = ({
                 transformOrigin: "100px 100px",
               }}
             />
+            {/* left side arc */}
             <path
               d={`M 100 10 A 90 90 0 0 0 ${
-                100 -
-                90 * Math.sin((coneAngle / 2) * Math.PI / 180)
+                100 - 90 * Math.sin((coneAngle / 2) * Math.PI / 180)
               } ${
                 10 +
                 90 * (1 - Math.cos((coneAngle / 2) * Math.PI / 180))
@@ -189,9 +200,9 @@ const HapticCalibration: React.FC<HapticCalibrationProps> = ({
             />
           </svg>
 
-          {/* Direction pointer */}
+          {/* Moving dot */}
           <div
-            className="absolute inset-0 flex items-center justify-center transition-transform duration-200"
+            className="absolute inset-0 flex items-center justify-center transition-transform duration-150"
             style={{ transform: `rotate(${pointerRotation}deg)` }}
           >
             <div
@@ -205,8 +216,9 @@ const HapticCalibration: React.FC<HapticCalibrationProps> = ({
         </div>
 
         <p className="text-center text-muted-foreground max-w-xs mb-8">
-          You will feel a specific vibration signal to indicate the correct
-          direction.
+          Turn slowly on the spot. The dot should move smoothly around the
+          circle as you rotate, and haptic feedback indicates when you are
+          outside the correct cone.
         </p>
       </div>
 
