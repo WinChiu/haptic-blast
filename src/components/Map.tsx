@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
+import { Search } from 'lucide-react';
+import { Input } from '@/components/ui/input';
 
 // Fix for default marker icons
 delete (L.Icon.Default.prototype as any)._getIconUrl;
@@ -55,9 +57,11 @@ const Map: React.FC<MapProps> = ({ onLocationSelect, selectedLocation }) => {
     const map = L.map(mapContainerRef.current).setView(userLocation, 14);
     mapRef.current = map;
 
-    // Add tile layer
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+    // Add dark blue tile layer
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>',
+      subdomains: 'abcd',
+      maxZoom: 20
     }).addTo(map);
 
     // Add initial user marker at default location
@@ -186,6 +190,17 @@ const Map: React.FC<MapProps> = ({ onLocationSelect, selectedLocation }) => {
   return (
     <div className="relative w-full h-full">
       <div ref={mapContainerRef} className="w-full h-full" />
+
+      {/* Search bar at top */}
+      <div className="absolute top-4 left-4 right-4 z-[1000]">
+        <div className="relative max-w-md mx-auto">
+          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Input 
+            placeholder="Search Maps" 
+            className="pl-10 bg-card/95 backdrop-blur-sm border-border/50 h-11 rounded-xl"
+          />
+        </div>
+      </div>
 
       <div className="absolute bottom-4 left-4 bg-card/95 backdrop-blur-sm px-4 py-3 rounded-lg border border-primary/20 shadow-lg z-[1000]">
         <p className="text-sm font-medium text-foreground">Tap anywhere to set destination</p>
