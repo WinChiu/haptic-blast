@@ -13,7 +13,7 @@ const normalizeAngle = (angle: number) => {
   return a;
 };
 
-// Shortest signed angle difference target - current, in [-180, 180]
+// Shortest signed angle difference target - current in [-180, 180]
 const shortestDiff = (target: number, current: number) => {
   let diff = normalizeAngle(target) - normalizeAngle(current);
   if (diff > 180) diff -= 360;
@@ -23,17 +23,15 @@ const shortestDiff = (target: number, current: number) => {
 
 const HapticCalibration: React.FC<HapticCalibrationProps> = ({ onContinue }) => {
   const [hapticDelay, setHapticDelay] = useState(2.0);
-  const [heading, setHeading] = useState(0); // continuous relative heading
+  const [heading, setHeading] = useState(0); // continuous relative heading in degrees
+  const [targetAngle] = useState(0); // "forward" direction, static arc at top
 
-  // Refs for smoothing absolute heading
-  const baseHeadingRef = useRef<number | null>(null);
-  const smoothedAbsoluteRef = useRef<number | null>(null);
+  // Refs for orientation smoothing
+  const baselineRef = useRef<number | null>(null);
+  const prevRelRef = useRef<number | null>(null);
+  const continuousHeadingRef = useRef<number>(0);
 
-  const targetAngle = 0;      // desired forward direction (top)
-  const coneAngle = 60;       // width of cone in degrees
-  const alignThreshold = 20;  // how close to be considered "aligned"
-
-  // === Device orientation → smooth relative heading ===
+  // Device orientation → smooth continuous heading
   useEffect(() => {
     const handleOrientation = (event: DeviceOrientationEvent) => {
       const anyEvent = event as any;
@@ -50,25 +48,28 @@ const HapticCalibration: React.FC<HapticCalibrationProps> = ({ onContinue }) => 
       if (absoluteHeading == null) return;
       absoluteHeading = normalizeAngle(absoluteHeading);
 
-      // baseline = heading when calibration opened
-      if (baseHeadingRef.current == null) {
-        baseHeadingRef.current = absoluteHeading;
+      // Set baseline on first valid reading
+      if (baselineRef.current == null) {
+        baselineRef.current = absoluteHeading;
+      }
+      const baseline = baselineRef.current!;
+
+      // relative raw angle in [0, 360) with 0 = "forward"
+      const relRaw = normalizeAngle(absoluteHeading - baseline);
+
+      if (prevRelRef.current == null) {
+        prevRelRef.current = relRaw;
+        continuousHeadingRef.current = 0;
+        setHeading(0);
+        return;
       }
 
-      // Smooth ABSOLUTE heading to avoid 0/360 jumps
-      if (smoothedAbsoluteRef.current == null) {
-        smoothedAbsoluteRef.current = absoluteHeading;
-      } else {
-        const diff = shortestDiff(absoluteHeading, smoothedAbsoluteRef.current);
-        const smoothing = 0.2; // lower = smoother
-        smoothedAbsoluteRef.current =
-          smoothedAbsoluteRef.current + diff * smoothing;
-        smoothedAbsoluteRef.current = normalizeAngle(smoothedAbsoluteRef.current);
-      }
+      // How much did we really rotate since last frame? (shortest path)
+      const diff = shortestDiff(relRaw, prevRelRef.current);
+      continuousHeadingRef.current += diff;
+      prevRelRef.current = relRaw;
 
-      const base = baseHeadingRef.current!;
-      const relative = normalizeAngle(smoothedAbsoluteRef.current! - base);
-      setHeading(relative);
+      setHeading(continuousHeadingRef.current);
     };
 
     // iOS permission flow
@@ -90,146 +91,125 @@ const HapticCalibration: React.FC<HapticCalibrationProps> = ({ onContinue }) => 
     };
   }, []);
 
-  // Angle difference to target
-  const angleDiff = Math.abs(shortestDiff(targetAngle, heading));
-  const isAligned = angleDiff <= alignThreshold;
-  const isOff = !isAligned;
-
-  // === Haptics when not aligned (same logic, just based on angleDiff) ===
+  // Haptic feedback based on direction error
   useEffect(() => {
     if (!navigator.vibrate) return;
-    if (isAligned) return;
 
-    const intensity = Math.min(angleDiff / 180, 1);
-    const vibrationPattern = Math.floor(100 + intensity * 200);
+    const angleDiff = Math.abs(shortestDiff(targetAngle, heading));
+
+    // Only vibrate if not aligned
+    if (angleDiff <= 15) {
+      return;
+    }
 
     const interval = setInterval(() => {
-      navigator.vibrate([vibrationPattern, 100, vibrationPattern * 0.5]);
+      const intensity = Math.min(angleDiff / 180, 1);
+      const vibrationPattern = Math.floor(80 + intensity * 220);
+      navigator.vibrate([vibrationPattern, 80, vibrationPattern * 0.5]);
     }, hapticDelay * 1000);
 
     return () => clearInterval(interval);
-  }, [angleDiff, isAligned, hapticDelay]);
+  }, [heading, targetAngle, hapticDelay]);
 
   const handleContinue = () => {
     onContinue(hapticDelay);
   };
 
-  // Torch rotation – this was correct in your working version
-  const torchRotation = heading;
+  // Visual parameters
+  const coneWidth = 60; // degrees of cone opening
+  const isAligned = Math.abs(shortestDiff(targetAngle, heading)) <= 10;
+  const torchRotation = heading; // already correct direction
 
-  // Colors – muted when off, sky blue when aligned
-  const staticArcColor = "hsl(215, 15%, 35%)"; // muted
-  const torchInactiveFill = "hsla(215, 15%, 60%, 0.25)";
-  const torchInactiveStroke = "hsla(215, 15%, 60%, 0.9)";
-  const torchActiveFill = "hsla(204, 88%, 53%, 0.45)"; // sky-like
+  // Colors
+  const staticArcColor = "hsl(215, 15%, 35%)"; // muted neutral
+  const torchInactiveFill = "hsla(215, 95%, 62%, 0.25)"; // muted sky-ish
+  const torchInactiveStroke = "hsla(215, 15%, 60%, 0.7)";
+  const torchActiveFill = "hsla(204, 88%, 53%, 0.45)"; // tailwind sky-500-ish
   const torchActiveStroke = "hsl(204, 88%, 53%)";
-  const circleStroke = isAligned ? torchActiveStroke : "hsl(215, 15%, 40%)";
 
   const torchFill = isAligned ? torchActiveFill : torchInactiveFill;
   const torchStroke = isAligned ? torchActiveStroke : torchInactiveStroke;
+  const circleStroke = isAligned ? "hsl(204, 88%, 53%)" : "hsl(215, 15%, 40%)";
 
-  // Geometry for cone & arcs
+  // Precompute arc endpoints for top static arc & cone
   const radius = 90;
-  const center = { x: 100, y: 100 };
-  const halfAngleRad = (coneAngle / 2) * (Math.PI / 180);
-
+  const centerX = 100;
+  const centerY = 100;
   const topY = 10;
-  const rightX = center.x + radius * Math.sin(halfAngleRad);
-  const rightY = topY + radius * (1 - Math.cos(halfAngleRad));
-  const leftX = center.x - radius * Math.sin(halfAngleRad);
+  const half = (coneWidth / 2) * (Math.PI / 180);
+
+  // Arc endpoints on top outer circle for +/- half angle
+  const rightX = centerX + radius * Math.sin(half);
+  const rightY = topY + radius * (1 - Math.cos(half));
+  const leftX = centerX - radius * Math.sin(half);
   const leftY = rightY;
-
-  const largeArcFlag = coneAngle > 180 ? 1 : 0;
-
-  // Static top arc path
-  const staticArcPath = `
-    M ${leftX} ${leftY}
-    A ${radius} ${radius} 0 ${largeArcFlag} 1 ${rightX} ${rightY}
-  `;
-
-  // Cone wedge paths (used inside rotating group)
-  const conePath = `
-    M ${center.x} ${center.y}
-    L ${leftX} ${leftY}
-    A ${radius} ${radius} 0 ${largeArcFlag} 1 ${rightX} ${rightY}
-    Z
-  `;
-
-  const arcPath = `
-    M ${leftX} ${leftY}
-    A ${radius} ${radius} 0 ${largeArcFlag} 1 ${rightX} ${rightY}
-  `;
 
   return (
     <div className="fixed inset-0 bg-neutral-900 z-[3000] flex flex-col items-center justify-between p-8">
-      {/* Torch visualization */}
+      {/* Compass and cone visualization */}
       <div className="flex-1 flex flex-col items-center justify-center">
-        <div
-          className={
-            "relative w-72 h-72 mb-12" + (isOff ? " haptic-shake" : "")
-          }
-        >
+        <div className="relative w-72 h-72 mb-12">
           <svg className="absolute inset-0 w-full h-full" viewBox="0 0 200 200">
             {/* Outer circle */}
             <circle
-              cx={center.x}
-              cy={center.y}
+              cx={centerX}
+              cy={centerY}
               r={radius}
               fill="none"
               stroke={circleStroke}
               strokeWidth={3}
             />
 
-            {/* Static target arc at top */}
+            {/* Static target arc at top (desired forward direction) */}
             <path
-              d={staticArcPath}
+              d={`
+                M ${leftX} ${leftY}
+                A ${radius} ${radius} 0 0 1 ${rightX} ${rightY}
+              `}
+              fill="none"
               stroke={isAligned ? torchActiveStroke : staticArcColor}
               strokeWidth={8}
               strokeLinecap="round"
-              fill="none"
             />
 
-            {/* Center dot */}
-            <circle cx={center.x} cy={center.y} r={6} fill={torchStroke} />
-
-            {/* Rotating torch (cone + arc) */}
+            {/* Torch cone group – rotates with heading */}
             <g
-              style={{
-                transform: `rotate(${torchRotation}deg)`,
-                transformOrigin: `${center.x}px ${center.y}px`,
-                transition: "transform 0.15s linear",
-              }}
+              transform={`rotate(${torchRotation} ${centerX} ${centerY})`}
+              style={{ transition: "transform 0.18s ease-out" }}
             >
-              {/* Cone fill */}
-              <path d={conePath} fill={torchFill} opacity={0.25} />
-              {/* Outer arc of the cone */}
+              {/* Cone wedge */}
               <path
-                d={arcPath}
+                d={`
+                  M ${centerX} ${centerY}
+                  L ${centerX - radius * Math.sin(half)} ${topY + radius * (1 - Math.cos(half))}
+                  A ${radius} ${radius} 0 0 1 ${centerX + radius * Math.sin(half)} ${topY + radius * (1 - Math.cos(half))}
+                  Z
+                `}
+                fill={torchFill}
                 stroke={torchStroke}
-                strokeWidth={6}
-                strokeLinecap="round"
-                fill="none"
+                strokeWidth={1.5}
               />
             </g>
           </svg>
         </div>
 
+        {/* Instruction text */}
         <p className="text-center text-muted-foreground max-w-xs mb-8">
-          Slowly rotate on the spot. Line up the moving cone with the static arc
-          at the top. When it turns blue and feels stable, you are facing the
-          correct direction.
+          Rotate your phone until the cone lines up with the top arc. When it
+          glows blue, you are facing the correct direction.
         </p>
       </div>
 
       {/* Controls */}
       <div className="w-full max-w-md space-y-8">
+        {/* Haptic Delay Slider */}
         <div className="space-y-4">
           <div className="flex items-center justify-between">
             <label className="text-sm font-medium text-foreground">
               Haptic Delay
             </label>
             <span className="text-sm text-muted-foreground">
-              {hapticDelay.toFixed(1)} s
+              {hapticDelay.toFixed(1)}s
             </span>
           </div>
           <Slider
@@ -242,6 +222,7 @@ const HapticCalibration: React.FC<HapticCalibrationProps> = ({ onContinue }) => 
           />
         </div>
 
+        {/* Continue button */}
         <Button
           onClick={handleContinue}
           className="w-full h-12 rounded-full text-base font-medium"
