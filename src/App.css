@@ -51,3 +51,18 @@
   transition: transform 0.15s linear;
 }
 
+@keyframes haptic-subtle-shake {
+  0%, 100% {
+    transform: translateX(0);
+  }
+  20%, 60% {
+    transform: translateX(-4px);
+  }
+  40%, 80% {
+    transform: translateX(4px);
+  }
+}
+
+.haptic-shake {
+  animation: haptic-subtle-shake 0.4s ease-in-out infinite;
+}
