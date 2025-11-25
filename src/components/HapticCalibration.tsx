@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
 
@@ -13,67 +13,54 @@ const normalizeAngle = (angle: number) => {
   return a;
 };
 
-// Shortest signed difference target - current, in [-180, 180]
-const shortestDiff = (target: number, current: number) => {
-  let diff = normalizeAngle(target) - normalizeAngle(current);
-  if (diff > 180) diff -= 360;
-  if (diff < -180) diff += 360;
-  return diff;
-};
-
-const HapticCalibration: React.FC<HapticCalibrationProps> = ({ onContinue }) => {
+const HapticCalibration: React.FC<HapticCalibrationProps> = ({
+  onContinue,
+}) => {
   const [hapticDelay, setHapticDelay] = useState(2.0);
 
-  // Relative heading in degrees (0 = “forward”)
+  // Relative heading (0° = forward)
   const [heading, setHeading] = useState(0);
-
-  // Refs so we can smooth without re-registering listeners
-  const baseHeadingRef = useRef<number | null>(null);
-  const smoothedAbsoluteRef = useRef<number | null>(null);
+  const [baseHeading, setBaseHeading] = useState<number | null>(null);
 
   const targetAngle = 0;      // “correct” direction in relative space
-  const coneAngle = 60;       // width of the torch cone in degrees
-  const alignThreshold = 20;  // how close you have to be to count as “aligned”
+  const coneAngle = 60;       // width of the torch cone (degrees)
+  const alignThreshold = 20;  // inside this = “good direction”
 
-  // === Device orientation → smoothed relative heading ===
+  // Device orientation → smooth relative heading
   useEffect(() => {
     const handleOrientation = (event: DeviceOrientationEvent) => {
       let absoluteHeading: number | null = null;
       const anyEvent = event as any;
 
-      // iOS specific
+      // iOS: webkitCompassHeading (0 = North, clockwise)
       if (typeof anyEvent.webkitCompassHeading === "number") {
-        absoluteHeading = anyEvent.webkitCompassHeading; // 0 = North, clockwise
+        absoluteHeading = anyEvent.webkitCompassHeading;
       } else if (event.alpha != null) {
-        // Fallback: alpha is [0, 360), but device-dependent; invert to feel like a compass
+        // Fallback: alpha in [0, 360], invert to get compass-like behaviour
         absoluteHeading = 360 - event.alpha;
       }
 
       if (absoluteHeading == null) return;
       absoluteHeading = normalizeAngle(absoluteHeading);
 
-      // Initialize baseline on first valid reading
-      if (baseHeadingRef.current == null) {
-        baseHeadingRef.current = absoluteHeading;
-      }
+      setBaseHeading((prev) => prev ?? absoluteHeading);
+      const base = baseHeading ?? absoluteHeading;
 
-      // Smooth ABSOLUTE heading to avoid 0/360 jumps
-      if (smoothedAbsoluteRef.current == null) {
-        smoothedAbsoluteRef.current = absoluteHeading;
-      } else {
-        const diff = shortestDiff(absoluteHeading, smoothedAbsoluteRef.current);
-        const smoothing = 0.2; // lower = smoother
-        smoothedAbsoluteRef.current =
-          smoothedAbsoluteRef.current + diff * smoothing;
-        smoothedAbsoluteRef.current = normalizeAngle(smoothedAbsoluteRef.current);
-      }
+      const rawRelative = normalizeAngle(absoluteHeading - base);
 
-      const base = baseHeadingRef.current!;
-      const relative = normalizeAngle(smoothedAbsoluteRef.current! - base);
-      setHeading(relative);
+      // Smooth toward new heading
+      setHeading((current) => {
+        const target = rawRelative;
+
+        let diff = normalizeAngle(target - current);
+        if (diff > 180) diff -= 360; // shortest path
+
+        const smoothing = 0.2; // 0–1, lower = smoother
+        const next = current + diff * smoothing;
+        return normalizeAngle(next);
+      });
     };
 
-    // Request permission on iOS
     if (typeof (DeviceOrientationEvent as any).requestPermission === "function") {
       (DeviceOrientationEvent as any)
         .requestPermission()
@@ -90,15 +77,15 @@ const HapticCalibration: React.FC<HapticCalibrationProps> = ({ onContinue }) => 
     return () => {
       window.removeEventListener("deviceorientation", handleOrientation);
     };
-  }, []);
+  }, [baseHeading]);
 
-  // === Haptics: stronger when you are further from the target ===
+  // Haptics: vibrate when we are outside the “good” cone
   useEffect(() => {
     if (!navigator.vibrate) return;
 
     const angleDiff = Math.abs(
       ((targetAngle - heading + 180) % 360) - 180
-    );
+    ); // shortest distance
 
     if (angleDiff <= alignThreshold) return;
 
@@ -116,20 +103,21 @@ const HapticCalibration: React.FC<HapticCalibrationProps> = ({ onContinue }) => 
     onContinue(hapticDelay);
   };
 
-  // Torch rotation: if it feels flipped on device, change to -heading
+  // This is how much we rotate the torch around the circle.
+  // If the direction feels flipped on device, change this to `-heading`.
   const torchRotation = heading;
 
-  // Colors: use theme primary for cyan, turn green when well aligned
-  const baseTorchColor = "hsl(var(--primary))";            // cyan / sky blue
-  const alignedTorchColor = "hsl(142, 76%, 45%)";          // pleasant green
+  // Visual colours
+  const baseColor = "hsl(210, 100%, 65%)";   // blue torch
+  const alignedColor = "hsl(142, 76%, 45%)"; // green when aligned
 
   const angleDiffForColor = Math.abs(
     ((targetAngle - heading + 180) % 360) - 180
   );
   const torchColor =
-    angleDiffForColor <= alignThreshold ? alignedTorchColor : baseTorchColor;
+    angleDiffForColor <= alignThreshold ? alignedColor : baseColor;
 
-  // Geometry for the cone + arcs
+  // Some geometry helpers for the cone
   const radius = 90;
   const center = { x: 100, y: 100 };
   const startAngle = (-coneAngle / 2) * (Math.PI / 180);
@@ -142,7 +130,6 @@ const HapticCalibration: React.FC<HapticCalibrationProps> = ({ onContinue }) => 
 
   const largeArcFlag = coneAngle > 180 ? 1 : 0;
 
-  // Torch cone path (will be rotated)
   const conePath = `
     M ${center.x} ${center.y}
     L ${startX} ${startY}
@@ -150,17 +137,13 @@ const HapticCalibration: React.FC<HapticCalibrationProps> = ({ onContinue }) => 
     Z
   `;
 
-  // Torch outer arc (rotated with cone)
   const arcPath = `
     M ${startX} ${startY}
     A ${radius} ${radius} 0 ${largeArcFlag} 1 ${endX} ${endY}
   `;
 
-  // STATIC target arc at the “correct” direction (top of circle)
-  const staticArcPath = arcPath; // same segment, but NOT inside rotated group
-
   return (
-    <div className="fixed inset-0 bg-background z-[3000] flex flex-col items-center justify-between p-8 bg-neutral-900">
+    <div className="fixed inset-0 bg-background z-[3000] flex flex-col items-center justify-between p-8">
       {/* Torch visualization */}
       <div className="flex-1 flex flex-col items-center justify-center">
         <div className="relative w-72 h-72 mb-12">
@@ -175,16 +158,7 @@ const HapticCalibration: React.FC<HapticCalibrationProps> = ({ onContinue }) => 
               strokeWidth={3}
             />
 
-            {/* Static target arc at the top (user aligns torch with this) */}
-            <path
-              d={staticArcPath}
-              stroke="hsl(var(--muted-foreground))"
-              strokeWidth={4}
-              strokeLinecap="round"
-              fill="none"
-            />
-
-            {/* Center dot */}
+            {/* Center dot (static) */}
             <circle
               cx={center.x}
               cy={center.y}
@@ -192,7 +166,7 @@ const HapticCalibration: React.FC<HapticCalibrationProps> = ({ onContinue }) => 
               fill={torchColor}
             />
 
-            {/* Rotating torch (cone + bright arc) */}
+            {/* Rotating torch group */}
             <g
               style={{
                 transform: `rotate(${torchRotation}deg)`,
@@ -206,7 +180,7 @@ const HapticCalibration: React.FC<HapticCalibrationProps> = ({ onContinue }) => 
                 fill={torchColor}
                 opacity={0.25}
               />
-              {/* Outer arc of the cone */}
+              {/* Outer arc */}
               <path
                 d={arcPath}
                 stroke={torchColor}
@@ -219,14 +193,14 @@ const HapticCalibration: React.FC<HapticCalibrationProps> = ({ onContinue }) => 
         </div>
 
         <p className="text-center text-muted-foreground max-w-xs mb-8">
-          Slowly rotate on the spot. Line up the moving cone with the static
-          arc at the top of the circle. When aligned, the cone turns green and
-          vibrations become calmer.
+          Rotate slowly on the spot. The torch should follow your heading
+          smoothly. When it lines up with the correct direction, it turns green
+          and haptics become calmer.
         </p>
       </div>
 
       {/* Controls */}
-      <div className="w-full max-w-md space-y-8 bg-neutral-900">
+      <div className="w-full max-w-md space-y-8">
         <div className="space-y-4">
           <div className="flex items-center justify-between">
             <label className="text-sm font-medium text-foreground">
