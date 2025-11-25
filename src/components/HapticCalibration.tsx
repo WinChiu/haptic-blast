@@ -31,6 +31,10 @@ const HapticCalibration: React.FC<HapticCalibrationProps> = ({ onContinue }) => 
   const prevRelRef = useRef<number | null>(null);
   const continuousHeadingRef = useRef<number>(0);
 
+  // Visual parameters
+  const coneWidth = 60; // degrees of cone opening (lit area)
+  const coneHalf = coneWidth / 2;
+
   // Device orientation → smooth continuous heading
   useEffect(() => {
     const handleOrientation = (event: DeviceOrientationEvent) => {
@@ -72,7 +76,7 @@ const HapticCalibration: React.FC<HapticCalibrationProps> = ({ onContinue }) => 
       setHeading(continuousHeadingRef.current);
     };
 
-    // iOS permission flow
+    // iOS permission dance
     if (typeof (DeviceOrientationEvent as any).requestPermission === "function") {
       (DeviceOrientationEvent as any)
         .requestPermission()
@@ -91,61 +95,83 @@ const HapticCalibration: React.FC<HapticCalibrationProps> = ({ onContinue }) => 
     };
   }, []);
 
-  // Haptic feedback based on direction error
+  // Angle difference between where we point and the target
+  const angleDiff = Math.abs(shortestDiff(targetAngle, heading));
+  const isInsideCone = angleDiff <= coneHalf;
+
+  // Pure haptics: vibrate phone when OUTSIDE lit cone
   useEffect(() => {
     if (!navigator.vibrate) return;
 
-    const angleDiff = Math.abs(shortestDiff(targetAngle, heading));
-
-    // Only vibrate if not aligned
-    if (angleDiff <= 15) {
+    // If we are inside the cone, stop any repeating haptics
+    if (isInsideCone) {
+      navigator.vibrate(0);
       return;
     }
 
+    // Outside cone: intensity depends on how wrong we are
+    const intensity = Math.min(angleDiff / 180, 1);
+    const vibrationLength = Math.floor(80 + intensity * 220); // 80–300 ms
+
     const interval = setInterval(() => {
-      const intensity = Math.min(angleDiff / 180, 1);
-      const vibrationPattern = Math.floor(80 + intensity * 220);
-      navigator.vibrate([vibrationPattern, 80, vibrationPattern * 0.5]);
+      navigator.vibrate([vibrationLength, 80, vibrationLength * 0.5]);
     }, hapticDelay * 1000);
 
     return () => clearInterval(interval);
-  }, [heading, targetAngle, hapticDelay]);
+  }, [angleDiff, isInsideCone, hapticDelay]);
 
   const handleContinue = () => {
     onContinue(hapticDelay);
   };
 
-  // Visual parameters
-  const coneWidth = 60; // degrees of cone opening
-  const isAligned = Math.abs(shortestDiff(targetAngle, heading)) <= 10;
   const torchRotation = heading; // already correct direction
 
   // Colors
   const staticArcColor = "hsl(215, 15%, 35%)"; // muted neutral
-  const torchInactiveFill = "hsla(215, 95%, 62%, 0.25)"; // muted sky-ish
-  const torchInactiveStroke = "hsla(215, 15%, 60%, 0.7)";
-  const torchActiveFill = "hsla(204, 88%, 53%, 0.45)"; // tailwind sky-500-ish
+  const torchInactiveFill = "hsla(215, 15%, 60%, 0.25)"; // muted
+  const torchInactiveStroke = "hsla(215, 15%, 60%, 0.9)";
+  const torchActiveFill = "hsla(204, 88%, 53%, 0.45)"; // sky-500-ish
   const torchActiveStroke = "hsl(204, 88%, 53%)";
 
-  const torchFill = isAligned ? torchActiveFill : torchInactiveFill;
-  const torchStroke = isAligned ? torchActiveStroke : torchInactiveStroke;
-  const circleStroke = isAligned ? "hsl(204, 88%, 53%)" : "hsl(215, 15%, 40%)";
+  const torchFill = isInsideCone ? torchActiveFill : torchInactiveFill;
+  const torchStroke = isInsideCone ? torchActiveStroke : torchInactiveStroke;
+  const circleStroke = isInsideCone ? torchActiveStroke : "hsl(215, 15%, 40%)";
 
-  // Precompute arc endpoints for top static arc & cone
+  // Geometry
   const radius = 90;
   const centerX = 100;
   const centerY = 100;
   const topY = 10;
   const half = (coneWidth / 2) * (Math.PI / 180);
 
-  // Arc endpoints on top outer circle for +/- half angle
   const rightX = centerX + radius * Math.sin(half);
   const rightY = topY + radius * (1 - Math.cos(half));
   const leftX = centerX - radius * Math.sin(half);
   const leftY = rightY;
 
+  const largeArcFlag = coneWidth > 180 ? 1 : 0;
+
+  // Static target arc at top
+  const staticArcPath = `
+    M ${leftX} ${leftY}
+    A ${radius} ${radius} 0 ${largeArcFlag} 1 ${rightX} ${rightY}
+  `;
+
+  // Torch cone paths
+  const conePath = `
+    M ${centerX} ${centerY}
+    L ${leftX} ${leftY}
+    A ${radius} ${radius} 0 ${largeArcFlag} 1 ${rightX} ${rightY}
+    Z
+  `;
+
+  const arcPath = `
+    M ${leftX} ${leftY}
+    A ${radius} ${radius} 0 ${largeArcFlag} 1 ${rightX} ${rightY}
+  `;
+
   return (
-    <div className="fixed inset-0 bg-neutral-900 z-[3000] flex flex-col items-center justify-between p-8">
+    <div className="fixed inset-0 bg-neutral-900 z-[3000] flex flex-col items-center justify-between p-8 text-neutral-100">
       {/* Compass and cone visualization */}
       <div className="flex-1 flex flex-col items-center justify-center">
         <div className="relative w-72 h-72 mb-12">
@@ -160,56 +186,56 @@ const HapticCalibration: React.FC<HapticCalibrationProps> = ({ onContinue }) => 
               strokeWidth={3}
             />
 
-            {/* Static target arc at top (desired forward direction) */}
+            {/* Static arc at top (desired direction) */}
             <path
-              d={`
-                M ${leftX} ${leftY}
-                A ${radius} ${radius} 0 0 1 ${rightX} ${rightY}
-              `}
+              d={staticArcPath}
               fill="none"
-              stroke={isAligned ? torchActiveStroke : staticArcColor}
+              stroke={isInsideCone ? torchActiveStroke : staticArcColor}
               strokeWidth={8}
               strokeLinecap="round"
             />
 
-            {/* Torch cone group – rotates with heading */}
+            {/* Rotating torch cone */}
             <g
               transform={`rotate(${torchRotation} ${centerX} ${centerY})`}
               style={{ transition: "transform 0.18s ease-out" }}
             >
               {/* Cone wedge */}
               <path
-                d={`
-                  M ${centerX} ${centerY}
-                  L ${centerX - radius * Math.sin(half)} ${topY + radius * (1 - Math.cos(half))}
-                  A ${radius} ${radius} 0 0 1 ${centerX + radius * Math.sin(half)} ${topY + radius * (1 - Math.cos(half))}
-                  Z
-                `}
+                d={conePath}
                 fill={torchFill}
                 stroke={torchStroke}
                 strokeWidth={1.5}
+                opacity={isInsideCone ? 0.4 : 0.2}
+              />
+              {/* Outer edge */}
+              <path
+                d={arcPath}
+                fill="none"
+                stroke={torchStroke}
+                strokeWidth={4}
+                strokeLinecap="round"
               />
             </g>
           </svg>
         </div>
 
-        {/* Instruction text */}
-        <p className="text-center text-muted-foreground max-w-xs mb-8">
-          Rotate your phone until the cone lines up with the top arc. When it
-          glows blue, you are facing the correct direction.
+        <p className="text-center text-neutral-400 max-w-xs mb-8">
+          Rotate your phone until the moving cone lines up with the static arc
+          at the top. When it turns blue and the phone stops vibrating, you’re
+          facing the correct direction.
         </p>
       </div>
 
       {/* Controls */}
       <div className="w-full max-w-md space-y-8">
-        {/* Haptic Delay Slider */}
         <div className="space-y-4">
           <div className="flex items-center justify-between">
-            <label className="text-sm font-medium text-foreground">
+            <label className="text-sm font-medium text-neutral-100">
               Haptic Delay
             </label>
-            <span className="text-sm text-muted-foreground">
-              {hapticDelay.toFixed(1)}s
+            <span className="text-sm text-neutral-400">
+              {hapticDelay.toFixed(1)} s
             </span>
           </div>
           <Slider
@@ -222,10 +248,9 @@ const HapticCalibration: React.FC<HapticCalibrationProps> = ({ onContinue }) => 
           />
         </div>
 
-        {/* Continue button */}
         <Button
           onClick={handleContinue}
-          className="w-full h-12 rounded-full text-base font-medium"
+          className="w-full h-12 rounded-full text-base font-medium bg-sky-500 hover:bg-sky-400 text-white"
           size="lg"
         >
           CONTINUE
