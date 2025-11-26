@@ -51,6 +51,7 @@ interface MapProps {
   navTitle?: string;
   navSubtitle?: string;
   centerOnUserTrigger: number;
+  onUserLocationUpdate?: (location: [number, number]) => void;
 }
 
 const Map: React.FC<MapProps> = ({
@@ -61,6 +62,7 @@ const Map: React.FC<MapProps> = ({
   navTitle,
   navSubtitle,
   centerOnUserTrigger,
+  onUserLocationUpdate,
 }) => {
   const mapRef = useRef<L.Map | null>(null);
   const mapContainerRef = useRef<HTMLDivElement>(null);
@@ -110,6 +112,7 @@ const Map: React.FC<MapProps> = ({
             position.coords.longitude,
           ];
           setUserLocation(coords);
+          onUserLocationUpdate?.(coords);
 
           if (userMarkerRef.current) {
             userMarkerRef.current.setLatLng(coords);

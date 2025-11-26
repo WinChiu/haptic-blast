@@ -4,6 +4,7 @@ import { Slider } from "@/components/ui/slider";
 
 interface HapticCalibrationProps {
   onContinue: (delay: number) => void;
+  targetAngle: number; // Bearing to destination in degrees
 }
 
 // Normalize angle to [0, 360)
@@ -21,10 +22,9 @@ const shortestDiff = (target: number, current: number) => {
   return diff;
 };
 
-const HapticCalibration: React.FC<HapticCalibrationProps> = ({ onContinue }) => {
+const HapticCalibration: React.FC<HapticCalibrationProps> = ({ onContinue, targetAngle }) => {
   const [hapticDelay, setHapticDelay] = useState(2.0);
   const [heading, setHeading] = useState(0); // continuous relative heading in degrees
-  const [targetAngle] = useState(0); // "forward" direction, static arc at top
 
   // Refs for orientation smoothing
   const baselineRef = useRef<number | null>(null);
