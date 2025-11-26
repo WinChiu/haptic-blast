@@ -26,6 +26,7 @@ const Index = () => {
   const [isNavigating, setIsNavigating] = useState(false);
   const [showHapticOverlay, setShowHapticOverlay] = useState(false);
   const [hapticDelay, setHapticDelay] = useState(2.0);
+  const [userLocation, setUserLocation] = useState<[number, number] | null>(null);
 
   const [routeDistance, setRouteDistance] = useState<number | null>(null);
   const [routeDuration, setRouteDuration] = useState<number | null>(null);
@@ -33,6 +34,24 @@ const Index = () => {
   type LatLng = { lat: number; lng: number } | null;
   const [centerTrigger, setCenterTrigger] = useState(0);
   const navigate = useNavigate();
+
+  // Calculate bearing from user to destination
+  const calculateBearing = (from: [number, number], to: [number, number]): number => {
+    const lat1 = from[0] * Math.PI / 180;
+    const lat2 = to[0] * Math.PI / 180;
+    const dLon = (to[1] - from[1]) * Math.PI / 180;
+    
+    const y = Math.sin(dLon) * Math.cos(lat2);
+    const x = Math.cos(lat1) * Math.sin(lat2) -
+              Math.sin(lat1) * Math.cos(lat2) * Math.cos(dLon);
+    const bearing = Math.atan2(y, x) * 180 / Math.PI;
+    
+    return (bearing + 360) % 360; // Normalize to [0, 360)
+  };
+
+  const targetBearing = userLocation && selectedLocation
+    ? calculateBearing(userLocation, [selectedLocation.lat, selectedLocation.lng])
+    : 0;
 
   const handleLocationSelect = (lat: number, lng: number) => {
     setSelectedLocation({ lat, lng });
@@ -91,7 +110,8 @@ const Index = () => {
         isNavigating={isNavigating}
         navTitle={navTitle}
         navSubtitle={navSubtitle}
-        centerOnUserTrigger={centerTrigger} 
+        centerOnUserTrigger={centerTrigger}
+        onUserLocationUpdate={setUserLocation}
       />
 
       
@@ -120,7 +140,10 @@ const Index = () => {
 
       {/* Haptic overlay – opened manually via wave button */}
       {showHapticOverlay && (
-        <HapticCalibration onContinue={handleHapticOverlayClose} />
+        <HapticCalibration 
+          onContinue={handleHapticOverlayClose}
+          targetAngle={targetBearing}
+        />
       )}
 
       {/* Floating haptic button */}
