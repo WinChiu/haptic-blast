@@ -72,6 +72,8 @@ const Map: React.FC<MapProps> = ({
   const [userLocation, setUserLocation] = useState<[number, number]>([
     37.7749, -122.4194,
   ]);
+  const watchIdRef = useRef<number | null>(null);
+
   // Recenter map on user when triggered (paper plane button)
   useEffect(() => {
     if (!mapRef.current) return;
@@ -99,8 +101,9 @@ const Map: React.FC<MapProps> = ({
       .addTo(map)
       .bindPopup('Your Location');
 
+    // Start watching position for live updates
     if (navigator.geolocation) {
-      navigator.geolocation.getCurrentPosition(
+      watchIdRef.current = navigator.geolocation.watchPosition(
         (position) => {
           const coords: [number, number] = [
             position.coords.latitude,
@@ -108,11 +111,12 @@ const Map: React.FC<MapProps> = ({
           ];
           setUserLocation(coords);
 
-          if (mapRef.current) mapRef.current.setView(coords, 15);
-          if (userMarkerRef.current) userMarkerRef.current.setLatLng(coords);
+          if (userMarkerRef.current) {
+            userMarkerRef.current.setLatLng(coords);
+          }
         },
-        () => console.warn('Geolocation unavailable'),
-        { enableHighAccuracy: true, timeout: 5000 },
+        (error) => console.warn('Geolocation error:', error),
+        { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 },
       );
     }
 
@@ -133,6 +137,9 @@ const Map: React.FC<MapProps> = ({
     });
 
     return () => {
+      if (watchIdRef.current !== null) {
+        navigator.geolocation.clearWatch(watchIdRef.current);
+      }
       map.remove();
       mapRef.current = null;
     };
