@@ -24,11 +24,11 @@ const shortestDiff = (target: number, current: number) => {
 
 const HapticCalibration: React.FC<HapticCalibrationProps> = ({ onContinue, targetAngle }) => {
   const [hapticDelay, setHapticDelay] = useState(2.0);
-  const [heading, setHeading] = useState(0); // continuous relative heading in degrees
+  const [absoluteHeading, setAbsoluteHeading] = useState<number | null>(null);
 
   // Refs for orientation smoothing
   const baselineRef = useRef<number | null>(null);
-  const prevRelRef = useRef<number | null>(null);
+  const prevAbsRef = useRef<number | null>(null);
   const continuousHeadingRef = useRef<number>(0);
 
   // Device orientation → smooth continuous heading
@@ -48,28 +48,19 @@ const HapticCalibration: React.FC<HapticCalibrationProps> = ({ onContinue, targe
       if (absoluteHeading == null) return;
       absoluteHeading = normalizeAngle(absoluteHeading);
 
-      // Set baseline on first valid reading
-      if (baselineRef.current == null) {
-        baselineRef.current = absoluteHeading;
-      }
-      const baseline = baselineRef.current!;
-
-      // relative raw angle in [0, 360) with 0 = "forward"
-      const relRaw = normalizeAngle(absoluteHeading - baseline);
-
-      if (prevRelRef.current == null) {
-        prevRelRef.current = relRaw;
-        continuousHeadingRef.current = 0;
-        setHeading(0);
+      if (prevAbsRef.current == null) {
+        prevAbsRef.current = absoluteHeading;
+        continuousHeadingRef.current = absoluteHeading;
+        setAbsoluteHeading(absoluteHeading);
         return;
       }
 
-      // How much did we really rotate since last frame? (shortest path)
-      const diff = shortestDiff(relRaw, prevRelRef.current);
+      // Handle wrap-around smoothly
+      const diff = shortestDiff(absoluteHeading, prevAbsRef.current);
       continuousHeadingRef.current += diff;
-      prevRelRef.current = relRaw;
+      prevAbsRef.current = absoluteHeading;
 
-      setHeading(continuousHeadingRef.current);
+      setAbsoluteHeading(continuousHeadingRef.current);
     };
 
     // iOS permission flow
@@ -93,9 +84,9 @@ const HapticCalibration: React.FC<HapticCalibrationProps> = ({ onContinue, targe
 
   // Haptic feedback based on direction error
   useEffect(() => {
-    if (!navigator.vibrate) return;
+    if (!navigator.vibrate || absoluteHeading === null) return;
 
-    const angleDiff = Math.abs(shortestDiff(targetAngle, heading));
+    const angleDiff = Math.abs(shortestDiff(targetAngle, absoluteHeading));
 
     // Only vibrate if not aligned
     if (angleDiff <= 15) {
@@ -109,7 +100,7 @@ const HapticCalibration: React.FC<HapticCalibrationProps> = ({ onContinue, targe
     }, hapticDelay * 1000);
 
     return () => clearInterval(interval);
-  }, [heading, targetAngle, hapticDelay]);
+  }, [absoluteHeading, targetAngle, hapticDelay]);
 
   const handleContinue = () => {
     onContinue(hapticDelay);
@@ -117,8 +108,11 @@ const HapticCalibration: React.FC<HapticCalibrationProps> = ({ onContinue, targe
 
   // Visual parameters
   const coneWidth = 60; // degrees of cone opening
-  const isAligned = Math.abs(shortestDiff(targetAngle, heading)) <= 10;
-  const torchRotation = heading; // already correct direction
+  const isAligned = absoluteHeading !== null && Math.abs(shortestDiff(targetAngle, absoluteHeading)) <= 10;
+  
+  // Rotate torch to show device heading, rotate target arc to show destination
+  const torchRotation = absoluteHeading ?? 0;
+  const targetRotation = targetAngle;
 
   // Colors
   const staticArcColor = "hsl(215, 15%, 35%)"; // muted neutral
@@ -160,17 +154,22 @@ const HapticCalibration: React.FC<HapticCalibrationProps> = ({ onContinue, targe
               strokeWidth={3}
             />
 
-            {/* Static target arc at top (desired forward direction) */}
-            <path
-              d={`
-                M ${leftX} ${leftY}
-                A ${radius} ${radius} 0 0 1 ${rightX} ${rightY}
-              `}
-              fill="none"
-              stroke={isAligned ? torchActiveStroke : staticArcColor}
-              strokeWidth={8}
-              strokeLinecap="round"
-            />
+            {/* Target arc - rotates to show destination direction */}
+            <g
+              transform={`rotate(${targetRotation} ${centerX} ${centerY})`}
+              style={{ transition: "transform 0.3s ease-out" }}
+            >
+              <path
+                d={`
+                  M ${leftX} ${leftY}
+                  A ${radius} ${radius} 0 0 1 ${rightX} ${rightY}
+                `}
+                fill="none"
+                stroke={isAligned ? torchActiveStroke : staticArcColor}
+                strokeWidth={8}
+                strokeLinecap="round"
+              />
+            </g>
 
             {/* Torch cone group – rotates with heading */}
             <g
