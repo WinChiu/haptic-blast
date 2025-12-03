@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import * as Haptics from 'expo-haptics';
+import { Audio } from 'expo-av';
 
 // Normalize angle to [0, 360)
 const normalizeAngle = (angle: number) => {
@@ -22,10 +23,12 @@ export function useHapticGuidance(
   isActive: boolean
 ) {
   const [isVibrating, setIsVibrating] = useState(false);
+  const soundRef = useRef<Audio.Sound | null>(null);
 
   // Refs to hold mutable values accessible by the loop without triggering re-renders or cleanup
   const intervalRef = useRef<number>(1000);
   const shouldVibrateRef = useRef<boolean>(false);
+  const shouldSoundRef = useRef<boolean>(false);
   const isLoopRunningRef = useRef<boolean>(false);
   const timeoutRef = useRef<NodeJS.Timeout | null>(null);
 
@@ -37,6 +40,10 @@ export function useHapticGuidance(
     // Determine if we should be vibrating
     const shouldVibrate = isActive && !isAligned;
     shouldVibrateRef.current = shouldVibrate;
+
+    // Determine if we should play sound
+    const shouldSound = isActive && !isAligned;
+    shouldSoundRef.current = shouldSound;
 
     // Calculate interval if we are vibrating
     if (shouldVibrate) {
@@ -66,6 +73,26 @@ export function useHapticGuidance(
     }
   }, [currentHeading, targetBearing, isActive]);
 
+  // Play beep sound
+  const playBeep = async () => {
+    try {
+      const { sound } = await Audio.Sound.createAsync(
+        { uri: 'https://www.soundjay.com/buttons/sounds/beep-07a.mp3' },
+        { shouldPlay: true, volume: 0.5 }
+      );
+      soundRef.current = sound;
+      
+      // Unload after playing
+      sound.setOnPlaybackStatusUpdate((status: any) => {
+        if (status.isLoaded && status.didJustFinish) {
+          sound.unloadAsync();
+        }
+      });
+    } catch (error) {
+      console.log('Error playing sound:', error);
+    }
+  };
+
   // 2. The Vibration Loop
   const startVibrationLoop = () => {
     isLoopRunningRef.current = true;
@@ -90,6 +117,11 @@ export function useHapticGuidance(
       setIsVibrating(true);
       setTimeout(() => setIsVibrating(false), 100);
 
+      // Play sound if needed
+      if (shouldSoundRef.current) {
+        playBeep();
+      }
+
       // Schedule next vibration using the LATEST interval
       timeoutRef.current = setTimeout(loop, currentInterval);
     };
@@ -103,6 +135,9 @@ export function useHapticGuidance(
     return () => {
       shouldVibrateRef.current = false; // Stop loop logic
       if (timeoutRef.current) clearTimeout(timeoutRef.current);
+      if (soundRef.current) {
+        soundRef.current.unloadAsync();
+      }
     };
   }, []);
 
