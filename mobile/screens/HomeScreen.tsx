@@ -13,6 +13,7 @@ import HapticCompass from '../components/HapticCompass';
 
 import { useCompass } from '../hooks/useCompass';
 import { useHapticGuidance } from '../hooks/useHapticGuidance';
+import { useSoundGuidance } from '../hooks/useSoundGuidance';
 
 const { width } = Dimensions.get('window');
 
@@ -67,7 +68,8 @@ export default function HomeScreen() {
 
   // 2. Enable Haptic Guidance whenever navigating
   // This runs regardless of whether the overlay is visible
-  useHapticGuidance(heading, targetBearing, isNavigating);
+  // useHapticGuidance(heading, targetBearing, isNavigating);
+  useSoundGuidance(heading, targetBearing, isNavigating);
 
   const handleLocationSelect = (lat: number, lng: number) => {
     setSelectedLocation({ lat, lng });
