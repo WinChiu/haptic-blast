@@ -17,6 +17,35 @@ interface MapProps {
   isNavigating: boolean;
   centerOnUserTrigger: number;
   onUserLocationUpdate?: (location: [number, number]) => void;
+  heading?: number;
+  onNextCheckpointUpdate?: (checkpoint: {
+    latitude: number;
+    longitude: number;
+  }) => void;
+}
+
+function getDistanceFromLatLonInMeters(
+  lat1: number,
+  lon1: number,
+  lat2: number,
+  lon2: number
+) {
+  var R = 6371; // Radius of the earth in km
+  var dLat = deg2rad(lat2 - lat1);
+  var dLon = deg2rad(lon2 - lon1);
+  var a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(deg2rad(lat1)) *
+      Math.cos(deg2rad(lat2)) *
+      Math.sin(dLon / 2) *
+      Math.sin(dLon / 2);
+  var c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  var d = R * c; // Distance in km
+  return d * 1000; // Distance in m
+}
+
+function deg2rad(deg: number) {
+  return deg * (Math.PI / 180);
 }
 
 export default function Map({
@@ -27,6 +56,7 @@ export default function Map({
   centerOnUserTrigger,
   onUserLocationUpdate,
   heading = 0,
+  onNextCheckpointUpdate,
 }: MapProps & { heading?: number }) {
   const mapRef = useRef<MapView>(null);
   const [userLocation, setUserLocation] = useState<{
@@ -37,6 +67,64 @@ export default function Map({
   const [routeCoordinates, setRouteCoordinates] = useState<
     { latitude: number; longitude: number }[]
   >([]);
+  const [routeCheckpoints, setRouteCheckpoints] = useState<
+    { latitude: number; longitude: number }[]
+  >([]);
+  const [currentCheckpointIndex, setCurrentCheckpointIndex] = useState(0);
+   const [currentTotalCheckpoint, setCurrentTotalCheckpoint] = useState(0);
+   const [previousTotalCheckpoint, setPreviousTotalCheckpoint] = useState(0);
+
+  // Reset index when route changes
+  useEffect(() => {
+    if(currentTotalCheckpoint && previousTotalCheckpoint){
+       if (currentTotalCheckpoint < previousTotalCheckpoint){
+            setCurrentCheckpointIndex(currentCheckpointIndex - 1);
+        }
+    }
+    setPreviousTotalCheckpoint(currentTotalCheckpoint);
+  }, [routeCheckpoints]);
+
+  // Calculate Next Checkpoint
+  useEffect(() => {
+    if (!userLocation || routeCheckpoints.length === 0 || !onNextCheckpointUpdate)
+      return;
+    // Sequential Logic:
+    // Only look at the *current* target checkpoint.
+    // If we reach it (< 5m), move to the next one.
+    // Never look back.
+
+    // If we've finished all checkpoints, target is null (will fallback to destination)
+    if (currentCheckpointIndex >= routeCheckpoints.length) {
+      onNextCheckpointUpdate(null as any); // Or handle "finished" state
+      return;
+    }
+
+    const currentTarget = routeCheckpoints[currentCheckpointIndex];
+    const dist = getDistanceFromLatLonInMeters(
+      userLocation.latitude,
+      userLocation.longitude,
+      currentTarget.latitude,
+      currentTarget.longitude
+    );
+
+    // Check if reached
+    if (dist <= 5) {
+      // Reached! Move to next.
+      const nextIndex = currentCheckpointIndex + 1;
+      setCurrentCheckpointIndex(nextIndex);
+
+      // If there is a next point, update target immediately
+      if (nextIndex < routeCheckpoints.length) {
+        onNextCheckpointUpdate(routeCheckpoints[nextIndex]);
+      } else {
+        // No more checkpoints, target final destination (handled by HomeScreen fallback)
+        onNextCheckpointUpdate(null as any);
+      }
+    } else {
+      // Not reached yet, keep targeting this one
+      onNextCheckpointUpdate(currentTarget);
+    }
+  }, [userLocation, routeCheckpoints, currentCheckpointIndex]);
 
   // Initial Location & Permissions
   useEffect(() => {
@@ -73,9 +161,9 @@ export default function Map({
     (async () => {
       subscription = await Location.watchPositionAsync(
         {
-          accuracy: Location.Accuracy.High,
-          timeInterval: 5000,
-          distanceInterval: 5,
+          accuracy: Location.Accuracy.BestForNavigation,
+          timeInterval: 0,
+          distanceInterval: 0,
         },
         (location) => {
           const coords = {
@@ -116,9 +204,18 @@ export default function Map({
 
     const fetchRoute = async () => {
       try {
-        const url = `https://router.project-osrm.org/route/v1/foot/${userLocation.longitude},${userLocation.latitude};${selectedLocation.lng},${selectedLocation.lat}?overview=full&geometries=geojson`;
+        // Request steps=true to get turn-by-turn instructions
+        const url = `https://router.project-osrm.org/route/v1/foot/${userLocation.longitude},${userLocation.latitude};${selectedLocation.lng},${selectedLocation.lat}?overview=full&geometries=geojson&steps=true`;
 
         const response = await fetch(url);
+
+        // Check if response is JSON
+        const contentType = response.headers.get("content-type");
+        if (!response.ok || !contentType || !contentType.includes("application/json")) {
+           const text = await response.text();
+           console.error("OSRM Error (Not JSON):", text.substring(0, 100)); // Log first 100 chars
+           return;
+        }
         const data = await response.json();
 
         if (data.code === 'Ok' && data.routes.length > 0) {
@@ -131,6 +228,20 @@ export default function Map({
           setRouteCoordinates(coords);
           if (onRouteInfo) onRouteInfo(route.distance, route.duration);
 
+          // Extract steps (maneuvers)
+          // steps is an array of route legs (usually 1 for simple routes)
+          // each leg has steps
+          if (route.legs && route.legs.length > 0) {
+            const steps = route.legs[0].steps;
+            // Map steps to coordinates
+            const checkpoints = steps.map((step: any) => ({
+              latitude: step.maneuver.location[1],
+              longitude: step.maneuver.location[0],
+            }));
+            setRouteCheckpoints(checkpoints);
+            setCurrentTotalCheckpoint(checkpoints.length);
+          }
+
           // Fit bounds
           mapRef.current?.fitToCoordinates(coords, {
             edgePadding: { top: 50, right: 50, bottom: 50, left: 50 },
@@ -141,7 +252,6 @@ export default function Map({
         console.error('Route fetch error:', error);
       }
     };
-
     fetchRoute();
   }, [selectedLocation, userLocation]);
 
@@ -198,13 +308,33 @@ export default function Map({
             anchor={{ x: 0.5, y: 0.5 }}
             flat={true}
             rotation={heading} // Rotate the marker itself
-            tracksViewChanges={false} // Prevent re-rendering the bitmap (stops flashing)
+            tracksViewChanges={true} // Prevent re-rendering the bitmap (stops flashing)
           >
             <View style={styles.userMarker}>
               <Ionicons name="arrow-up" size={20} color="#0EA5E9" />
             </View>
           </Marker>
         )}
+
+        {/* Route Checkpoints */}
+        {routeCheckpoints.map((point, index) => {
+          const isVisited = index < currentCheckpointIndex;
+          return (
+            <Marker
+              key={`checkpoint-${index}`}
+              coordinate={point}
+              anchor={{ x: 0.5, y: 0.5 }}
+              tracksViewChanges={false}
+            >
+              <View
+                style={[
+                  styles.checkpointDot,
+                  isVisited && styles.checkpointDotVisited,
+                ]}
+              />
+            </Marker>
+          );
+        })}
 
         {selectedLocation && (
           <Marker
@@ -299,5 +429,16 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.25,
     shadowRadius: 3.84,
     elevation: 5,
+  },
+  checkpointDot: {
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    backgroundColor: '#0EA5E9', // sky-500
+    borderWidth: 2,
+    borderColor: 'white',
+  },
+  checkpointDotVisited: {
+    backgroundColor: '#EAB308', // yellow-500
   },
 });

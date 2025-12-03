@@ -44,17 +44,28 @@ export default function HomeScreen() {
   const [routeDistance, setRouteDistance] = useState<number | null>(null);
   const [routeDuration, setRouteDuration] = useState<number | null>(null);
   const [centerTrigger, setCenterTrigger] = useState(0);
+  const [nextCheckpoint, setNextCheckpoint] = useState<{
+    latitude: number;
+    longitude: number;
+  } | null>(null);
 
   // 1. Get Real-time Heading
   const heading = useCompass();
 
   // Calculate bearing
   const targetBearing = useMemo(() => {
-    if (!userLocation || !selectedLocation) return 0;
+    if (!userLocation) return 0;
+
+    // Target the next checkpoint if available, otherwise the final destination
+    const target = nextCheckpoint
+      ? { lat: nextCheckpoint.latitude, lng: nextCheckpoint.longitude }
+      : selectedLocation;
+
+    if (!target) return 0;
 
     const lat1 = (userLocation[0] * Math.PI) / 180;
-    const lat2 = (selectedLocation.lat * Math.PI) / 180;
-    const dLon = ((selectedLocation.lng - userLocation[1]) * Math.PI) / 180;
+    const lat2 = (target.lat * Math.PI) / 180;
+    const dLon = ((target.lng - userLocation[1]) * Math.PI) / 180;
 
     const y = Math.sin(dLon) * Math.cos(lat2);
     const x =
@@ -63,7 +74,7 @@ export default function HomeScreen() {
     const bearing = (Math.atan2(y, x) * 180) / Math.PI;
 
     return (bearing + 360) % 360;
-  }, [userLocation, selectedLocation]);
+  }, [userLocation, selectedLocation, nextCheckpoint]);
 
   // 2. Enable Haptic Guidance whenever navigating
   // This runs regardless of whether the overlay is visible
@@ -106,6 +117,7 @@ export default function HomeScreen() {
         centerOnUserTrigger={centerTrigger}
         onUserLocationUpdate={setUserLocation}
         heading={heading}
+        onNextCheckpointUpdate={setNextCheckpoint}
       />
 
       {/* Haptic Overlay */}

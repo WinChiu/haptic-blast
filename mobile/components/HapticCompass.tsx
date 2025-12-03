@@ -42,7 +42,7 @@ export default function HapticCompass({
   const torchRotation = 0;
   const targetRotation = targetAngle - heading;
 
-  const isAligned = Math.abs(shortestDiff(targetAngle, heading)) <= 15;
+  const isAligned = Math.abs(shortestDiff(targetAngle, heading)) <= 25;
 
   // Colors
   const staticArcColor = 'hsl(215, 15%, 35%)';
@@ -86,7 +86,7 @@ export default function HapticCompass({
             />
           </G>
 
-          {/* Torch Cone - Fixed at Top */}
+          {/* Torch Cone */}
           <G rotation={torchRotation} origin={`${centerX}, ${centerY}`}>
             <Path
               d={`
