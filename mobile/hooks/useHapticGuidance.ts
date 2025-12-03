@@ -35,7 +35,7 @@ export function useHapticGuidance(
   // 1. Update refs based on current props/state
   useEffect(() => {
     const angleDiff = Math.abs(shortestDiff(targetBearing, currentHeading));
-    const isAligned = angleDiff <= 15;
+    const isAligned = angleDiff <= 65;
 
     // Determine if we should be vibrating
     const shouldVibrate = isActive && !isAligned;
