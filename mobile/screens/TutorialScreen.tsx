@@ -29,7 +29,7 @@ export default function TutorialScreen() {
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
           <Ionicons name="arrow-back" size={24} color="#d4d4d4" />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Tutorial</Text>
+        <Text style={styles.headerTitle}>Settings</Text>
       </View>
 
       <ScrollView style={styles.content} contentContainerStyle={styles.scrollContent}>
