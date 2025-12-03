@@ -26,7 +26,8 @@ export default function Map({
   isNavigating,
   centerOnUserTrigger,
   onUserLocationUpdate,
-}: MapProps) {
+  heading = 0,
+}: MapProps & { heading?: number }) {
   const mapRef = useRef<MapView>(null);
   const [userLocation, setUserLocation] = useState<{
     latitude: number;
@@ -186,10 +187,25 @@ export default function Map({
         ref={mapRef}
         style={styles.map}
         provider={PROVIDER_DEFAULT}
-        showsUserLocation={true}
+        showsUserLocation={false} // We are rendering a custom marker
         showsCompass={false}
         onPress={handleMapPress}
       >
+        {/* Custom User Location Marker with Direction */}
+        {userLocation && (
+          <Marker
+            coordinate={userLocation}
+            anchor={{ x: 0.5, y: 0.5 }}
+            flat={true}
+            rotation={heading} // Rotate the marker itself
+            tracksViewChanges={false} // Prevent re-rendering the bitmap (stops flashing)
+          >
+            <View style={styles.userMarker}>
+              <Ionicons name="arrow-up" size={20} color="#0EA5E9" />
+            </View>
+          </Marker>
+        )}
+
         {selectedLocation && (
           <Marker
             coordinate={{
@@ -268,5 +284,20 @@ const styles = StyleSheet.create({
     marginLeft: 10,
     color: '#fff',
     fontSize: 16,
+  },
+  userMarker: {
+    width: 30,
+    height: 30,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(255, 255, 255, 0.9)',
+    borderRadius: 15,
+    borderWidth: 2,
+    borderColor: '#fff',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+    elevation: 5,
   },
 });
