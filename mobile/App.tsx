@@ -1,19 +1,62 @@
-import React from 'react';
+import { useEffect, useState } from 'react';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
+import { Provider, useSelector } from 'react-redux';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import HomeScreen from './screens/HomeScreen';
 import TutorialScreen from './screens/TutorialScreen';
+import { connectToReduxPersistence } from './util/firebaseSync';
+import store, { updateFromFirebase } from './util/store';
 import { FeedbackProvider } from './hooks/FeedbackContext';
 
 const Stack = createNativeStackNavigator();
 
-export default function App() {
+function AppNavigator() {
+  const [isReady, setIsReady] = useState(false);
+  const currentUid = useSelector((state: any) => state.userData.userProfile.Uid);
+
+  // Initial load
+  useEffect(() => {
+    setIsReady(true);
+  }, []);
+
+  // Connect to Firebase when Uid changes
+  useEffect(() => {
+    if (!currentUid) return;
+
+    console.log('🔑 Uid changed to:', currentUid);
+    
+    (async () => {
+      // Save to AsyncStorage for persistence
+      await AsyncStorage.setItem('profileId', currentUid);
+      
+      // Connect to Firebase Firestore and sync with Redux
+      const unsubscribe = await connectToReduxPersistence(
+        store,
+        updateFromFirebase,
+        currentUid,
+      );
+      
+      console.log('✅ Connected to Firebase with Uid:', currentUid);
+      console.log('Current Redux store state:', store.getState());
+
+      // Cleanup function
+      return () => {
+        if (unsubscribe) unsubscribe();
+      };
+    })();
+  }, [currentUid]);
+
+  if (!isReady) {
+    return null; // Or a loading screen
+  }
+
   return (
-    <FeedbackProvider>
-      <SafeAreaProvider>
+    <SafeAreaProvider>
+      <FeedbackProvider>
         <NavigationContainer>
           <StatusBar style="light" />
           <Stack.Navigator
@@ -26,7 +69,15 @@ export default function App() {
             <Stack.Screen name="Tutorial" component={TutorialScreen} />
           </Stack.Navigator>
         </NavigationContainer>
-      </SafeAreaProvider>
-    </FeedbackProvider>
+      </FeedbackProvider>
+    </SafeAreaProvider>
+  );
+}
+
+export default function App() {
+  return (
+    <Provider store={store}>
+      <AppNavigator />
+    </Provider>
   );
 }
