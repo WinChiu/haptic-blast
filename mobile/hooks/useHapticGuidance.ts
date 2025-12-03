@@ -74,24 +74,24 @@ export function useHapticGuidance(
   }, [currentHeading, targetBearing, isActive]);
 
   // Play beep sound
-  const playBeep = async () => {
-    try {
-      const { sound } = await Audio.Sound.createAsync(
-        { uri: 'https://www.soundjay.com/buttons/sounds/beep-07a.mp3' },
-        { shouldPlay: true, volume: 0.5 }
-      );
-      soundRef.current = sound;
-      
-      // Unload after playing
-      sound.setOnPlaybackStatusUpdate((status: any) => {
-        if (status.isLoaded && status.didJustFinish) {
-          sound.unloadAsync();
-        }
-      });
-    } catch (error) {
-      console.log('Error playing sound:', error);
-    }
-  };
+  // const playBeep = async () => {
+  //   try {
+  //     const { sound } = await Audio.Sound.createAsync(
+  //       { uri: 'https://www.soundjay.com/buttons/sounds/beep-07a.mp3' },
+  //       { shouldPlay: true, volume: 0.5 }
+  //     );
+  //     soundRef.current = sound;
+
+  //     // Unload after playing
+  //     sound.setOnPlaybackStatusUpdate((status: any) => {
+  //       if (status.isLoaded && status.didJustFinish) {
+  //         sound.unloadAsync();
+  //       }
+  //     });
+  //   } catch (error) {
+  //     console.log('Error playing sound:', error);
+  //   }
+  // };
 
   // 2. The Vibration Loop
   const startVibrationLoop = () => {
@@ -117,10 +117,10 @@ export function useHapticGuidance(
       setIsVibrating(true);
       setTimeout(() => setIsVibrating(false), 100);
 
-      // Play sound if needed
-      if (shouldSoundRef.current) {
-        playBeep();
-      }
+      // // Play sound if needed
+      // if (shouldSoundRef.current) {
+      //   playBeep();
+      // }
 
       // Schedule next vibration using the LATEST interval
       timeoutRef.current = setTimeout(loop, currentInterval);

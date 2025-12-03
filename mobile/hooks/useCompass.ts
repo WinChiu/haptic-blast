@@ -1,9 +1,9 @@
 import { useState, useEffect } from 'react';
-import { Magnetometer } from 'expo-sensors';
+import * as Location from 'expo-location';
 
 export function useCompass() {
   const [heading, setHeading] = useState(0);
-  const [subscription, setSubscription] = useState<any>(null);
+  const [subscription, setSubscription] = useState<Location.LocationSubscription | null>(null);
 
   useEffect(() => {
     _subscribe();
@@ -11,18 +11,14 @@ export function useCompass() {
   }, []);
 
   const _subscribe = async () => {
-    const { status } = await Magnetometer.requestPermissionsAsync();
+    const { status } = await Location.requestForegroundPermissionsAsync();
     if (status !== 'granted') return;
 
-    Magnetometer.setUpdateInterval(20);
-    setSubscription(
-      Magnetometer.addListener((data) => {
-        const { x, y } = data;
-        let angle = Math.atan2(y, x) * (180 / Math.PI);
-        angle = angle >= 0 ? angle : angle + 360;
-        setHeading(angle);
-      })
-    );
+    const sub = await Location.watchHeadingAsync((obj) => {
+      const { magHeading } = obj;
+      setHeading(magHeading);
+    });
+    setSubscription(sub);
   };
 
   const _unsubscribe = () => {
