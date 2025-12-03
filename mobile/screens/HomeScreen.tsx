@@ -1,11 +1,5 @@
-import React, { useState, useMemo, useEffect } from 'react';
-import {
-  StyleSheet,
-  View,
-  Text,
-  TouchableOpacity,
-  Dimensions,
-} from 'react-native';
+import React, { useState, useMemo } from 'react';
+import { StyleSheet, View, Text, TouchableOpacity, Dimensions } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import Map from '../components/Map';
@@ -13,16 +7,18 @@ import HapticCompass from '../components/HapticCompass';
 
 import { useCompass } from '../hooks/useCompass';
 import { useHapticGuidance } from '../hooks/useHapticGuidance';
+import { useSoundGuidance } from '../hooks/useSoundGuidance';
+import { useFeedback } from '../hooks/FeedbackContext';
 
 const { width } = Dimensions.get('window');
 
-const formatDistance = (meters: number | null): string => {
+const formatDistance = (meters: number | null) => {
   if (!meters || meters <= 0) return '';
   if (meters < 1000) return `${Math.round(meters)} m`;
   return `${(meters / 1000).toFixed(1)} km`;
 };
 
-const formatDuration = (seconds: number | null): string => {
+const formatDuration = (seconds: number | null) => {
   if (!seconds || seconds <= 0) return '';
   const minutes = Math.round(seconds / 60);
   if (minutes < 1) return '< 1 min';
@@ -32,15 +28,13 @@ const formatDuration = (seconds: number | null): string => {
 
 export default function HomeScreen() {
   const navigation = useNavigation();
-  const [selectedLocation, setSelectedLocation] = useState<{
-    lat: number;
-    lng: number;
-  } | null>(null);
+
+  const { hapticEnabled, soundEnabled } = useFeedback();
+
+  const [selectedLocation, setSelectedLocation] = useState<{ lat: number; lng: number } | null>(null);
   const [isNavigating, setIsNavigating] = useState(false);
   const [showHapticOverlay, setShowHapticOverlay] = useState(false);
-  const [userLocation, setUserLocation] = useState<[number, number] | null>(
-    null
-  );
+  const [userLocation, setUserLocation] = useState<[number, number] | null>(null);
   const [routeDistance, setRouteDistance] = useState<number | null>(null);
   const [routeDuration, setRouteDuration] = useState<number | null>(null);
   const [centerTrigger, setCenterTrigger] = useState(0);
@@ -49,10 +43,8 @@ export default function HomeScreen() {
     longitude: number;
   } | null>(null);
 
-  // 1. Get Real-time Heading
   const heading = useCompass();
 
-  // Calculate bearing
   const targetBearing = useMemo(() => {
     if (!userLocation) return 0;
 
@@ -76,9 +68,9 @@ export default function HomeScreen() {
     return (bearing + 360) % 360;
   }, [userLocation, selectedLocation, nextCheckpoint]);
 
-  // 2. Enable Haptic Guidance whenever navigating
-  // This runs regardless of whether the overlay is visible
-  useHapticGuidance(heading, targetBearing, isNavigating);
+  // ✅ Enable guidance only if user toggled it ON
+  useHapticGuidance(heading, targetBearing, isNavigating && hapticEnabled);
+  useSoundGuidance(heading, targetBearing, isNavigating && soundEnabled);
 
   const handleLocationSelect = (lat: number, lng: number) => {
     setSelectedLocation({ lat, lng });
@@ -101,11 +93,10 @@ export default function HomeScreen() {
   };
 
   const distanceLabel = formatDistance(routeDistance);
-  const durationLabel = formatDuration(routeDuration ? routeDuration * 3 : 0); // *3 adjustment from web
+  const durationLabel = formatDuration(routeDuration ? routeDuration * 3 : 0);
 
   return (
     <View style={styles.container}>
-      {/* Map Layer */}
       <Map
         onLocationSelect={handleLocationSelect}
         selectedLocation={selectedLocation}
@@ -120,7 +111,6 @@ export default function HomeScreen() {
         onNextCheckpointUpdate={setNextCheckpoint}
       />
 
-      {/* Haptic Overlay */}
       {showHapticOverlay && (
         <View style={styles.hapticOverlay}>
           <HapticCompass targetAngle={targetBearing} heading={heading} />
@@ -133,21 +123,14 @@ export default function HomeScreen() {
         </View>
       )}
 
-      {/* UI Overlays */}
       {!showHapticOverlay && (
         <>
-          {/* Bottom Nav (Home Mode) */}
           {!isNavigating && (
             <View style={styles.bottomNav}>
               {selectedLocation ? (
-                <TouchableOpacity
-                  style={styles.goButton}
-                  onPress={handleStartNavigation}
-                >
+                <TouchableOpacity style={styles.goButton} onPress={handleStartNavigation}>
                   <Text style={styles.goButtonText}>GO</Text>
-                  <Text style={styles.goButtonSubText}>
-                    {durationLabel} • {distanceLabel}
-                  </Text>
+                  <Text style={styles.goButtonSubText}>{durationLabel} • {distanceLabel}</Text>
                 </TouchableOpacity>
               ) : (
                 <View style={styles.menuBar}>
@@ -168,7 +151,6 @@ export default function HomeScreen() {
             </View>
           )}
 
-          {/* Navigation Bar (Nav Mode) */}
           {isNavigating && (
             <View style={styles.navBar}>
               <View style={styles.navInfo}>
@@ -177,28 +159,18 @@ export default function HomeScreen() {
               </View>
 
               <View style={styles.navActions}>
-                <TouchableOpacity
-                  style={[styles.iconButton, { backgroundColor: '#ef4444' }]}
-                  onPress={handleCloseOverlay}
-                >
+                <TouchableOpacity style={[styles.iconButton, { backgroundColor: '#ef4444' }]} onPress={handleCloseOverlay}>
                   <Ionicons name="close" size={24} color="#fff" />
                 </TouchableOpacity>
-                <TouchableOpacity
-                  style={styles.iconButton}
-                  onPress={() => setCenterTrigger((c) => c + 1)}
-                >
+                <TouchableOpacity style={styles.iconButton} onPress={() => setCenterTrigger((c) => c + 1)}>
                   <Ionicons name="locate" size={24} color="#fff" />
                 </TouchableOpacity>
               </View>
             </View>
           )}
 
-          {/* Floating Haptic Button */}
           {isNavigating && (
-            <TouchableOpacity
-              style={styles.fab}
-              onPress={() => setShowHapticOverlay(true)}
-            >
+            <TouchableOpacity style={styles.fab} onPress={() => setShowHapticOverlay(true)}>
               <MaterialCommunityIcons name="waves" size={24} color="#fff" />
             </TouchableOpacity>
           )}
@@ -244,7 +216,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
   },
   goButton: {
-    backgroundColor: '#0ea5e9', // sky-500
+    backgroundColor: '#0ea5e9',
     paddingVertical: 15,
     paddingHorizontal: 40,
     borderRadius: 30,
@@ -299,7 +271,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   navDuration: {
-    color: '#22c55e', // green-500
+    color: '#22c55e',
     fontSize: 24,
     fontWeight: 'bold',
   },
