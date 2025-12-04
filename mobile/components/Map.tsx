@@ -16,7 +16,12 @@ interface MapProps {
   onRouteInfo?: (distanceMeters: number, durationSeconds: number) => void;
   isNavigating: boolean;
   centerOnUserTrigger: number;
-  onUserLocationUpdate?: (location: [number, number]) => void;
+  onUserLocationUpdate?: (location: {
+    latitude: number;
+    longitude: number;
+    heading: number | null;
+    speed: number | null;
+  }) => void;
   heading?: number;
   onNextCheckpointUpdate?: (checkpoint: {
     latitude: number;
@@ -59,6 +64,10 @@ export default function Map({
   onNextCheckpointUpdate,
 }: MapProps & { heading?: number }) {
   const mapRef = useRef<MapView>(null);
+  const lastLocationRef = useRef<{
+    latitude: number;
+    longitude: number;
+  } | null>(null);
   const [userLocation, setUserLocation] = useState<{
     latitude: number;
     longitude: number;
@@ -71,22 +80,26 @@ export default function Map({
     { latitude: number; longitude: number }[]
   >([]);
   const [currentCheckpointIndex, setCurrentCheckpointIndex] = useState(0);
-   const [currentTotalCheckpoint, setCurrentTotalCheckpoint] = useState(0);
-   const [previousTotalCheckpoint, setPreviousTotalCheckpoint] = useState(0);
+  const [currentTotalCheckpoint, setCurrentTotalCheckpoint] = useState(0);
+  const [previousTotalCheckpoint, setPreviousTotalCheckpoint] = useState(0);
 
   // Reset index when route changes
   useEffect(() => {
-    if(currentTotalCheckpoint && previousTotalCheckpoint){
-       if (currentTotalCheckpoint < previousTotalCheckpoint){
-            setCurrentCheckpointIndex(currentCheckpointIndex - 1);
-        }
+    if (currentTotalCheckpoint && previousTotalCheckpoint) {
+      if (currentTotalCheckpoint < previousTotalCheckpoint) {
+        setCurrentCheckpointIndex(currentCheckpointIndex - 1);
+      }
     }
     setPreviousTotalCheckpoint(currentTotalCheckpoint);
   }, [routeCheckpoints]);
 
   // Calculate Next Checkpoint
   useEffect(() => {
-    if (!userLocation || routeCheckpoints.length === 0 || !onNextCheckpointUpdate)
+    if (
+      !userLocation ||
+      routeCheckpoints.length === 0 ||
+      !onNextCheckpointUpdate
+    )
       return;
     // Sequential Logic:
     // Only look at the *current* target checkpoint.
@@ -100,6 +113,8 @@ export default function Map({
     }
 
     const currentTarget = routeCheckpoints[currentCheckpointIndex];
+    if (!currentTarget) return;
+
     const dist = getDistanceFromLatLonInMeters(
       userLocation.latitude,
       userLocation.longitude,
@@ -136,14 +151,21 @@ export default function Map({
       }
 
       let location = await Location.getCurrentPositionAsync({});
+      // Initial location (no smoothing for first point)
       const coords = {
         latitude: location.coords.latitude,
         longitude: location.coords.longitude,
       };
+      lastLocationRef.current = coords;
       setUserLocation(coords);
 
       if (onUserLocationUpdate) {
-        onUserLocationUpdate([coords.latitude, coords.longitude]);
+        onUserLocationUpdate({
+          latitude: coords.latitude,
+          longitude: coords.longitude,
+          heading: location.coords.heading,
+          speed: location.coords.speed,
+        });
       }
 
       // Initial center
@@ -166,13 +188,33 @@ export default function Map({
           distanceInterval: 0,
         },
         (location) => {
-          const coords = {
-            latitude: location.coords.latitude,
-            longitude: location.coords.longitude,
-          };
+          let { latitude, longitude } = location.coords;
+          const { heading, speed } = location.coords;
+
+          // Low-Pass Filter for Smoothing
+          // alpha = 0.2 means 20% new data, 80% old data (very smooth, more lag)
+          // alpha = 0.5 means 50% new data, 50% old data (balanced)
+          const alpha = 0.5;
+
+          if (lastLocationRef.current) {
+            latitude =
+              lastLocationRef.current.latitude * (1 - alpha) + latitude * alpha;
+            longitude =
+              lastLocationRef.current.longitude * (1 - alpha) +
+              longitude * alpha;
+          }
+
+          const coords = { latitude, longitude };
+          lastLocationRef.current = coords;
           setUserLocation(coords);
+
           if (onUserLocationUpdate) {
-            onUserLocationUpdate([coords.latitude, coords.longitude]);
+            onUserLocationUpdate({
+              latitude,
+              longitude,
+              heading,
+              speed,
+            });
           }
         }
       );
@@ -198,6 +240,7 @@ export default function Map({
   useEffect(() => {
     if (!userLocation || !selectedLocation) {
       setRouteCoordinates([]);
+      setRouteCheckpoints([]);
       if (onRouteInfo) onRouteInfo(0, 0);
       return;
     }
@@ -208,13 +251,16 @@ export default function Map({
         const url = `https://router.project-osrm.org/route/v1/foot/${userLocation.longitude},${userLocation.latitude};${selectedLocation.lng},${selectedLocation.lat}?overview=full&geometries=geojson&steps=true`;
 
         const response = await fetch(url);
-
         // Check if response is JSON
-        const contentType = response.headers.get("content-type");
-        if (!response.ok || !contentType || !contentType.includes("application/json")) {
-           const text = await response.text();
-           console.error("OSRM Error (Not JSON):", text.substring(0, 100)); // Log first 100 chars
-           return;
+        const contentType = response.headers.get('content-type');
+        if (
+          !response.ok ||
+          !contentType ||
+          !contentType.includes('application/json')
+        ) {
+          const text = await response.text();
+          console.error('OSRM Error (Not JSON):', text.substring(0, 100)); // Log first 100 chars
+          return;
         }
         const data = await response.json();
 
@@ -240,6 +286,7 @@ export default function Map({
             }));
             setRouteCheckpoints(checkpoints);
             setCurrentTotalCheckpoint(checkpoints.length);
+            setCurrentCheckpointIndex(0); // Reset index for new route
           }
 
           // Fit bounds

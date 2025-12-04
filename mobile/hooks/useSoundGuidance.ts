@@ -16,8 +16,7 @@ const shortestDiff = (target: number, current: number) => {
 };
 
 // ------- hook --------
-const BEEP_URL =
-  'https://www.soundjay.com/buttons/sounds/beep-07a.mp3';
+const BEEP_URL = 'https://www.soundjay.com/buttons/sounds/beep-07a.mp3';
 
 const BEEP_SOURCE = require('../assets/beep.mp3');
 
@@ -32,7 +31,7 @@ export function useSoundGuidance(
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Create audio player (auto-loads the source)
-    const player = useAudioPlayer(BEEP_SOURCE);
+  const player = useAudioPlayer(BEEP_SOURCE);
 
   // Play one beep (always from start)
   const playBeep = useCallback(async () => {
@@ -70,14 +69,14 @@ export function useSoundGuidance(
   // Respond to heading / target / active changes
   useEffect(() => {
     const angleDiff = Math.abs(shortestDiff(targetBearing, currentHeading));
-    const isAligned = angleDiff <= 45;
+    const isAligned = angleDiff <= 25;
 
     const shouldSound = isActive && !isAligned;
     shouldSoundRef.current = shouldSound;
 
     if (shouldSound) {
       // stepped interval: faster when more misaligned
-      const minInterval = 200; // beeps fastest when very wrong
+      const minInterval = 220; // beeps fastest when very wrong
       const maxInterval = 1000; // slow when close
       const maxDiff = 180;
       const minDiff = 15;

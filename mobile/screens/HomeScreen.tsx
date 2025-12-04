@@ -1,5 +1,11 @@
 import React, { useState, useMemo } from 'react';
-import { StyleSheet, View, Text, TouchableOpacity, Dimensions } from 'react-native';
+import {
+  StyleSheet,
+  View,
+  Text,
+  TouchableOpacity,
+  Dimensions,
+} from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import Map from '../components/Map';
@@ -31,10 +37,17 @@ export default function HomeScreen() {
 
   const { hapticEnabled, soundEnabled } = useFeedback();
 
-  const [selectedLocation, setSelectedLocation] = useState<{ lat: number; lng: number } | null>(null);
+  const [selectedLocation, setSelectedLocation] = useState<{
+    lat: number;
+    lng: number;
+  } | null>(null);
   const [isNavigating, setIsNavigating] = useState(false);
   const [showHapticOverlay, setShowHapticOverlay] = useState(false);
-  const [userLocation, setUserLocation] = useState<[number, number] | null>(null);
+  const [userLocation, setUserLocation] = useState<[number, number] | null>(
+    null
+  );
+  const [gpsHeading, setGpsHeading] = useState<number | null>(null);
+  const [speed, setSpeed] = useState<number | null>(null);
   const [routeDistance, setRouteDistance] = useState<number | null>(null);
   const [routeDuration, setRouteDuration] = useState<number | null>(null);
   const [centerTrigger, setCenterTrigger] = useState(0);
@@ -43,7 +56,7 @@ export default function HomeScreen() {
     longitude: number;
   } | null>(null);
 
-  const heading = useCompass();
+  const heading = useCompass(gpsHeading, speed);
 
   const targetBearing = useMemo(() => {
     if (!userLocation) return 0;
@@ -90,6 +103,7 @@ export default function HomeScreen() {
     setShowHapticOverlay(false);
     setRouteDistance(null);
     setRouteDuration(null);
+    setNextCheckpoint(null);
   };
 
   const distanceLabel = formatDistance(routeDistance);
@@ -106,7 +120,11 @@ export default function HomeScreen() {
         }}
         isNavigating={isNavigating}
         centerOnUserTrigger={centerTrigger}
-        onUserLocationUpdate={setUserLocation}
+        onUserLocationUpdate={(loc) => {
+          setUserLocation([loc.latitude, loc.longitude]);
+          setGpsHeading(loc.heading);
+          setSpeed(loc.speed);
+        }}
         heading={heading}
         onNextCheckpointUpdate={setNextCheckpoint}
       />
@@ -128,9 +146,14 @@ export default function HomeScreen() {
           {!isNavigating && (
             <View style={styles.bottomNav}>
               {selectedLocation ? (
-                <TouchableOpacity style={styles.goButton} onPress={handleStartNavigation}>
+                <TouchableOpacity
+                  style={styles.goButton}
+                  onPress={handleStartNavigation}
+                >
                   <Text style={styles.goButtonText}>GO</Text>
-                  <Text style={styles.goButtonSubText}>{durationLabel} • {distanceLabel}</Text>
+                  <Text style={styles.goButtonSubText}>
+                    {durationLabel} • {distanceLabel}
+                  </Text>
                 </TouchableOpacity>
               ) : (
                 <View style={styles.menuBar}>
@@ -159,10 +182,16 @@ export default function HomeScreen() {
               </View>
 
               <View style={styles.navActions}>
-                <TouchableOpacity style={[styles.iconButton, { backgroundColor: '#ef4444' }]} onPress={handleCloseOverlay}>
+                <TouchableOpacity
+                  style={[styles.iconButton, { backgroundColor: '#ef4444' }]}
+                  onPress={handleCloseOverlay}
+                >
                   <Ionicons name="close" size={24} color="#fff" />
                 </TouchableOpacity>
-                <TouchableOpacity style={styles.iconButton} onPress={() => setCenterTrigger((c) => c + 1)}>
+                <TouchableOpacity
+                  style={styles.iconButton}
+                  onPress={() => setCenterTrigger((c) => c + 1)}
+                >
                   <Ionicons name="locate" size={24} color="#fff" />
                 </TouchableOpacity>
               </View>
@@ -170,7 +199,10 @@ export default function HomeScreen() {
           )}
 
           {isNavigating && (
-            <TouchableOpacity style={styles.fab} onPress={() => setShowHapticOverlay(true)}>
+            <TouchableOpacity
+              style={styles.fab}
+              onPress={() => setShowHapticOverlay(true)}
+            >
               <MaterialCommunityIcons name="waves" size={24} color="#fff" />
             </TouchableOpacity>
           )}

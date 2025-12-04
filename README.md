@@ -1,6 +1,6 @@
 # Haptic Navigator
 
-Haptic Navigator is a mobile-friendly React application that provides map-based navigation with optional haptic guidance.  
+Haptic Navigator is a mobile-friendly React application that provides map-based navigation with optional haptic guidance.
 Users can search for locations, plot routes, and enter a navigation mode with clear distance and time indicators.
 
 This project includes:

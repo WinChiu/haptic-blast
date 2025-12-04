@@ -27,10 +27,11 @@ export function useHapticGuidance(
   const shouldVibrateRef = useRef<boolean>(false);
   const isLoopRunningRef = useRef<boolean>(false);
   const timeoutRef = useRef<NodeJS.Timeout | null>(null);
-  const strengthRef = useRef(0); 
+  const strengthRef = useRef(0);
 
   // Fixed vibration frequency
-  const INTERVAL = 120; 
+  const MAX_INTERVAL = 1000;
+  const STEP = 15;
 
   // Calculate strength based on heading and target
   const calculateStrength = () => {
@@ -46,7 +47,7 @@ export function useHapticGuidance(
   // 1. Update vibration state based on alignment
   useEffect(() => {
     const angleDiff = Math.abs(shortestDiff(targetBearing, currentHeading));
-    const isAligned = angleDiff <= 65;
+    const isAligned = angleDiff <= 25;
 
     // Determine if we should be vibrating
     const shouldVibrate = isActive && !isAligned;
@@ -76,7 +77,8 @@ export function useHapticGuidance(
       const strength = strengthRef.current;
 
       // Map into three gradual steps: Light, Medium, Heavy
-      let hapticType: Haptics.ImpactFeedbackStyle = Haptics.ImpactFeedbackStyle.Light;
+      let hapticType: Haptics.ImpactFeedbackStyle =
+        Haptics.ImpactFeedbackStyle.Light;
       if (strength > 0.66) {
         hapticType = Haptics.ImpactFeedbackStyle.Heavy;
       } else if (strength > 0.33) {
@@ -89,9 +91,11 @@ export function useHapticGuidance(
       // Single impact call per cycle
       Haptics.impactAsync(hapticType);
       setTimeout(() => setIsVibrating(false), 50);
-
       // Re-run the loop with fixed interval
-      timeoutRef.current = setTimeout(loop, INTERVAL);
+      timeoutRef.current = setTimeout(
+        loop,
+        Math.round(((1 - strength) * MAX_INTERVAL) / STEP) * STEP
+      );
     };
 
     // Start immediately
