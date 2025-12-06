@@ -26,12 +26,12 @@ export const connectToReduxPersistence = async (
         if (docSnapshot.exists()) {
           const data = docSnapshot.data();
           console.log('📥 Syncing data from Firebase:', data);
-          
+
           // Dispatch the data to Redux store
           store.dispatch(updateFromFirebase(data));
         } else {
           console.log('📄 No user document found in Firebase');
-          
+
           // Get current Redux state
           const state = store.getState();
 
@@ -48,7 +48,11 @@ export const connectToReduxPersistence = async (
           };
 
           await setDoc(userDocRef, initialToSave, { merge: true });
-          console.log('✅ Created initial document for:', userId, initialToSave);
+          console.log(
+            '✅ Created initial document for:',
+            userId,
+            initialToSave
+          );
         }
       },
       (error) => {

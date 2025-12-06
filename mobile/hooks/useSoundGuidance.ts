@@ -76,8 +76,8 @@ export function useSoundGuidance(
 
     if (shouldSound) {
       // stepped interval: faster when more misaligned
-      const minInterval = 220; // beeps fastest when very wrong
-      const maxInterval = 1000; // slow when close
+      const minInterval = 150; // beeps fastest when very wrong
+      const maxInterval = 800; // slow when close
       const maxDiff = 180;
       const minDiff = 15;
 

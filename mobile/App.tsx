@@ -7,7 +7,7 @@ import { Provider, useSelector } from 'react-redux';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import HomeScreen from './screens/HomeScreen';
-import TutorialScreen from './screens/TutorialScreen';
+import TutorialScreen from './screens/SettingScreen';
 import { connectToReduxPersistence } from './util/firebaseSync';
 import store, { updateFromFirebase } from './util/store';
 import { FeedbackProvider } from './hooks/FeedbackContext';
@@ -27,21 +27,18 @@ function AppNavigator() {
   useEffect(() => {
     if (!currentUid) return;
 
-    console.log('🔑 Uid changed to:', currentUid);
-    
     (async () => {
       // Save to AsyncStorage for persistence
       await AsyncStorage.setItem('profileId', currentUid);
-      
+
       // Connect to Firebase Firestore and sync with Redux
       const unsubscribe = await connectToReduxPersistence(
         store,
         updateFromFirebase,
         currentUid,
       );
-      
-      console.log('✅ Connected to Firebase with Uid:', currentUid);
-      console.log('Current Redux store state:', store.getState());
+
+
 
       // Cleanup function
       return () => {

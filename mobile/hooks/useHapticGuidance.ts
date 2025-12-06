@@ -30,7 +30,8 @@ export function useHapticGuidance(
   const strengthRef = useRef(0);
 
   // Fixed vibration frequency
-  const MAX_INTERVAL = 1000;
+  const MAX_INTERVAL = 800;
+  const MIN_INTERVAL = 150;
   const STEP = 15;
 
   // Calculate strength based on heading and target
@@ -94,7 +95,9 @@ export function useHapticGuidance(
       // Re-run the loop with fixed interval
       timeoutRef.current = setTimeout(
         loop,
-        Math.round(((1 - strength) * MAX_INTERVAL) / STEP) * STEP
+        Math.round(((1 - strength) * (MAX_INTERVAL - MIN_INTERVAL)) / STEP) *
+          STEP +
+          MIN_INTERVAL
       );
     };
 

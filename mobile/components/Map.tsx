@@ -1,20 +1,11 @@
 import React, { useState, useEffect, useRef } from 'react';
-import {
-  StyleSheet,
-  View,
-  TextInput,
-  TouchableOpacity,
-  Alert,
-} from 'react-native';
+import { StyleSheet, View, Alert } from 'react-native';
 import MapView, { Marker, Polyline, PROVIDER_DEFAULT } from 'react-native-maps';
 import * as Location from 'expo-location';
-import { Ionicons } from '@expo/vector-icons';
 
 interface MapProps {
   onLocationSelect: (lat: number, lng: number) => void;
   selectedLocation: { lat: number; lng: number } | null;
-  onRouteInfo?: (distanceMeters: number, durationSeconds: number) => void;
-  isNavigating: boolean;
   centerOnUserTrigger: number;
   onUserLocationUpdate?: (location: {
     latitude: number;
@@ -56,8 +47,6 @@ function deg2rad(deg: number) {
 export default function Map({
   onLocationSelect,
   selectedLocation,
-  onRouteInfo,
-  isNavigating,
   centerOnUserTrigger,
   onUserLocationUpdate,
   heading = 0,
@@ -72,7 +61,6 @@ export default function Map({
     latitude: number;
     longitude: number;
   } | null>(null);
-  const [searchQuery, setSearchQuery] = useState('');
   const [routeCoordinates, setRouteCoordinates] = useState<
     { latitude: number; longitude: number }[]
   >([]);
@@ -82,6 +70,16 @@ export default function Map({
   const [currentCheckpointIndex, setCurrentCheckpointIndex] = useState(0);
   const [currentTotalCheckpoint, setCurrentTotalCheckpoint] = useState(0);
   const [previousTotalCheckpoint, setPreviousTotalCheckpoint] = useState(0);
+  const [polylineWidth, setPolylineWidth] = useState(3.9);
+
+  // Set polyline width to 4 when route is loaded to rerender the route
+  useEffect(() => {
+    if (routeCoordinates.length > 0) {
+      setTimeout(() => {
+        setPolylineWidth(4);
+      }, 100);
+    }
+  }, [routeCoordinates]);
 
   // Reset index when route changes
   useEffect(() => {
@@ -101,12 +99,7 @@ export default function Map({
       !onNextCheckpointUpdate
     )
       return;
-    // Sequential Logic:
-    // Only look at the *current* target checkpoint.
-    // If we reach it (< 5m), move to the next one.
-    // Never look back.
 
-    // If we've finished all checkpoints, target is null (will fallback to destination)
     if (currentCheckpointIndex >= routeCheckpoints.length) {
       onNextCheckpointUpdate(null as any); // Or handle "finished" state
       return;
@@ -238,20 +231,16 @@ export default function Map({
 
   // Fetch Route
   useEffect(() => {
-    if (!userLocation || !selectedLocation) {
+    if (!selectedLocation || !userLocation) {
       setRouteCoordinates([]);
       setRouteCheckpoints([]);
-      if (onRouteInfo) onRouteInfo(0, 0);
+      setPolylineWidth(3.9);
       return;
     }
-
     const fetchRoute = async () => {
       try {
-        // Request steps=true to get turn-by-turn instructions
         const url = `https://router.project-osrm.org/route/v1/foot/${userLocation.longitude},${userLocation.latitude};${selectedLocation.lng},${selectedLocation.lat}?overview=full&geometries=geojson&steps=true`;
-
         const response = await fetch(url);
-        // Check if response is JSON
         const contentType = response.headers.get('content-type');
         if (
           !response.ok ||
@@ -259,7 +248,8 @@ export default function Map({
           !contentType.includes('application/json')
         ) {
           const text = await response.text();
-          console.error('OSRM Error (Not JSON):', text.substring(0, 100)); // Log first 100 chars
+          console.error('OSRM Error:', text.substring(0, 100));
+          Alert.alert('Route Error', 'Failed to fetch route from OSRM server.');
           return;
         }
         const data = await response.json();
@@ -272,21 +262,16 @@ export default function Map({
           }));
 
           setRouteCoordinates(coords);
-          if (onRouteInfo) onRouteInfo(route.distance, route.duration);
-
           // Extract steps (maneuvers)
-          // steps is an array of route legs (usually 1 for simple routes)
-          // each leg has steps
           if (route.legs && route.legs.length > 0) {
             const steps = route.legs[0].steps;
-            // Map steps to coordinates
             const checkpoints = steps.map((step: any) => ({
               latitude: step.maneuver.location[1],
               longitude: step.maneuver.location[0],
             }));
             setRouteCheckpoints(checkpoints);
             setCurrentTotalCheckpoint(checkpoints.length);
-            setCurrentCheckpointIndex(0); // Reset index for new route
+            setCurrentCheckpointIndex(0);
           }
 
           // Fit bounds
@@ -294,44 +279,16 @@ export default function Map({
             edgePadding: { top: 50, right: 50, bottom: 50, left: 50 },
             animated: true,
           });
+        } else {
+          Alert.alert('No Route', 'OSRM could not find a route.');
         }
       } catch (error) {
         console.error('Route fetch error:', error);
+        // Alert.alert('Error', 'An error occurred while fetching the route.');
       }
     };
     fetchRoute();
   }, [selectedLocation, userLocation]);
-
-  // Search Handler
-  const handleSearch = async () => {
-    if (!searchQuery.trim()) return;
-
-    try {
-      const response = await fetch(
-        `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(
-          searchQuery
-        )}&limit=1`
-      );
-      const data = await response.json();
-
-      if (data.length > 0) {
-        const lat = parseFloat(data[0].lat);
-        const lng = parseFloat(data[0].lon);
-
-        onLocationSelect(lat, lng);
-        setSearchQuery('');
-
-        mapRef.current?.animateToRegion({
-          latitude: lat,
-          longitude: lng,
-          latitudeDelta: 0.01,
-          longitudeDelta: 0.01,
-        });
-      }
-    } catch (error) {
-      console.error('Search error:', error);
-    }
-  };
 
   const handleMapPress = (e: any) => {
     const { latitude, longitude } = e.nativeEvent.coordinate;
@@ -344,25 +301,25 @@ export default function Map({
         ref={mapRef}
         style={styles.map}
         provider={PROVIDER_DEFAULT}
-        showsUserLocation={false} // We are rendering a custom marker
+        showsUserLocation={true} // We are rendering a custom marker
         showsCompass={false}
+        showsScale={false}
+        showsBuildings={false}
+        showsTraffic={false}
+        showsPointsOfInterest={false}
         onPress={handleMapPress}
+        mapType="standard"
       >
-        {/* Custom User Location Marker with Direction */}
-        {userLocation && (
-          <Marker
-            coordinate={userLocation}
-            anchor={{ x: 0.5, y: 0.5 }}
-            flat={true}
-            rotation={heading} // Rotate the marker itself
-            tracksViewChanges={true} // Prevent re-rendering the bitmap (stops flashing)
-          >
-            <View style={styles.userMarker}>
-              <Ionicons name="arrow-up" size={20} color="#0EA5E9" />
-            </View>
-          </Marker>
+        {/* Route Polyline */}
+        {routeCoordinates.length > 0 && (
+          <Polyline
+            coordinates={routeCoordinates}
+            strokeColor="#0EA5E9"
+            strokeWidth={polylineWidth}
+            zIndex={1000}
+            style={{ zIndex: 1000 }}
+          />
         )}
-
         {/* Route Checkpoints */}
         {routeCheckpoints.map((point, index) => {
           const isVisited = index < currentCheckpointIndex;
@@ -382,7 +339,7 @@ export default function Map({
             </Marker>
           );
         })}
-
+        {/* Destination Marker */}
         {selectedLocation && (
           <Marker
             coordinate={{
@@ -393,33 +350,7 @@ export default function Map({
             pinColor="#0EA5E9"
           />
         )}
-
-        {routeCoordinates.length > 0 && (
-          <Polyline
-            coordinates={routeCoordinates}
-            strokeColor="#0EA5E9"
-            strokeWidth={4}
-          />
-        )}
       </MapView>
-
-      {/* Search Bar (Only when not navigating) */}
-      {!isNavigating && (
-        <View style={styles.searchContainer}>
-          <View style={styles.searchBox}>
-            <Ionicons name="search" size={20} color="#a3a3a3" />
-            <TextInput
-              style={styles.input}
-              placeholder="Search Maps"
-              placeholderTextColor="#a3a3a3"
-              value={searchQuery}
-              onChangeText={setSearchQuery}
-              onSubmitEditing={handleSearch}
-              returnKeyType="search"
-            />
-          </View>
-        </View>
-      )}
     </View>
   );
 }
@@ -433,50 +364,7 @@ const styles = StyleSheet.create({
     width: '100%',
     height: '100%',
   },
-  searchContainer: {
-    position: 'absolute',
-    top: 60, // Safe area
-    left: 0,
-    right: 0,
-    alignItems: 'center',
-    zIndex: 10,
-  },
-  searchBox: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: 'rgba(23, 23, 23, 0.9)', // neutral-900
-    borderRadius: 20,
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    width: '90%',
-    maxWidth: 400,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25,
-    shadowRadius: 3.84,
-    elevation: 5,
-  },
-  input: {
-    flex: 1,
-    marginLeft: 10,
-    color: '#fff',
-    fontSize: 16,
-  },
-  userMarker: {
-    width: 30,
-    height: 30,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: 'rgba(255, 255, 255, 0.9)',
-    borderRadius: 15,
-    borderWidth: 2,
-    borderColor: '#fff',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25,
-    shadowRadius: 3.84,
-    elevation: 5,
-  },
+
   checkpointDot: {
     width: 12,
     height: 12,

@@ -45,15 +45,19 @@ export default function HapticCompass({
   const isAligned = Math.abs(shortestDiff(targetAngle, heading)) <= 25;
 
   // Colors
-  const staticArcColor = 'hsl(215, 15%, 35%)';
-  const torchInactiveFill = 'rgba(100, 149, 237, 0.25)';
-  const torchActiveFill = 'rgba(14, 165, 233, 0.45)';
-  const torchInactiveStroke = 'rgba(160, 174, 192, 0.7)';
-  const torchActiveStroke = 'rgb(14, 165, 233)';
+  // Colors
+  // Yellow Series (Default/Inactive)
+  const staticArcColor = 'rgba(234, 179, 8, 1)';
+  const torchInactiveFill = 'rgba(234, 179, 8, 0.45)'; // Yellow-500 low opacity
+  const torchInactiveStroke = 'rgb(234, 179, 8)'; // Yellow-500 high opacity
+
+  // Green Series (Active/Aligned)
+  const torchActiveFill = 'rgba(34, 197, 94, 0.45)'; // Green-500
+  const torchActiveStroke = 'rgb(34, 197, 94)';
 
   const torchFill = isAligned ? torchActiveFill : torchInactiveFill;
   const torchStroke = isAligned ? torchActiveStroke : torchInactiveStroke;
-  const circleStroke = isAligned ? 'rgb(14, 165, 233)' : 'hsl(215, 15%, 40%)';
+  const circleStroke = isAligned ? torchActiveStroke : 'rgb(234, 179, 8)';
 
   // Arc endpoints
   const rightX = centerX + radius * Math.sin(half);
@@ -101,7 +105,7 @@ export default function HapticCompass({
               `}
               fill={torchFill}
               stroke={torchStroke}
-              strokeWidth="1.5"
+              strokeWidth="3"
             />
           </G>
         </Svg>
@@ -111,7 +115,7 @@ export default function HapticCompass({
         Rotate your phone until the cone lines up with the top arc.
       </Text>
 
-      <View style={styles.debug}>
+      {/* <View style={styles.debug}>
         <Text style={{ color: 'white' }}>Heading: {heading.toFixed(0)}°</Text>
         <Text style={{ color: 'white' }}>
           Target: {targetAngle.toFixed(0)}°
@@ -119,7 +123,7 @@ export default function HapticCompass({
         <Text style={{ color: 'white' }}>
           Diff: {shortestDiff(targetAngle, heading).toFixed(0)}°
         </Text>
-      </View>
+      </View> */}
     </View>
   );
 }
@@ -138,7 +142,7 @@ const styles = StyleSheet.create({
     height: 300,
   },
   text: {
-    color: '#a3a3a3', // muted-foreground
+    color: 'white', // muted-foreground
     textAlign: 'center',
     fontSize: 16,
     maxWidth: 300,
