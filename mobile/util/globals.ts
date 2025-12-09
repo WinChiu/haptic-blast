@@ -7,4 +7,5 @@ export const GlobalStore = {
     MAX_DIFF: 180,
     MIN_DIFF: 15,
   },
+  DEFAULT_DESTINATION: '59.349290852186385, 18.067908444045592',
 };

@@ -23,6 +23,7 @@ import { useCompass } from '../hooks/useCompass';
 import { useHapticGuidance } from '../hooks/useHapticGuidance';
 import { useSoundGuidance } from '../hooks/useSoundGuidance';
 import { useFeedback } from '../hooks/FeedbackContext';
+import { GlobalStore } from '../util/globals';
 
 const { width } = Dimensions.get('window');
 
@@ -57,6 +58,9 @@ export default function HomeScreen() {
     latitude: number;
     longitude: number;
   } | null>(null);
+
+  /* New State for Compass Visibility */
+  const [showCompassContent, setShowCompassContent] = useState(true);
 
   const heading = useCompass(gpsHeading, speed);
 
@@ -171,8 +175,28 @@ export default function HomeScreen() {
               <Ionicons name="arrow-back" size={24} color="#d4d4d4" />
             </TouchableOpacity>
             <Text style={styles.headerTitle}>Compass</Text>
+
+            {/* TOGGLE BUTTON */}
+            <TouchableOpacity
+              onPress={() => setShowCompassContent(!showCompassContent)}
+              style={styles.toggleButton}
+            >
+              <Ionicons
+                name={showCompassContent ? 'eye' : 'eye-off'}
+                size={24}
+                color="#d4d4d4"
+              />
+            </TouchableOpacity>
           </View>
-          <HapticCompass targetAngle={targetBearing} heading={heading} />
+          {showCompassContent ? (
+            <HapticCompass targetAngle={targetBearing} heading={heading} />
+          ) : (
+            <View style={styles.hiddenCompassContainer}>
+              <Text style={styles.hiddenCompassText}>
+                Compass is hidden. Click the eye icon to reveal.
+              </Text>
+            </View>
+          )}
         </View>
       )}
 
@@ -262,6 +286,16 @@ export default function HomeScreen() {
             <Text style={styles.modalSubtitle}>
               Format: Latitude, Longitude
             </Text>
+
+            <TouchableOpacity
+              style={styles.defaultButton}
+              onPress={() => setSearchQuery(GlobalStore.DEFAULT_DESTINATION)}
+            >
+              <Text style={styles.defaultButtonText}>
+                Use Default: {GlobalStore.DEFAULT_DESTINATION}
+              </Text>
+            </TouchableOpacity>
+
             <TextInput
               style={styles.input}
               placeholder="e.g. 37.7749, -122.4194"
@@ -334,7 +368,6 @@ const styles = StyleSheet.create({
     zIndex: 2000,
     backgroundColor: '#171717',
   },
-
   bottomNav: {
     position: 'absolute',
     bottom: 30,
@@ -474,6 +507,22 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#fff',
   },
+  toggleButton: {
+    padding: 8,
+    borderRadius: 20,
+    marginLeft: 'auto', // Pushes it to the right
+  },
+  hiddenCompassContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  hiddenCompassText: {
+    color: '#a3a3a3',
+    fontSize: 16,
+    textAlign: 'center',
+    maxWidth: '80%',
+  },
   searchButton: {
     backgroundColor: '#333',
     width: 60,
@@ -522,6 +571,19 @@ const styles = StyleSheet.create({
     color: 'white',
     fontSize: 16,
     marginBottom: 20,
+  },
+  defaultButton: {
+    backgroundColor: '#333',
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 8,
+    marginBottom: 15,
+    alignSelf: 'flex-start',
+  },
+  defaultButtonText: {
+    color: '#0EA5E9', // Sky blue to indicate action
+    fontSize: 14,
+    fontWeight: '500',
   },
   modalButtons: {
     flexDirection: 'row',

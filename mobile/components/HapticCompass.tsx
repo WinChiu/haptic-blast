@@ -1,6 +1,7 @@
 import React from 'react';
 import { StyleSheet, Text, View, Dimensions } from 'react-native';
 import Svg, { Circle, Path, G } from 'react-native-svg';
+import { GlobalStore } from '../util/globals';
 
 const { width } = Dimensions.get('window');
 
@@ -32,8 +33,13 @@ export default function HapticCompass({
   const centerX = 100;
   const centerY = 100;
   const topY = 10;
-  const coneWidth = 60;
+
+  // Angle Spans (Degrees)
+  const coneWidth = GlobalStore.COMPASS_ANGLE_TOLERANCE * 2;
+  const arcWidth = 0; // 🟢 Smaller arc length (was 60 to match cone)
+
   const half = (coneWidth / 2) * (Math.PI / 180);
+  const arcHalf = (arcWidth / 2) * (Math.PI / 180);
 
   // FIXED: Torch (Pointer) is fixed at 0 (top)
   // Target Arc rotates relative to heading
@@ -59,11 +65,16 @@ export default function HapticCompass({
   const torchStroke = isAligned ? torchActiveStroke : torchInactiveStroke;
   const circleStroke = isAligned ? torchActiveStroke : 'rgb(234, 179, 8)';
 
-  // Arc endpoints
+  // Cone endpoints (using outer radius)
   const rightX = centerX + radius * Math.sin(half);
   const rightY = topY + radius * (1 - Math.cos(half));
-  const leftX = centerX - radius * Math.sin(half);
-  const leftY = rightY;
+  // Note: center point for cone is simply (centerX, centerY)
+
+  // Arc endpoints (using radius but different width)
+  const arcRightX = centerX + radius * Math.sin(arcHalf);
+  const arcRightY = centerY - radius * Math.cos(arcHalf);
+  const arcLeftX = centerX - radius * Math.sin(arcHalf);
+  const arcLeftY = arcRightY;
 
   return (
     <View style={styles.container}>
@@ -82,9 +93,9 @@ export default function HapticCompass({
           {/* Target Arc */}
           <G rotation={targetRotation} origin={`${centerX}, ${centerY}`}>
             <Path
-              d={`M ${leftX} ${leftY} A ${radius} ${radius} 0 0 1 ${rightX} ${rightY}`}
+              d={`M ${arcLeftX} ${arcLeftY} A ${radius} ${radius} 0 0 1 ${arcRightX} ${arcRightY}`}
               stroke={isAligned ? torchActiveStroke : staticArcColor}
-              strokeWidth="8"
+              strokeWidth="15"
               strokeLinecap="round"
               fill="none"
             />
@@ -110,7 +121,6 @@ export default function HapticCompass({
           </G>
         </Svg>
       </View>
-
       <Text style={styles.text}>
         Rotate your phone until the cone lines up with the top arc.
       </Text>
