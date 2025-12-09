@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import * as Haptics from 'expo-haptics';
-
+import { GlobalStore } from '../util/globals';
 // Normalize angle to [0, 360)
 const normalizeAngle = (angle: number) => {
   let a = angle % 360;
@@ -30,14 +30,16 @@ export function useHapticGuidance(
   const strengthRef = useRef(0);
 
   // Fixed vibration frequency
-  const MAX_INTERVAL = 800;
-  const MIN_INTERVAL = 150;
-  const STEP = 15;
+  const MAX_INTERVAL = GlobalStore.FEEDBACK.MAX_INTERVAL;
+  const MIN_INTERVAL = GlobalStore.FEEDBACK.MIN_INTERVAL;
+  const MAX_DIFF = GlobalStore.FEEDBACK.MAX_DIFF;
+  const MIN_DIFF = GlobalStore.FEEDBACK.MIN_DIFF;
+  const STEP = GlobalStore.FEEDBACK.STEP;
 
   // Calculate strength based on heading and target
   const calculateStrength = () => {
     const angleDiff = Math.abs(shortestDiff(targetBearing, currentHeading));
-    return Math.max(0, (angleDiff - 15) / (180 - 15));
+    return Math.max(0, (angleDiff - MIN_DIFF) / (MAX_DIFF - MIN_DIFF));
   };
 
   // Update strength ref without triggering loop restart
@@ -48,7 +50,7 @@ export function useHapticGuidance(
   // 1. Update vibration state based on alignment
   useEffect(() => {
     const angleDiff = Math.abs(shortestDiff(targetBearing, currentHeading));
-    const isAligned = angleDiff <= 25;
+    const isAligned = angleDiff <= GlobalStore.COMPASS_ANGLE_TOLERANCE;
 
     // Determine if we should be vibrating
     const shouldVibrate = isActive && !isAligned;

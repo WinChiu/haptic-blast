@@ -28,9 +28,7 @@ const { width } = Dimensions.get('window');
 
 export default function HomeScreen() {
   const navigation = useNavigation();
-
   const { hapticEnabled, soundEnabled } = useFeedback();
-
   const feedbackText = useMemo(() => {
     if (hapticEnabled && soundEnabled) return 'Hybrid Mode';
     if (hapticEnabled) return 'Haptic Mode';
@@ -51,6 +49,7 @@ export default function HomeScreen() {
   const [speed, setSpeed] = useState<number | null>(null);
 
   const [showSearchModal, setShowSearchModal] = useState(false);
+  const [showCompletionModal, setShowCompletionModal] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
 
   const [centerTrigger, setCenterTrigger] = useState(0);
@@ -144,7 +143,15 @@ export default function HomeScreen() {
           setSpeed(loc.speed);
         }}
         heading={heading}
-        onNextCheckpointUpdate={setNextCheckpoint}
+        onNextCheckpointUpdate={(checkpoint) => {
+          setNextCheckpoint(checkpoint);
+          if (checkpoint === null && isNavigating) {
+            // Reached destination
+            setShowCompletionModal(true);
+            setIsNavigating(false);
+            setShowHapticOverlay(false);
+          }
+        }}
       />
 
       <TouchableOpacity
@@ -277,6 +284,39 @@ export default function HomeScreen() {
                 <Text style={styles.modalButtonText}>Search</Text>
               </TouchableOpacity>
             </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Completion Modal */}
+      <Modal
+        visible={showCompletionModal}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setShowCompletionModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <Ionicons
+              name="checkmark-circle"
+              size={60}
+              color="#13b028ff"
+              style={{ marginBottom: 15 }}
+            />
+            <Text style={styles.modalTitle}>Complete!</Text>
+            <Text style={styles.modalSubtitle}>
+              You have reached your destination.
+            </Text>
+            <TouchableOpacity
+              style={[styles.modalButton, styles.confirmModalButton]}
+              onPress={() => {
+                setShowCompletionModal(false);
+                setSelectedLocation(null);
+                setNextCheckpoint(null);
+              }}
+            >
+              <Text style={styles.modalButtonText}>Close</Text>
+            </TouchableOpacity>
           </View>
         </View>
       </Modal>

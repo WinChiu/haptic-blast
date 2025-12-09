@@ -1,5 +1,6 @@
 import { useEffect, useRef, useCallback } from 'react';
 import { useAudioPlayer } from 'expo-audio';
+import { GlobalStore } from '../util/globals';
 
 // ------- angle helpers --------
 const normalizeAngle = (angle: number) => {
@@ -69,25 +70,25 @@ export function useSoundGuidance(
   // Respond to heading / target / active changes
   useEffect(() => {
     const angleDiff = Math.abs(shortestDiff(targetBearing, currentHeading));
-    const isAligned = angleDiff <= 25;
+    const isAligned = angleDiff <= GlobalStore.COMPASS_ANGLE_TOLERANCE;
 
     const shouldSound = isActive && !isAligned;
     shouldSoundRef.current = shouldSound;
 
     if (shouldSound) {
       // stepped interval: faster when more misaligned
-      const minInterval = 150; // beeps fastest when very wrong
-      const maxInterval = 800; // slow when close
-      const maxDiff = 180;
-      const minDiff = 15;
+      const MIN_INTERVAL = GlobalStore.FEEDBACK.MIN_INTERVAL; // beeps fastest when very wrong
+      const MAX_INTERVAL = GlobalStore.FEEDBACK.MAX_INTERVAL; // slow when close
+      const MAX_DIFF = GlobalStore.FEEDBACK.MAX_DIFF;
+      const MIN_DIFF = GlobalStore.FEEDBACK.MIN_DIFF;
+      const STEP = GlobalStore.FEEDBACK.STEP;
+      const STEPPED_DIFF = Math.floor(angleDiff / STEP) * STEP;
 
-      const stepSize = 15;
-      const steppedDiff = Math.floor(angleDiff / stepSize) * stepSize;
-
-      const ratio = (maxDiff - steppedDiff) / (maxDiff - minDiff);
+      const ratio = (MAX_DIFF - STEPPED_DIFF) / (MAX_DIFF - MIN_DIFF);
       const clampedRatio = Math.max(0, Math.min(1, ratio));
 
-      const interval = minInterval + (maxInterval - minInterval) * clampedRatio;
+      const interval =
+        MIN_INTERVAL + (MAX_INTERVAL - MIN_INTERVAL) * clampedRatio;
       intervalRef.current = interval;
 
       if (!isLoopRunningRef.current) {

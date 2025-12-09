@@ -14,10 +14,12 @@ interface MapProps {
     speed: number | null;
   }) => void;
   heading?: number;
-  onNextCheckpointUpdate?: (checkpoint: {
-    latitude: number;
-    longitude: number;
-  }) => void;
+  onNextCheckpointUpdate?: (
+    checkpoint: {
+      latitude: number;
+      longitude: number;
+    } | null
+  ) => void;
 }
 
 function getDistanceFromLatLonInMeters(
