@@ -3,8 +3,6 @@ import { StyleSheet, Text, View, Dimensions } from 'react-native';
 import Svg, { Circle, Path, G } from 'react-native-svg';
 import { GlobalStore } from '../util/globals';
 
-const { width } = Dimensions.get('window');
-
 // Normalize angle to [0, 360)
 const normalizeAngle = (angle: number) => {
   let a = angle % 360;
@@ -66,8 +64,7 @@ export default function HapticCompass({
   const circleStroke = isAligned ? torchActiveStroke : 'rgb(234, 179, 8)';
 
   // Cone endpoints (using outer radius)
-  const rightX = centerX + radius * Math.sin(half);
-  const rightY = topY + radius * (1 - Math.cos(half));
+
   // Note: center point for cone is simply (centerX, centerY)
 
   // Arc endpoints (using radius but different width)

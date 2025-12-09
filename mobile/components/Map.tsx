@@ -1,7 +1,14 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { StyleSheet, View, Alert } from 'react-native';
-import MapView, { Marker, Polyline, PROVIDER_DEFAULT } from 'react-native-maps';
+import { StyleSheet, View, Alert, Text } from 'react-native';
+import MapView, {
+  Marker,
+  Polyline,
+  UrlTile,
+  PROVIDER_DEFAULT,
+} from 'react-native-maps';
 import * as Location from 'expo-location';
+import { API_ENDPOINTS } from '../util/config';
+import { GlobalStore } from '../util/globals';
 
 interface MapProps {
   onLocationSelect: (lat: number, lng: number) => void;
@@ -18,8 +25,15 @@ interface MapProps {
     checkpoint: {
       latitude: number;
       longitude: number;
-    } | null
+    } | null,
+    index?: number,
+    total?: number
   ) => void;
+  mockUserLocation?: {
+    latitude: number;
+    longitude: number;
+    heading: number;
+  } | null;
 }
 
 function getDistanceFromLatLonInMeters(
@@ -53,9 +67,14 @@ export default function Map({
   onUserLocationUpdate,
   heading = 0,
   onNextCheckpointUpdate,
+  mockUserLocation = null,
 }: MapProps & { heading?: number }) {
   const mapRef = useRef<MapView>(null);
   const lastLocationRef = useRef<{
+    latitude: number;
+    longitude: number;
+  } | null>(null);
+  const [lastFetchLocation, setLastFetchLocation] = useState<{
     latitude: number;
     longitude: number;
   } | null>(null);
@@ -118,21 +137,29 @@ export default function Map({
     );
 
     // Check if reached
-    if (dist <= 5) {
+    if (dist <= GlobalStore.CHECKPOINT_THRESHOLD) {
       // Reached! Move to next.
       const nextIndex = currentCheckpointIndex + 1;
       setCurrentCheckpointIndex(nextIndex);
 
       // If there is a next point, update target immediately
       if (nextIndex < routeCheckpoints.length) {
-        onNextCheckpointUpdate(routeCheckpoints[nextIndex]);
+        onNextCheckpointUpdate(
+          routeCheckpoints[nextIndex],
+          nextIndex,
+          routeCheckpoints.length
+        );
       } else {
         // No more checkpoints, target final destination (handled by HomeScreen fallback)
-        onNextCheckpointUpdate(null as any);
+        onNextCheckpointUpdate(null as any, nextIndex, routeCheckpoints.length);
       }
     } else {
       // Not reached yet, keep targeting this one
-      onNextCheckpointUpdate(currentTarget);
+      onNextCheckpointUpdate(
+        currentTarget,
+        currentCheckpointIndex,
+        routeCheckpoints.length
+      );
     }
   }, [userLocation, routeCheckpoints, currentCheckpointIndex]);
 
@@ -172,53 +199,82 @@ export default function Map({
     })();
   }, []);
 
-  // Watch Position
+  // Watch Position or Mock Position
   useEffect(() => {
     let subscription: Location.LocationSubscription | null = null;
-    (async () => {
-      subscription = await Location.watchPositionAsync(
-        {
-          accuracy: Location.Accuracy.BestForNavigation,
-          timeInterval: 0,
-          distanceInterval: 0,
-        },
-        (location) => {
-          let { latitude, longitude } = location.coords;
-          const { heading, speed } = location.coords;
 
-          // Low-Pass Filter for Smoothing
-          // alpha = 0.2 means 20% new data, 80% old data (very smooth, more lag)
-          // alpha = 0.5 means 50% new data, 50% old data (balanced)
-          const alpha = 0.5;
+    if (mockUserLocation) {
+      // USE MOCK LOCATION
+      const { latitude, longitude, heading } = mockUserLocation;
 
-          if (lastLocationRef.current) {
-            latitude =
-              lastLocationRef.current.latitude * (1 - alpha) + latitude * alpha;
-            longitude =
-              lastLocationRef.current.longitude * (1 - alpha) +
-              longitude * alpha;
-          }
+      // ONLY update state if coordinates changed significantly (avoids re-fetch on rotation)
+      if (
+        !lastLocationRef.current ||
+        Math.abs(lastLocationRef.current.latitude - latitude) > 0.000001 ||
+        Math.abs(lastLocationRef.current.longitude - longitude) > 0.000001
+      ) {
+        const coords = { latitude, longitude };
+        lastLocationRef.current = coords;
+        setUserLocation(coords);
 
-          const coords = { latitude, longitude };
-          lastLocationRef.current = coords;
-          setUserLocation(coords);
-
-          if (onUserLocationUpdate) {
-            onUserLocationUpdate({
-              latitude,
-              longitude,
-              heading,
-              speed,
-            });
-          }
+        // Notify parent (Heading updates are fine here, they don't trigger route fetch in parent)
+        if (onUserLocationUpdate) {
+          onUserLocationUpdate({
+            latitude,
+            longitude,
+            heading, // Still pass heading for UI
+            speed: 0,
+          });
         }
-      );
-    })();
+      }
+    } else {
+      // USE REAL GPS
+      (async () => {
+        subscription = await Location.watchPositionAsync(
+          {
+            accuracy: Location.Accuracy.BestForNavigation,
+            timeInterval: 0,
+            distanceInterval: 0,
+          },
+          (location) => {
+            let { latitude, longitude } = location.coords;
+            const { heading, speed } = location.coords;
+
+            // Low-Pass Filter for Smoothing
+            // alpha = 0.2 means 20% new data, 80% old data (very smooth, more lag)
+            // alpha = 0.5 means 50% new data, 50% old data (balanced)
+            const alpha = 0.5;
+
+            if (lastLocationRef.current) {
+              latitude =
+                lastLocationRef.current.latitude * (1 - alpha) +
+                latitude * alpha;
+              longitude =
+                lastLocationRef.current.longitude * (1 - alpha) +
+                longitude * alpha;
+            }
+
+            const coords = { latitude, longitude };
+            lastLocationRef.current = coords;
+            setUserLocation(coords);
+
+            if (onUserLocationUpdate) {
+              onUserLocationUpdate({
+                latitude,
+                longitude,
+                heading,
+                speed,
+              });
+            }
+          }
+        );
+      })();
+    }
 
     return () => {
       if (subscription) subscription.remove();
     };
-  }, []);
+  }, [mockUserLocation]);
 
   // Recenter Trigger
   useEffect(() => {
@@ -231,7 +287,7 @@ export default function Map({
     }
   }, [centerOnUserTrigger]);
 
-  // Fetch Route
+  // Fetch Route (GraphHopper)
   useEffect(() => {
     if (!selectedLocation || !userLocation) {
       setRouteCoordinates([]);
@@ -239,54 +295,100 @@ export default function Map({
       setPolylineWidth(3.9);
       return;
     }
+
+    // Throttle fetches: Only fetch if moved > 10m, OR if we have no route yet
+    if (
+      lastFetchLocation &&
+      routeCoordinates.length > 0 &&
+      getDistanceFromLatLonInMeters(
+        lastFetchLocation.latitude,
+        lastFetchLocation.longitude,
+        userLocation.latitude,
+        userLocation.longitude
+      ) < GlobalStore.ROUTE_FETCH_THRESHOLD
+    ) {
+      return;
+    }
+
     const fetchRoute = async () => {
       try {
-        const url = `https://router.project-osrm.org/route/v1/foot/${userLocation.longitude},${userLocation.latitude};${selectedLocation.lng},${selectedLocation.lat}?overview=full&geometries=geojson&steps=true`;
+        // Update last fetch location immediately
+        setLastFetchLocation({
+          latitude: userLocation.latitude,
+          longitude: userLocation.longitude,
+        });
+
+        // GraphHopper API URL
+        // ADDED: profile=foot AND ch.disable=true (because CH is only enabled for car by default)
+        const url = `${API_ENDPOINTS.ROUTING}?point=${userLocation.latitude},${userLocation.longitude}&point=${selectedLocation.lat},${selectedLocation.lng}&profile=foot&ch.disable=true&points_encoded=false`;
         const response = await fetch(url);
-        const contentType = response.headers.get('content-type');
-        if (
-          !response.ok ||
-          !contentType ||
-          !contentType.includes('application/json')
-        ) {
+
+        if (!response.ok) {
           const text = await response.text();
-          console.error('OSRM Error:', text.substring(0, 100));
-          Alert.alert('Route Error', 'Failed to fetch route from OSRM server.');
+          console.error('GraphHopper Error:', text);
           return;
         }
+
         const data = await response.json();
 
-        if (data.code === 'Ok' && data.routes.length > 0) {
-          const route = data.routes[0];
-          const coords = route.geometry.coordinates.map((c: number[]) => ({
+        if (data.paths && data.paths.length > 0) {
+          const path = data.paths[0];
+
+          // GraphHopper returns [lon, lat] in coordinates if points_encoded=false
+          const coords = path.points.coordinates.map((c: number[]) => ({
             latitude: c[1],
             longitude: c[0],
           }));
 
           setRouteCoordinates(coords);
-          // Extract steps (maneuvers)
-          if (route.legs && route.legs.length > 0) {
-            const steps = route.legs[0].steps;
-            const checkpoints = steps.map((step: any) => ({
-              latitude: step.maneuver.location[1],
-              longitude: step.maneuver.location[0],
-            }));
-            setRouteCheckpoints(checkpoints);
-            setCurrentTotalCheckpoint(checkpoints.length);
+
+          // Extract maneuvers from instructions
+          if (path.instructions) {
+            const checkpoints = path.instructions
+              .filter((inst: any) => inst.sign !== 5) // Allow sign 4 (Finish) to be a checkpoint
+              .map((inst: any) => {
+                // Instruction doesn't always have lat/lng directly in same format as OSRM steps
+                // GraphHopper instructions usually point to an index in the points list
+                const pointIndex = inst.interval[0];
+                const coordinate = path.points.coordinates[pointIndex];
+                return {
+                  latitude: coordinate[1],
+                  longitude: coordinate[0],
+                };
+              });
+
+            // Pre-filter: If the first checkpoint is the start point (User Location), remove it immediately.
+            // This prevents targeting "Start" (0m away) then immediately switching to "Next" (flashing).
+            let initialCheckpoints = checkpoints;
+            if (
+              initialCheckpoints.length > 0 &&
+              getDistanceFromLatLonInMeters(
+                userLocation.latitude,
+                userLocation.longitude,
+                initialCheckpoints[0].latitude,
+                initialCheckpoints[0].longitude
+              ) < 10
+            ) {
+              initialCheckpoints = initialCheckpoints.slice(1);
+            }
+
+            setRouteCheckpoints(initialCheckpoints);
+            setCurrentTotalCheckpoint(initialCheckpoints.length);
             setCurrentCheckpointIndex(0);
           }
 
           // Fit bounds
-          mapRef.current?.fitToCoordinates(coords, {
-            edgePadding: { top: 50, right: 50, bottom: 50, left: 50 },
-            animated: true,
-          });
+          if (mapRef.current) {
+            mapRef.current.fitToCoordinates(coords, {
+              edgePadding: { top: 50, right: 50, bottom: 50, left: 50 },
+              animated: true,
+            });
+          }
         } else {
-          Alert.alert('No Route', 'OSRM could not find a route.');
+          Alert.alert('No Route', 'GraphHopper could not find a route.');
         }
       } catch (error) {
         console.error('Route fetch error:', error);
-        // Alert.alert('Error', 'An error occurred while fetching the route.');
       }
     };
     fetchRoute();
@@ -303,15 +405,23 @@ export default function Map({
         ref={mapRef}
         style={styles.map}
         provider={PROVIDER_DEFAULT}
-        showsUserLocation={true} // We are rendering a custom marker
+        showsUserLocation={!mockUserLocation} // Only show native blue dot if NOT mocking
         showsCompass={false}
         showsScale={false}
         showsBuildings={false}
         showsTraffic={false}
         showsPointsOfInterest={false}
         onPress={handleMapPress}
-        mapType="standard"
+        mapType="none" // Hides Google/Apple default map
       >
+        {/* Self-Hosted Tiles */}
+        <UrlTile
+          urlTemplate={API_ENDPOINTS.TILES}
+          maximumZ={19}
+          flipY={false}
+          zIndex={-1}
+        />
+
         {/* Route Polyline */}
         {routeCoordinates.length > 0 && (
           <Polyline
@@ -324,7 +434,8 @@ export default function Map({
         )}
         {/* Route Checkpoints */}
         {routeCheckpoints.map((point, index) => {
-          const isVisited = index < currentCheckpointIndex;
+          if (index < currentCheckpointIndex) return null; // Hide visited checkpoints
+
           return (
             <Marker
               key={`checkpoint-${index}`}
@@ -332,17 +443,29 @@ export default function Map({
               anchor={{ x: 0.5, y: 0.5 }}
               tracksViewChanges={false}
             >
-              <View
-                style={[
-                  styles.checkpointDot,
-                  isVisited && styles.checkpointDotVisited,
-                ]}
-              />
+              <View style={styles.checkpointDot}>
+                <Text style={styles.checkpointText}>
+                  {index - currentCheckpointIndex + 1}
+                </Text>
+              </View>
             </Marker>
           );
         })}
-        {/* Destination Marker */}
-        {selectedLocation && (
+
+        {/* Mock User Marker */}
+        {mockUserLocation && (
+          <Marker
+            coordinate={mockUserLocation}
+            anchor={{ x: 0.5, y: 0.5 }}
+            rotation={mockUserLocation.heading}
+            flat={true} // Rotates with map/heading
+          >
+            <View style={styles.mockUserDot}></View>
+          </Marker>
+        )}
+
+        {/* Destination Marker - Only show if NO route is loaded (otherwise the last checkpoint covers it) */}
+        {selectedLocation && routeCoordinates.length === 0 && (
           <Marker
             coordinate={{
               latitude: selectedLocation.lat,
@@ -368,14 +491,42 @@ const styles = StyleSheet.create({
   },
 
   checkpointDot: {
-    width: 12,
-    height: 12,
-    borderRadius: 6,
+    width: 24,
+    height: 24,
+    borderRadius: 12,
     backgroundColor: '#0EA5E9', // sky-500
     borderWidth: 2,
     borderColor: 'white',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  checkpointDotVisited: {
-    backgroundColor: '#EAB308', // yellow-500
+  checkpointText: {
+    color: 'white',
+    fontSize: 10,
+    fontWeight: 'bold',
+  },
+
+  mockUserDot: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    backgroundColor: '#A855F7', // Purple-500 (Debug Color)
+    borderWidth: 2,
+    borderColor: 'white',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  mockUserArrow: {
+    width: 0,
+    height: 0,
+    backgroundColor: 'transparent',
+    borderStyle: 'solid',
+    borderLeftWidth: 5,
+    borderRightWidth: 5,
+    borderBottomWidth: 10,
+    borderLeftColor: 'transparent',
+    borderRightColor: 'transparent',
+    borderBottomColor: 'white',
+    transform: [{ translateY: -2 }],
   },
 });

@@ -18,6 +18,7 @@ import {
 } from '../components/Icons';
 import Map from '../components/Map';
 import HapticCompass from '../components/HapticCompass';
+import Joystick from '../components/Joystick';
 
 import { useCompass } from '../hooks/useCompass';
 import { useHapticGuidance } from '../hooks/useHapticGuidance';
@@ -62,6 +63,14 @@ export default function HomeScreen() {
   /* New State for Compass Visibility */
   const [showCompassContent, setShowCompassContent] = useState(true);
 
+  /* Debug Mode State */
+  const [isDebugMode, setIsDebugMode] = useState(false);
+  const [mockLocation, setMockLocation] = useState<{
+    latitude: number;
+    longitude: number;
+    heading: number;
+  } | null>(null);
+
   const heading = useCompass(gpsHeading, speed);
 
   const targetBearing = useMemo(() => {
@@ -84,7 +93,7 @@ export default function HomeScreen() {
       Math.sin(lat1) * Math.cos(lat2) * Math.cos(dLon);
     const bearing = (Math.atan2(y, x) * 180) / Math.PI;
 
-    return (bearing + 360) % 360;
+    return (bearing + 180 + 360) % 360;
   }, [userLocation, selectedLocation, nextCheckpoint]);
 
   // ✅ Enable guidance only if user toggled it ON
@@ -133,6 +142,52 @@ export default function HomeScreen() {
     setSelectedLocation({ lat, lng });
     setShowSearchModal(false);
     setSearchQuery('');
+    setShowSearchModal(false);
+    setSearchQuery('');
+  };
+
+  const finalMockLocation = useMemo(() => {
+    return isDebugMode && mockLocation
+      ? { ...mockLocation, heading: heading }
+      : null;
+  }, [isDebugMode, mockLocation, heading]);
+
+  const handleMockMove = (direction: 'up' | 'down' | 'left' | 'right') => {
+    setMockLocation((prev) => {
+      // Initialize if null
+      let current = prev;
+      if (!current) {
+        current = {
+          latitude: userLocation ? userLocation[0] : 37.78825,
+          longitude: userLocation ? userLocation[1] : -122.4324,
+          heading: gpsHeading || 0,
+        };
+      }
+
+      const STEP = GlobalStore.DEBUG_MODE.STEP;
+      let { latitude, longitude, heading } = current;
+
+      switch (direction) {
+        case 'up':
+          latitude += STEP;
+          heading = 0;
+          break;
+        case 'down':
+          latitude -= STEP;
+          heading = 180;
+          break;
+        case 'left':
+          longitude -= STEP;
+          heading = 270;
+          break;
+        case 'right':
+          longitude += STEP;
+          heading = 90;
+          break;
+      }
+
+      return { latitude, longitude, heading };
+    });
   };
 
   return (
@@ -142,9 +197,17 @@ export default function HomeScreen() {
         selectedLocation={selectedLocation}
         centerOnUserTrigger={centerTrigger}
         onUserLocationUpdate={(loc) => {
-          setUserLocation([loc.latitude, loc.longitude]);
-          setGpsHeading(loc.heading);
-          setSpeed(loc.speed);
+          // Prevent infinite loop by checking if values actually changed
+          const newLoc: [number, number] = [loc.latitude, loc.longitude];
+          setUserLocation((prev) => {
+            if (!prev || prev[0] !== newLoc[0] || prev[1] !== newLoc[1]) {
+              return newLoc;
+            }
+            return prev;
+          });
+
+          setGpsHeading((prev) => (prev !== loc.heading ? loc.heading : prev));
+          setSpeed((prev) => (prev !== loc.speed ? loc.speed : prev));
         }}
         heading={heading}
         onNextCheckpointUpdate={(checkpoint) => {
@@ -156,6 +219,7 @@ export default function HomeScreen() {
             setShowHapticOverlay(false);
           }
         }}
+        mockUserLocation={finalMockLocation}
       />
 
       <TouchableOpacity
@@ -174,7 +238,10 @@ export default function HomeScreen() {
             >
               <Ionicons name="arrow-back" size={24} color="#d4d4d4" />
             </TouchableOpacity>
-            <Text style={styles.headerTitle}>Compass</Text>
+
+            <View style={{ flex: 1, paddingLeft: 8 }}>
+              <Text style={styles.headerTitle}>Compass</Text>
+            </View>
 
             {/* TOGGLE BUTTON */}
             <TouchableOpacity
@@ -341,19 +408,90 @@ export default function HomeScreen() {
             <Text style={styles.modalSubtitle}>
               You have reached your destination.
             </Text>
-            <TouchableOpacity
-              style={[styles.modalButton, styles.confirmModalButton]}
-              onPress={() => {
-                setShowCompletionModal(false);
-                setSelectedLocation(null);
-                setNextCheckpoint(null);
-              }}
-            >
-              <Text style={styles.modalButtonText}>Close</Text>
-            </TouchableOpacity>
+            <View style={styles.modalButtons}>
+              <TouchableOpacity
+                style={[styles.modalButton, styles.confirmModalButton]}
+                onPress={() => {
+                  setShowCompletionModal(false);
+                  setSelectedLocation(null);
+                  setNextCheckpoint(null);
+                }}
+              >
+                <Text style={styles.modalButtonText}>Close</Text>
+              </TouchableOpacity>
+            </View>
           </View>
         </View>
       </Modal>
+
+      {/* Debug Controls */}
+      <View style={styles.debugContainer}>
+        <TouchableOpacity
+          style={[styles.debugButton, isDebugMode && styles.debugButtonActive]}
+          onPress={() => {
+            setIsDebugMode(!isDebugMode);
+            if (!isDebugMode && userLocation) {
+              // Initialize mock location to current real location when enabling
+              setMockLocation({
+                latitude: userLocation[0],
+                longitude: userLocation[1],
+                heading: gpsHeading || 0,
+              });
+            } else {
+              setMockLocation(null);
+            }
+          }}
+        >
+          <Ionicons name="bug-outline" size={24} color="white" />
+        </TouchableOpacity>
+
+        {isDebugMode && (
+          <View style={styles.joystickContainer}>
+            <Joystick
+              size={120}
+              onMove={(angle, intensity) => {
+                setMockLocation((prev) => {
+                  if (!prev) return prev;
+                  // Calculate movement vector
+                  // 0 deg = North (Lat increase)
+                  // 90 deg = East (Lng increase)
+
+                  const speedMultiplier =
+                    GlobalStore.DEBUG_MODE.STEP *
+                    GlobalStore.DEBUG_MODE.SPEED_MULTIPLIER *
+                    intensity;
+                  const rad = (angle - 90) * (Math.PI / 180); // Convert back to Math angle (0=East) for cos/sin
+
+                  // angle 0 (North) -> should be dy +
+                  // angle 90 (East) -> should be dx +
+                  // standard math: 0 deg = East (x+), 90 deg = South (y+) in screen coords?
+                  // Let's stick to Map logic:
+                  // Lat + is North. Lng + is East.
+
+                  // Heading 0 (North) -> Lat +
+                  // Heading 90 (East) -> Lng +
+                  // Heading 180 (South) -> Lat -
+                  // Heading 270 (West) -> Lng -
+
+                  // dx = sin(heading) * speed
+                  // dy = cos(heading) * speed
+
+                  const hRad = angle * (Math.PI / 180);
+                  const dLat = Math.cos(hRad) * speedMultiplier;
+                  const dLng = Math.sin(hRad) * speedMultiplier;
+
+                  return {
+                    latitude: prev.latitude + dLat,
+                    longitude: prev.longitude + dLng,
+                    heading: angle,
+                  };
+                });
+              }}
+              onStop={() => {}}
+            />
+          </View>
+        )}
+      </View>
     </View>
   );
 }
@@ -507,6 +645,7 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#fff',
   },
+
   toggleButton: {
     padding: 8,
     borderRadius: 20,
@@ -608,4 +747,32 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: 'bold',
   },
+  debugContainer: {
+    position: 'absolute',
+    top: 80,
+    right: 26,
+    alignItems: 'flex-end',
+    gap: 10,
+  },
+  debugButton: {
+    width: 46,
+    height: 46,
+    borderRadius: 25,
+    backgroundColor: '#333',
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 3.84,
+    elevation: 8,
+  },
+  debugButtonActive: {
+    backgroundColor: '#A855F7',
+  },
+  joystickContainer: {
+    marginVertical: 10,
+    marginRight: 10,
+  },
+  // REMOVED old dpad styles
 });

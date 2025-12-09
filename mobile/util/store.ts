@@ -6,7 +6,7 @@ const initialState = {
     userProfile: {
       Uid: '',
     },
-    mistakes: [] as any[]
+    mistakes: [] as any[],
   },
 };
 
@@ -25,7 +25,9 @@ function reducer(state = initialState, action: any) {
             ...(userProfile || {}),
           },
           // if mistakes is provided, replace; otherwise keep old
-          mistakes: Array.isArray(mistakes) ? mistakes : state.userData.mistakes,
+          mistakes: Array.isArray(mistakes)
+            ? mistakes
+            : state.userData.mistakes,
         },
       };
     }
