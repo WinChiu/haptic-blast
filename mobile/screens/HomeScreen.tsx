@@ -21,15 +21,19 @@ import HapticCompass from '../components/HapticCompass';
 import Joystick from '../components/Joystick';
 
 import { useCompass } from '../hooks/useCompass';
-import { useHapticGuidance } from '../hooks/useHapticGuidance';
-import { useSoundGuidance } from '../hooks/useSoundGuidance';
+import { useGuidance } from '../hooks/useGuidance';
 import { useFeedback } from '../hooks/FeedbackContext';
 import { GlobalStore } from '../util/globals';
+
+import { useAudioPlayer } from 'expo-audio';
+
+const ENDING_SOURCE = require('../assets/Ending.m4a');
 
 const { width } = Dimensions.get('window');
 
 export default function HomeScreen() {
   const navigation = useNavigation();
+  const endingPlayer = useAudioPlayer(ENDING_SOURCE);
   const { hapticEnabled, soundEnabled } = useFeedback();
   const feedbackText = useMemo(() => {
     if (hapticEnabled && soundEnabled) return 'Hybrid Mode';
@@ -93,12 +97,17 @@ export default function HomeScreen() {
       Math.sin(lat1) * Math.cos(lat2) * Math.cos(dLon);
     const bearing = (Math.atan2(y, x) * 180) / Math.PI;
 
-    return (bearing + 180 + 360) % 360;
+    return (bearing + 360) % 360;
   }, [userLocation, selectedLocation, nextCheckpoint]);
 
-  // ✅ Enable guidance only if user toggled it ON
-  useHapticGuidance(heading, targetBearing, isNavigating && hapticEnabled);
-  useSoundGuidance(heading, targetBearing, isNavigating && soundEnabled);
+  // ✅ Unified Guidance Hook
+  useGuidance(
+    heading,
+    targetBearing,
+    isNavigating,
+    hapticEnabled,
+    soundEnabled
+  );
 
   const handleLocationSelect = (lat: number, lng: number) => {
     setSelectedLocation({ lat, lng });
@@ -214,6 +223,8 @@ export default function HomeScreen() {
           setNextCheckpoint(checkpoint);
           if (checkpoint === null && isNavigating) {
             // Reached destination
+            endingPlayer.seekTo(0);
+            endingPlayer.play();
             setShowCompletionModal(true);
             setIsNavigating(false);
             setShowHapticOverlay(false);
