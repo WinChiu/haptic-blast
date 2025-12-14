@@ -31,6 +31,7 @@ export function useGuidance(
 ) {
   const dispatch = useDispatch();
   const rounds = useSelector((state: any) => state.userData.round);
+  const userUid = useSelector((state: any) => state.userData.userProfile.Uid);
   
   const isLoopRunningRef = useRef<boolean>(false);
   const timeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -172,14 +173,14 @@ export function useGuidance(
     const angleDiff = Math.abs(shortestDiff(targetBearing, currentHeading));
     const isAligned = angleDiff <= GlobalStore.COMPASS_ANGLE_TOLERANCE;
 
-    // Track alignment changes and log mistakes (happens regardless of feedback settings)
+    // Track alignment changes and log mistakes (only if logged in)
     // Transition from aligned to misaligned (mistake starts)
-    if (wasAlignedRef.current && !isAligned) {
+    if (userUid && wasAlignedRef.current && !isAligned) {
       mistakeStartTimeRef.current = Date.now();
     }
 
     // Transition from misaligned to aligned (mistake ends)
-    if (!wasAlignedRef.current && isAligned && mistakeStartTimeRef.current !== null) {
+    if (userUid && !wasAlignedRef.current && isAligned && mistakeStartTimeRef.current !== null) {
       const finishTime = Date.now();
       const duration = finishTime - mistakeStartTimeRef.current;
       
@@ -218,6 +219,7 @@ export function useGuidance(
     loop,
     dispatch,
     rounds.length,
+    userUid,
   ]);
 
   // Cleanup

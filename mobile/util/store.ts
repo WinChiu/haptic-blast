@@ -11,6 +11,7 @@ const initialState = {
         start: number;
         finish: number;
         duration: number;
+        stop: number;
       };
       mistake: Array<{
         start: number;
@@ -27,6 +28,27 @@ function reducer(state = initialState, action: any) {
     case 'UPDATE_FROM_FIREBASE': {
       const { userProfile, round } = action.payload || {};
 
+      // Get rounds that exist in Redux but not in Firebase
+      // These are rounds added while Firebase was loading
+      const firebaseRounds = Array.isArray(round) ? round : [];
+      const existingRounds = state.userData.round;
+      
+      // Merge: Start with Firebase rounds, then append any new rounds added during loading
+      // Filter out rounds from existingRounds that were added AFTER Firebase data was loaded
+      // We identify this by checking if the existing round count is less than Firebase count
+      let mergedRounds;
+      if (firebaseRounds.length === 0) {
+        // No Firebase data, keep existing rounds
+        mergedRounds = existingRounds;
+      } else if (existingRounds.length > firebaseRounds.length) {
+        // User added rounds while Firebase was loading
+        // Keep Firebase rounds + append the new ones
+        mergedRounds = [...firebaseRounds, ...existingRounds.slice(firebaseRounds.length)];
+      } else {
+        // Normal case: use Firebase data
+        mergedRounds = firebaseRounds;
+      }
+
       return {
         ...state,
         userData: {
@@ -35,10 +57,7 @@ function reducer(state = initialState, action: any) {
             ...state.userData.userProfile,
             ...(userProfile || {}),
           },
-          // if round is provided, replace; otherwise keep old
-          round: Array.isArray(round)
-            ? round
-            : state.userData.round,
+          round: mergedRounds,
         },
       };
     }
@@ -62,7 +81,7 @@ function reducer(state = initialState, action: any) {
         ...state,
         userData: {
           ...state.userData,
-          round: action.payload, // expect an array
+          round: [...state.userData.round, ...action.payload], // append new rounds
         },
       };
 

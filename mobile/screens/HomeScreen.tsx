@@ -69,7 +69,8 @@ export default function HomeScreen() {
 
   /* New State for Compass Visibility */
   const [showCompassContent, setShowCompassContent] = useState(true);
-
+    const userUid = (useSelector as any)((state: any) => state.userData.userProfile.Uid);
+    
   /* Debug Mode State */
   const [isDebugMode, setIsDebugMode] = useState(false);
   const [mockLocation, setMockLocation] = useState<{
@@ -116,18 +117,23 @@ export default function HomeScreen() {
     setNextCheckpoint(checkpoint);
     if (checkpoint === null && isNavigating) {
       // Reached destination
-      const finishTime = Date.now();
-      const rounds = (useSelector as any)((state: any) => state.userData.round);
-      const currentRoundIndex = rounds.length - 1;
+      const userUid = (useSelector as any)((state: any) => state.userData.userProfile.Uid);
       
-      if (currentRoundIndex >= 0 && rounds[currentRoundIndex]) {
-        const startTime = rounds[currentRoundIndex].timeSpent.start;
-        const duration = finishTime - startTime;
+      // Only update round timing if user is logged in
+      if (userUid) {
+        const finishTime = Date.now();
+        const rounds = (useSelector as any)((state: any) => state.userData.round);
+        const currentRoundIndex = rounds.length - 1;
         
-        dispatch(updateRoundTiming(currentRoundIndex, {
-          finish: finishTime,
-          duration: duration,
-        }));
+        if (currentRoundIndex >= 0 && rounds[currentRoundIndex]) {
+          const startTime = rounds[currentRoundIndex].timeSpent.start;
+          const duration = finishTime - startTime;
+          
+          dispatch(updateRoundTiming(currentRoundIndex, {
+            finish: finishTime,
+            duration: duration,
+          }));
+        }
       }
       
       endingPlayer.seekTo(0);
@@ -148,21 +154,43 @@ export default function HomeScreen() {
   const handleStartNavigation = () => {
     if (!selectedLocation) return;
 
-    const startTime = Date.now();
-    dispatch(addRound({
-      timeSpent: {
-        start: startTime,
-        finish: 0,
-        duration: 0,
-      },
-      mistake: [],
-    }));
+
+    // Only track rounds if user is logged in
+    if (userUid) {
+      const startTime = Date.now();
+      dispatch(addRound({
+        timeSpent: {
+          start: startTime,
+          finish: 0,
+          duration: 0,
+          stop: 0,
+        },
+        mistake: [],
+      }));
+    }
     
     setIsNavigating(true);
     setCenterTrigger((c) => c + 1);
   };
 
   const handleCloseOverlay = () => {
+    // Update stop time if user is logged in and navigating
+    if (userUid && isNavigating) {
+      const stopTime = Date.now();
+      const rounds = (useSelector as any)((state: any) => state.userData.round);
+      const currentRoundIndex = rounds.length - 1;
+      
+      if (currentRoundIndex >= 0 && rounds[currentRoundIndex]) {
+        const startTime = rounds[currentRoundIndex].timeSpent.start;
+        const duration = stopTime - startTime;
+        
+        dispatch(updateRoundTiming(currentRoundIndex, {
+          stop: stopTime,
+          duration: duration,
+        }));
+      }
+    }
+    
     setSelectedLocation(null);
     setIsNavigating(false);
     setShowHapticOverlay(false);

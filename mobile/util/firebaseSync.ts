@@ -36,6 +36,20 @@ export const connectToReduxPersistence = async (
 
       await setDoc(userDocRef, initialToSave);
       console.log('✅ Created initial document for:', userId, initialToSave);
+    } else {
+      // Load existing Firebase data into Redux
+      const data = docSnapshot.data();
+      console.log('📥 Loading existing data from Firebase:', data);
+      
+      // Load Firebase data with userId - single dispatch to avoid race conditions
+      const dataToLoad = {
+        userProfile: {
+          ...(data?.userData?.userProfile || {}),
+          Uid: userId,
+        },
+        round: Array.isArray(data?.userData?.round) ? data.userData.round : [],
+      };
+      store.dispatch(updateFromFirebase(dataToLoad));
     }
 
     // Subscribe to Redux store changes and sync to Firebase
@@ -43,6 +57,13 @@ export const connectToReduxPersistence = async (
     
     const unsubscribe = store.subscribe(async () => {
       const currentState = store.getState();
+      
+      // Don't sync if Uid is empty (logout scenario)
+      const currentUid = (currentState as any).userData?.userProfile?.Uid;
+      if (!currentUid) {
+        previousState = currentState;
+        return;
+      }
       
       // Only sync if userData has changed
       if (previousState.userData !== currentState.userData) {
