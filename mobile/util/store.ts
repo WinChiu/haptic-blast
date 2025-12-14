@@ -6,7 +6,18 @@ const initialState = {
     userProfile: {
       Uid: '',
     },
-    mistakes: [] as any[],
+    round: [] as Array<{
+      timeSpent: {
+        start: number;
+        finish: number;
+        duration: number;
+      };
+      mistake: Array<{
+        start: number;
+        finish: number;
+        duration: number;
+      }>;
+    }>,
   },
 };
 
@@ -14,7 +25,7 @@ function reducer(state = initialState, action: any) {
   switch (action.type) {
     // Merge everything coming from Firebase into userData
     case 'UPDATE_FROM_FIREBASE': {
-      const { userProfile, mistakes } = action.payload || {};
+      const { userProfile, round } = action.payload || {};
 
       return {
         ...state,
@@ -24,10 +35,10 @@ function reducer(state = initialState, action: any) {
             ...state.userData.userProfile,
             ...(userProfile || {}),
           },
-          // if mistakes is provided, replace; otherwise keep old
-          mistakes: Array.isArray(mistakes)
-            ? mistakes
-            : state.userData.mistakes,
+          // if round is provided, replace; otherwise keep old
+          round: Array.isArray(round)
+            ? round
+            : state.userData.round,
         },
       };
     }
@@ -45,23 +56,51 @@ function reducer(state = initialState, action: any) {
         },
       };
 
-    // Update mistakes only
-    case 'UPDATE_MISTAKES':
+    // Update rounds
+    case 'UPDATE_ROUNDS':
       return {
         ...state,
         userData: {
           ...state.userData,
-          mistakes: action.payload, // expect an array
+          round: action.payload, // expect an array
         },
       };
 
-    // Add a mistake
-    case 'ADD_MISTAKE':
+    // Add a round
+    case 'ADD_ROUND':
       return {
         ...state,
         userData: {
           ...state.userData,
-          mistakes: [...state.userData.mistakes, action.payload],
+          round: [...state.userData.round, action.payload],
+        },
+      };
+
+    // Add mistake to current round
+    case 'ADD_MISTAKE_TO_ROUND':
+      return {
+        ...state,
+        userData: {
+          ...state.userData,
+          round: state.userData.round.map((r, idx) =>
+            idx === action.payload.roundIndex
+              ? { ...r, mistake: [...r.mistake, action.payload.mistake] }
+              : r
+          ),
+        },
+      };
+
+    // Update round timing
+    case 'UPDATE_ROUND_TIMING':
+      return {
+        ...state,
+        userData: {
+          ...state.userData,
+          round: state.userData.round.map((r, idx) =>
+            idx === action.payload.roundIndex
+              ? { ...r, timeSpent: { ...r.timeSpent, ...action.payload.timeSpent } }
+              : r
+          ),
         },
       };
 
@@ -88,14 +127,24 @@ export const updateUserProfile = (profileData: any) => ({
   payload: profileData,
 });
 
-export const updateMistakes = (mistakes: any[]) => ({
-  type: 'UPDATE_MISTAKES',
-  payload: mistakes,
+export const updateRounds = (rounds: any[]) => ({
+  type: 'UPDATE_ROUNDS',
+  payload: rounds,
 });
 
-export const addMistake = (mistake: any) => ({
-  type: 'ADD_MISTAKE',
-  payload: mistake,
+export const addRound = (round: any) => ({
+  type: 'ADD_ROUND',
+  payload: round,
+});
+
+export const addMistakeToRound = (roundIndex: number, mistake: any) => ({
+  type: 'ADD_MISTAKE_TO_ROUND',
+  payload: { roundIndex, mistake },
+});
+
+export const updateRoundTiming = (roundIndex: number, timeSpent: any) => ({
+  type: 'UPDATE_ROUND_TIMING',
+  payload: { roundIndex, timeSpent },
 });
 
 export const logout = () => ({

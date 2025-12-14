@@ -9,6 +9,7 @@ import {
   TextInput,
   Alert,
 } from 'react-native';
+import { useDispatch, useSelector } from 'react-redux';
 import { useNavigation } from '@react-navigation/native';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import {
@@ -24,6 +25,7 @@ import { useCompass } from '../hooks/useCompass';
 import { useGuidance } from '../hooks/useGuidance';
 import { useFeedback } from '../hooks/FeedbackContext';
 import { GlobalStore } from '../util/globals';
+import { addRound, updateRoundTiming } from '../util/store';
 
 import { useAudioPlayer } from 'expo-audio';
 
@@ -32,6 +34,7 @@ const ENDING_SOURCE = require('../assets/Ending.m4a');
 const { width } = Dimensions.get('window');
 
 export default function HomeScreen() {
+  const dispatch = useDispatch();
   const navigation = useNavigation();
   const endingPlayer = useAudioPlayer(ENDING_SOURCE);
   const { hapticEnabled, soundEnabled } = useFeedback();
@@ -109,6 +112,33 @@ export default function HomeScreen() {
     soundEnabled
   );
 
+  const handleCheckpointUpdate = (checkpoint: { latitude: number; longitude: number } | null) => {
+    setNextCheckpoint(checkpoint);
+    if (checkpoint === null && isNavigating) {
+      // Reached destination
+      const finishTime = Date.now();
+      const rounds = (useSelector as any)((state: any) => state.userData.round);
+      const currentRoundIndex = rounds.length - 1;
+      
+      if (currentRoundIndex >= 0 && rounds[currentRoundIndex]) {
+        const startTime = rounds[currentRoundIndex].timeSpent.start;
+        const duration = finishTime - startTime;
+        
+        dispatch(updateRoundTiming(currentRoundIndex, {
+          finish: finishTime,
+          duration: duration,
+        }));
+      }
+      
+      endingPlayer.seekTo(0);
+      endingPlayer.play();
+      setShowCompletionModal(true);
+
+      setIsNavigating(false);
+      setShowHapticOverlay(false);
+    }
+  };
+
   const handleLocationSelect = (lat: number, lng: number) => {
     setSelectedLocation({ lat, lng });
     setIsNavigating(false);
@@ -117,6 +147,17 @@ export default function HomeScreen() {
 
   const handleStartNavigation = () => {
     if (!selectedLocation) return;
+
+    const startTime = Date.now();
+    dispatch(addRound({
+      timeSpent: {
+        start: startTime,
+        finish: 0,
+        duration: 0,
+      },
+      mistake: [],
+    }));
+    
     setIsNavigating(true);
     setCenterTrigger((c) => c + 1);
   };
@@ -219,17 +260,7 @@ export default function HomeScreen() {
           setSpeed((prev) => (prev !== loc.speed ? loc.speed : prev));
         }}
         heading={heading}
-        onNextCheckpointUpdate={(checkpoint) => {
-          setNextCheckpoint(checkpoint);
-          if (checkpoint === null && isNavigating) {
-            // Reached destination
-            endingPlayer.seekTo(0);
-            endingPlayer.play();
-            setShowCompletionModal(true);
-            setIsNavigating(false);
-            setShowHapticOverlay(false);
-          }
-        }}
+        onNextCheckpointUpdate={handleCheckpointUpdate}
         mockUserLocation={finalMockLocation}
       />
 

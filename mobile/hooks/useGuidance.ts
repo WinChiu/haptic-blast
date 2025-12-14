@@ -1,7 +1,9 @@
 import { useEffect, useRef, useCallback, useState } from 'react';
+import { useDispatch, useSelector } from 'react-redux';
 import * as Haptics from 'expo-haptics';
 import { useAudioPlayer } from 'expo-audio';
 import { GlobalStore } from '../util/globals';
+import { addMistakeToRound } from '../util/store';
 
 const BEEP_SOURCE = require('../assets/beep.mp3');
 
@@ -27,11 +29,13 @@ export function useGuidance(
   hapticEnabled: boolean,
   soundEnabled: boolean
 ) {
-  // We track "isVibrating" for potential UI feedback, though strictly strictly unnecessary for logic
-  // Leaving it simple for now.
-
+  const dispatch = useDispatch();
+  const rounds = useSelector((state: any) => state.userData.round);
+  
   const isLoopRunningRef = useRef<boolean>(false);
   const timeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const wasAlignedRef = useRef<boolean>(true);
+  const mistakeStartTimeRef = useRef<number | null>(null);
 
   // Refs for current state so the loop sees latest values without restarting
   const stateRef = useRef({
@@ -148,27 +152,63 @@ export function useGuidance(
     timeoutRef.current = setTimeout(loop, interval);
   }, [playFeedback]);
 
-  // Watcher to start/stop loop
+  // Watcher to start/stop loop and track mistakes
   useEffect(() => {
     const { isNavigating, hapticEnabled, soundEnabled } = stateRef.current;
+    
+    // Reset mistake tracking only when navigation stops
+    if (!isNavigating) {
+      wasAlignedRef.current = true;
+      mistakeStartTimeRef.current = null;
+    }
+    
+    // Stop feedback loop when navigation stops or no feedback enabled
     if (!isNavigating || (!hapticEnabled && !soundEnabled)) {
-      // cleanup
       if (timeoutRef.current) clearTimeout(timeoutRef.current);
       isLoopRunningRef.current = false;
-      return;
+      if (!isNavigating) return; // Exit early only if not navigating
     }
 
     const angleDiff = Math.abs(shortestDiff(targetBearing, currentHeading));
     const isAligned = angleDiff <= GlobalStore.COMPASS_ANGLE_TOLERANCE;
 
-    if (!isAligned && !isLoopRunningRef.current) {
-      isLoopRunningRef.current = true;
-      loop();
-    } else if (isAligned) {
-      // If we become aligned, stop the loop
-      if (timeoutRef.current) clearTimeout(timeoutRef.current);
-      isLoopRunningRef.current = false;
+    // Track alignment changes and log mistakes (happens regardless of feedback settings)
+    // Transition from aligned to misaligned (mistake starts)
+    if (wasAlignedRef.current && !isAligned) {
+      mistakeStartTimeRef.current = Date.now();
     }
+
+    // Transition from misaligned to aligned (mistake ends)
+    if (!wasAlignedRef.current && isAligned && mistakeStartTimeRef.current !== null) {
+      const finishTime = Date.now();
+      const duration = finishTime - mistakeStartTimeRef.current;
+      
+      // Dispatch mistake to current round
+      const currentRoundIndex = rounds.length - 1;
+      if (currentRoundIndex >= 0) {
+        dispatch(addMistakeToRound(currentRoundIndex, {
+          start: mistakeStartTimeRef.current,
+          finish: finishTime,
+          duration: duration,
+        }));
+      }
+      
+      mistakeStartTimeRef.current = null;
+    }
+
+    wasAlignedRef.current = isAligned;
+
+    // Control feedback loop (only when feedback is enabled)
+
+      if (!isAligned && !isLoopRunningRef.current) {
+        isLoopRunningRef.current = true;
+        loop();
+      } else if (isAligned) {
+        // If we become aligned, stop the loop
+        if (timeoutRef.current) clearTimeout(timeoutRef.current);
+        isLoopRunningRef.current = false;
+      }
+    
   }, [
     currentHeading,
     targetBearing,
@@ -176,6 +216,8 @@ export function useGuidance(
     hapticEnabled,
     soundEnabled,
     loop,
+    dispatch,
+    rounds.length,
   ]);
 
   // Cleanup
