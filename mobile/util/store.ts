@@ -12,6 +12,8 @@ const initialState = {
         finish: number;
         duration: number;
         stop: number;
+        hapticEnabled: boolean;
+        soundEnabled: boolean;
       };
       mistake: Array<{
         start: number;

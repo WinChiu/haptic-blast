@@ -132,6 +132,8 @@ export default function HomeScreen() {
           dispatch(updateRoundTiming(currentRoundIndex, {
             finish: finishTime,
             duration: duration,
+            hapticEnabled,
+            soundEnabled,
           }));
         }
       }
@@ -164,6 +166,8 @@ export default function HomeScreen() {
           finish: 0,
           duration: 0,
           stop: 0,
+          hapticEnabled,
+          soundEnabled,
         },
         mistake: [],
       }));
@@ -187,6 +191,8 @@ export default function HomeScreen() {
         dispatch(updateRoundTiming(currentRoundIndex, {
           stop: stopTime,
           duration: duration,
+          hapticEnabled,
+          soundEnabled,
         }));
       }
     }
