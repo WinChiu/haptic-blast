@@ -34,6 +34,7 @@ const ENDING_SOURCE = require('../assets/Ending.m4a');
 const { width } = Dimensions.get('window');
 
 export default function HomeScreen() {
+     const rounds = (useSelector as any)((state: any) => state.userData.round);
   const dispatch = useDispatch();
   const navigation = useNavigation();
   const endingPlayer = useAudioPlayer(ENDING_SOURCE);
@@ -181,7 +182,7 @@ export default function HomeScreen() {
     // Update stop time if user is logged in and navigating
     if (userUid && isNavigating) {
       const stopTime = Date.now();
-      const rounds = (useSelector as any)((state: any) => state.userData.round);
+   
       const currentRoundIndex = rounds.length - 1;
       
       if (currentRoundIndex >= 0 && rounds[currentRoundIndex]) {
