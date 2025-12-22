@@ -44,6 +44,19 @@ export default function AllUsersDataScreen() {
   };
 
   const renderItem = ({ item }: { item: any }) => {
+    type TimeRecord = {
+      start: number;
+      finish: number;
+      duration: number; // ms
+    };
+    if (item.id === '005') {
+      let data = item.userData.round[0].mistake;
+      const totalDuration = data.reduce(
+        (sum: number, item: TimeRecord) => sum + item.duration,
+        0
+      );
+      console.log(totalDuration);
+    }
     const isExpanded = expandedUser === item.id;
     const roundCount = item.userData?.round?.length || 0;
     const uid = item.userData?.userProfile?.Uid || item.id;

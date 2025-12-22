@@ -150,6 +150,7 @@ export default function Map({
     // Check if reached
     if (dist <= GlobalStore.CHECKPOINT_THRESHOLD) {
       // Reached! Move to next.
+      console.log('Reached checkpoint', currentCheckpointIndex);
       const nextIndex = currentCheckpointIndex + 1;
       setCurrentCheckpointIndex(nextIndex);
 
