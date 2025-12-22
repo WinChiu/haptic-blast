@@ -118,13 +118,6 @@ export default function SettingScreen() {
               <Text style={styles.usernameDisplay}>{currentUid}</Text>
 
               <TouchableOpacity
-                style={styles.historyButton}
-                onPress={() => (navigation as any).navigate('History')}
-              >
-                <Text style={styles.historyButtonText}>View History</Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
                 style={styles.logoutButton}
                 onPress={handleLogout}
               >

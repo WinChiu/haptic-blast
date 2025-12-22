@@ -8,7 +8,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import HomeScreen from './screens/HomeScreen';
 import TutorialScreen from './screens/SettingScreen';
-import HistoryScreen from './screens/HistoryScreen';
+
 import AllUsersDataScreen from './screens/AllUsersDataScreen';
 import { connectToReduxPersistence } from './util/firebaseSync';
 import store, { updateFromFirebase, logout } from './util/store';
@@ -80,7 +80,7 @@ function AppNavigator() {
           >
             <Stack.Screen name="Home" component={HomeScreen} />
             <Stack.Screen name="Tutorial" component={TutorialScreen} />
-            <Stack.Screen name="History" component={HistoryScreen} />
+
             <Stack.Screen name="AllUsersData" component={AllUsersDataScreen} />
           </Stack.Navigator>
         </NavigationContainer>
