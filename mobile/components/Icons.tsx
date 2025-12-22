@@ -78,3 +78,20 @@ export const SearchIcon = (props: SvgProps) => (
     <Path d="M21 21l-6 -6" />
   </Svg>
 );
+
+export const ManualRouteIcon = (props: SvgProps) => (
+  <Svg
+    width={24}
+    height={24}
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth={1.5}
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    {...props}
+  >
+    <Path stroke="none" d="M0 0h24v24H0z" fill="none" />
+    <Path d="M9 11l-4 4l4 4m-4 -4h11a4 4 0 0 0 0 -8h-1" />
+  </Svg>
+);

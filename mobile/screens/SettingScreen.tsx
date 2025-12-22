@@ -14,7 +14,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useFeedback } from '../hooks/FeedbackContext';
 import { useSelector, useDispatch } from 'react-redux';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { updateUserProfile, logout } from '../util/store';
+import { updateUserProfile, logout, setDebugMode } from '../util/store';
 
 export default function SettingScreen() {
   const navigation = useNavigation();
@@ -22,10 +22,14 @@ export default function SettingScreen() {
     useFeedback();
   const dispatch = useDispatch();
 
-  // Get current Uid from Redux store
+  // Get data from Redux
   const currentUid = useSelector(
     (state: any) => state.userData.userProfile.Uid
   );
+  const debugMode = useSelector(
+    (state: any) => state.appSettings?.debugMode || false
+  );
+
   const [username, setUsername] = useState('');
 
   const handleSaveUsername = async () => {
@@ -70,6 +74,14 @@ export default function SettingScreen() {
       isEnabled: soundEnabled,
       onToggle: toggleSound,
     },
+    {
+      title: 'Debug Mode',
+      description: 'Enable mock location controls to simulate movement.',
+      isEnabled: debugMode,
+      onToggle: (val: boolean) => {
+        dispatch(setDebugMode(val));
+      },
+    },
   ];
 
   return (
@@ -83,48 +95,67 @@ export default function SettingScreen() {
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Settings</Text>
       </View>
-      <View style={styles.card}>
-        <Text style={styles.cardTitle}>Username</Text>
-        {currentUid ? (
-          // Show logged-in state
-          <>
-            <Text style={styles.cardText}>You are logged in as:</Text>
-            <Text style={styles.usernameDisplay}>{currentUid}</Text>
-            <TouchableOpacity
-              style={styles.logoutButton}
-              onPress={handleLogout}
-            >
-              <Text style={styles.logoutButtonText}>Logout</Text>
-            </TouchableOpacity>
-          </>
-        ) : (
-          // Show login form
-          <>
-            <Text style={styles.cardText}>
-              Set your username to sync your progress and settings.
-            </Text>
-            <TextInput
-              style={styles.input}
-              placeholder="Enter your username"
-              placeholderTextColor="#737373"
-              value={username}
-              onChangeText={setUsername}
-              autoCapitalize="none"
-              autoCorrect={false}
-            />
-            <TouchableOpacity
-              style={styles.saveButton}
-              onPress={handleSaveUsername}
-            >
-              <Text style={styles.saveButtonText}>Save Username</Text>
-            </TouchableOpacity>
-          </>
-        )}
-      </View>
       <ScrollView
         style={styles.content}
         contentContainerStyle={styles.scrollContent}
       >
+        {/* Username Section */}
+        <TouchableOpacity
+          style={[
+            styles.historyButton,
+            { backgroundColor: '#333', marginTop: 12 },
+          ]}
+          onPress={() => (navigation as any).navigate('AllUsersData')}
+        >
+          <Text style={styles.historyButtonText}>All Users Data</Text>
+        </TouchableOpacity>
+        <View style={styles.card}>
+          <Text style={styles.cardTitle}>Username</Text>
+          {currentUid ? (
+            // Show logged-in state
+            <>
+              <Text style={styles.cardText}>You are logged in as:</Text>
+              <Text style={styles.usernameDisplay}>{currentUid}</Text>
+
+              <TouchableOpacity
+                style={styles.historyButton}
+                onPress={() => (navigation as any).navigate('History')}
+              >
+                <Text style={styles.historyButtonText}>View History</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.logoutButton}
+                onPress={handleLogout}
+              >
+                <Text style={styles.logoutButtonText}>Logout</Text>
+              </TouchableOpacity>
+            </>
+          ) : (
+            // Show login form
+            <>
+              <Text style={styles.cardText}>
+                Set your username to sync your progress and settings.
+              </Text>
+              <TextInput
+                style={styles.input}
+                placeholder="Enter your username"
+                placeholderTextColor="#737373"
+                value={username}
+                onChangeText={setUsername}
+                autoCapitalize="none"
+                autoCorrect={false}
+              />
+              <TouchableOpacity
+                style={styles.saveButton}
+                onPress={handleSaveUsername}
+              >
+                <Text style={styles.saveButtonText}>Save Username</Text>
+              </TouchableOpacity>
+            </>
+          )}
+        </View>
+
         {cards.map((card, index) => (
           <View key={index} style={styles.card}>
             <Text style={styles.cardTitle}>{card.title}</Text>
@@ -198,11 +229,31 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     paddingVertical: 8,
   },
+  buttonRow: {
+    flexDirection: 'row',
+    gap: 12,
+    marginTop: 8,
+  },
+  historyButton: {
+    flex: 1,
+    backgroundColor: '#404040',
+    paddingVertical: 12,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  historyButtonText: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '600',
+  },
   logoutButton: {
+    flex: 1,
     backgroundColor: '#ef4444', // red-500
     paddingVertical: 12,
     borderRadius: 8,
     alignItems: 'center',
+    justifyContent: 'center',
   },
   logoutButtonText: {
     color: '#fff',

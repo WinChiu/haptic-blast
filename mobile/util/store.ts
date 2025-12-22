@@ -22,6 +22,9 @@ const initialState = {
       }>;
     }>,
   },
+  appSettings: {
+    debugMode: false,
+  },
 };
 
 function reducer(state = initialState, action: any) {
@@ -34,7 +37,7 @@ function reducer(state = initialState, action: any) {
       // These are rounds added while Firebase was loading
       const firebaseRounds = Array.isArray(round) ? round : [];
       const existingRounds = state.userData.round;
-      
+
       // Merge: Start with Firebase rounds, then append any new rounds added during loading
       // Filter out rounds from existingRounds that were added AFTER Firebase data was loaded
       // We identify this by checking if the existing round count is less than Firebase count
@@ -45,7 +48,10 @@ function reducer(state = initialState, action: any) {
       } else if (existingRounds.length > firebaseRounds.length) {
         // User added rounds while Firebase was loading
         // Keep Firebase rounds + append the new ones
-        mergedRounds = [...firebaseRounds, ...existingRounds.slice(firebaseRounds.length)];
+        mergedRounds = [
+          ...firebaseRounds,
+          ...existingRounds.slice(firebaseRounds.length),
+        ];
       } else {
         // Normal case: use Firebase data
         mergedRounds = firebaseRounds;
@@ -119,7 +125,10 @@ function reducer(state = initialState, action: any) {
           ...state.userData,
           round: state.userData.round.map((r, idx) =>
             idx === action.payload.roundIndex
-              ? { ...r, timeSpent: { ...r.timeSpent, ...action.payload.timeSpent } }
+              ? {
+                  ...r,
+                  timeSpent: { ...r.timeSpent, ...action.payload.timeSpent },
+                }
               : r
           ),
         },
@@ -128,6 +137,15 @@ function reducer(state = initialState, action: any) {
     // Logout - reset to initial state
     case 'LOGOUT':
       return initialState;
+
+    case 'SET_DEBUG_MODE':
+      return {
+        ...state,
+        appSettings: {
+          ...state.appSettings,
+          debugMode: action.payload,
+        },
+      };
 
     default:
       return state;
@@ -170,4 +188,9 @@ export const updateRoundTiming = (roundIndex: number, timeSpent: any) => ({
 
 export const logout = () => ({
   type: 'LOGOUT',
+});
+
+export const setDebugMode = (enabled: boolean) => ({
+  type: 'SET_DEBUG_MODE',
+  payload: enabled,
 });

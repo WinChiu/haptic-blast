@@ -11,8 +11,7 @@ import { API_ENDPOINTS } from '../util/config';
 import { GlobalStore } from '../util/globals';
 
 interface MapProps {
-  onLocationSelect: (lat: number, lng: number) => void;
-  selectedLocation: { lat: number; lng: number } | null;
+  route: { latitude: number; longitude: number }[] | null;
   centerOnUserTrigger: number;
   onUserLocationUpdate?: (location: {
     latitude: number;
@@ -20,6 +19,7 @@ interface MapProps {
     heading: number | null;
     speed: number | null;
   }) => void;
+
   heading?: number;
   onNextCheckpointUpdate?: (
     checkpoint: {
@@ -61,24 +61,23 @@ function deg2rad(deg: number) {
 }
 
 export default function Map({
-  onLocationSelect,
-  selectedLocation,
+  route,
   centerOnUserTrigger,
   onUserLocationUpdate,
   heading = 0,
   onNextCheckpointUpdate,
   mockUserLocation = null,
-}: MapProps & { heading?: number }) {
+}: MapProps) {
   const mapRef = useRef<MapView>(null);
   const lastLocationRef = useRef<{
     latitude: number;
     longitude: number;
   } | null>(null);
-  const [lastFetchLocation, setLastFetchLocation] = useState<{
+  const [userLocation, setUserLocation] = useState<{
     latitude: number;
     longitude: number;
   } | null>(null);
-  const [userLocation, setUserLocation] = useState<{
+  const [lastFetchLocation, setLastFetchLocation] = useState<{
     latitude: number;
     longitude: number;
   } | null>(null);
@@ -90,8 +89,30 @@ export default function Map({
   >([]);
   const [currentCheckpointIndex, setCurrentCheckpointIndex] = useState(0);
   const [currentTotalCheckpoint, setCurrentTotalCheckpoint] = useState(0);
-  const [previousTotalCheckpoint, setPreviousTotalCheckpoint] = useState(0);
   const [polylineWidth, setPolylineWidth] = useState(3.9);
+
+  // Initialize Route
+  useEffect(() => {
+    if (route && route.length > 0) {
+      setRouteCoordinates(route);
+      setRouteCheckpoints(route);
+      setCurrentTotalCheckpoint(route.length);
+      setCurrentCheckpointIndex(0);
+
+      // Fit bounds
+      if (mapRef.current) {
+        mapRef.current.fitToCoordinates(route, {
+          edgePadding: { top: 50, right: 50, bottom: 50, left: 50 },
+          animated: true,
+        });
+      }
+    } else {
+      setRouteCoordinates([]);
+      setRouteCheckpoints([]);
+      setCurrentTotalCheckpoint(0);
+      setCurrentCheckpointIndex(0);
+    }
+  }, [route]);
 
   // Set polyline width to 4 when route is loaded to rerender the route
   useEffect(() => {
@@ -101,16 +122,6 @@ export default function Map({
       }, 100);
     }
   }, [routeCoordinates]);
-
-  // Reset index when route changes
-  useEffect(() => {
-    if (currentTotalCheckpoint && previousTotalCheckpoint) {
-      if (currentTotalCheckpoint < previousTotalCheckpoint) {
-        setCurrentCheckpointIndex(currentCheckpointIndex - 1);
-      }
-    }
-    setPreviousTotalCheckpoint(currentTotalCheckpoint);
-  }, [routeCheckpoints]);
 
   // Calculate Next Checkpoint
   useEffect(() => {
@@ -287,118 +298,6 @@ export default function Map({
     }
   }, [centerOnUserTrigger]);
 
-  // Fetch Route (GraphHopper)
-  useEffect(() => {
-    if (!selectedLocation || !userLocation) {
-      setRouteCoordinates([]);
-      setRouteCheckpoints([]);
-      setPolylineWidth(3.9);
-      return;
-    }
-
-    // Throttle fetches: Only fetch if moved > 10m, OR if we have no route yet
-    if (
-      lastFetchLocation &&
-      routeCoordinates.length > 0 &&
-      getDistanceFromLatLonInMeters(
-        lastFetchLocation.latitude,
-        lastFetchLocation.longitude,
-        userLocation.latitude,
-        userLocation.longitude
-      ) < GlobalStore.ROUTE_FETCH_THRESHOLD
-    ) {
-      return;
-    }
-
-    const fetchRoute = async () => {
-      try {
-        // Update last fetch location immediately
-        setLastFetchLocation({
-          latitude: userLocation.latitude,
-          longitude: userLocation.longitude,
-        });
-
-        // GraphHopper API URL
-        // ADDED: profile=foot AND ch.disable=true (because CH is only enabled for car by default)
-        const url = `${API_ENDPOINTS.ROUTING}?point=${userLocation.latitude},${userLocation.longitude}&point=${selectedLocation.lat},${selectedLocation.lng}&profile=foot&ch.disable=true&points_encoded=false`;
-        const response = await fetch(url);
-
-        if (!response.ok) {
-          const text = await response.text();
-          console.error('GraphHopper Error:', text);
-          return;
-        }
-
-        const data = await response.json();
-
-        if (data.paths && data.paths.length > 0) {
-          const path = data.paths[0];
-
-          // GraphHopper returns [lon, lat] in coordinates if points_encoded=false
-          const coords = path.points.coordinates.map((c: number[]) => ({
-            latitude: c[1],
-            longitude: c[0],
-          }));
-
-          setRouteCoordinates(coords);
-
-          // Extract maneuvers from instructions
-          if (path.instructions) {
-            const checkpoints = path.instructions
-              .filter((inst: any) => inst.sign !== 5) // Allow sign 4 (Finish) to be a checkpoint
-              .map((inst: any) => {
-                // Instruction doesn't always have lat/lng directly in same format as OSRM steps
-                // GraphHopper instructions usually point to an index in the points list
-                const pointIndex = inst.interval[0];
-                const coordinate = path.points.coordinates[pointIndex];
-                return {
-                  latitude: coordinate[1],
-                  longitude: coordinate[0],
-                };
-              });
-
-            // Pre-filter: If the first checkpoint is the start point (User Location), remove it immediately.
-            // This prevents targeting "Start" (0m away) then immediately switching to "Next" (flashing).
-            let initialCheckpoints = checkpoints;
-            if (
-              initialCheckpoints.length > 0 &&
-              getDistanceFromLatLonInMeters(
-                userLocation.latitude,
-                userLocation.longitude,
-                initialCheckpoints[0].latitude,
-                initialCheckpoints[0].longitude
-              ) < 10
-            ) {
-              initialCheckpoints = initialCheckpoints.slice(1);
-            }
-
-            setRouteCheckpoints(initialCheckpoints);
-            setCurrentTotalCheckpoint(initialCheckpoints.length);
-            setCurrentCheckpointIndex(0);
-          }
-
-          // Fit bounds
-          if (mapRef.current) {
-            mapRef.current.fitToCoordinates(coords, {
-              edgePadding: { top: 50, right: 50, bottom: 50, left: 50 },
-              animated: true,
-            });
-          }
-        } else {
-          Alert.alert('No Route', 'GraphHopper could not find a route.');
-        }
-      } catch (error) {
-        console.error('Route fetch error:', error);
-      }
-    };
-    fetchRoute();
-  }, [selectedLocation, userLocation]);
-
-  const handleMapPress = (e: any) => {
-    const { latitude, longitude } = e.nativeEvent.coordinate;
-    onLocationSelect(latitude, longitude);
-  };
-
   return (
     <View style={styles.container}>
       <MapView
@@ -411,7 +310,6 @@ export default function Map({
         showsBuildings={false}
         showsTraffic={false}
         showsPointsOfInterest={false}
-        onPress={handleMapPress}
         mapType="none" // Hides Google/Apple default map
       >
         {/* Self-Hosted Tiles */}
@@ -444,9 +342,7 @@ export default function Map({
               tracksViewChanges={false}
             >
               <View style={styles.checkpointDot}>
-                <Text style={styles.checkpointText}>
-                  {index - currentCheckpointIndex + 1}
-                </Text>
+                <Text style={styles.checkpointText}>{index + 1}</Text>
               </View>
             </Marker>
           );
@@ -465,16 +361,6 @@ export default function Map({
         )}
 
         {/* Destination Marker - Only show if NO route is loaded (otherwise the last checkpoint covers it) */}
-        {selectedLocation && routeCoordinates.length === 0 && (
-          <Marker
-            coordinate={{
-              latitude: selectedLocation.lat,
-              longitude: selectedLocation.lng,
-            }}
-            title="Destination"
-            pinColor="#0EA5E9"
-          />
-        )}
       </MapView>
     </View>
   );

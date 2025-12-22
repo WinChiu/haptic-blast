@@ -8,6 +8,8 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import HomeScreen from './screens/HomeScreen';
 import TutorialScreen from './screens/SettingScreen';
+import HistoryScreen from './screens/HistoryScreen';
+import AllUsersDataScreen from './screens/AllUsersDataScreen';
 import { connectToReduxPersistence } from './util/firebaseSync';
 import store, { updateFromFirebase, logout } from './util/store';
 import { FeedbackProvider } from './hooks/FeedbackContext';
@@ -16,8 +18,12 @@ const Stack = createNativeStackNavigator();
 
 function AppNavigator() {
   const [isReady, setIsReady] = useState(false);
-  const [unsubscribeSync, setUnsubscribeSync] = useState<(() => void) | null>(null);
-  const currentUid = useSelector((state: any) => state.userData.userProfile.Uid);
+  const [unsubscribeSync, setUnsubscribeSync] = useState<(() => void) | null>(
+    null
+  );
+  const currentUid = useSelector(
+    (state: any) => state.userData.userProfile.Uid
+  );
 
   // Initial load
   useEffect(() => {
@@ -45,7 +51,7 @@ function AppNavigator() {
       const unsubscribe = await connectToReduxPersistence(
         store,
         updateFromFirebase,
-        currentUid,
+        currentUid
       );
 
       setUnsubscribeSync(() => unsubscribe);
@@ -74,6 +80,8 @@ function AppNavigator() {
           >
             <Stack.Screen name="Home" component={HomeScreen} />
             <Stack.Screen name="Tutorial" component={TutorialScreen} />
+            <Stack.Screen name="History" component={HistoryScreen} />
+            <Stack.Screen name="AllUsersData" component={AllUsersDataScreen} />
           </Stack.Navigator>
         </NavigationContainer>
       </FeedbackProvider>

@@ -12,11 +12,8 @@ import {
 import { useDispatch, useSelector } from 'react-redux';
 import { useNavigation } from '@react-navigation/native';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
-import {
-  RadarIcon,
-  CurrentLocationIcon,
-  SearchIcon,
-} from '../components/Icons';
+import { RadarIcon, CurrentLocationIcon } from '../components/Icons';
+import routeData from '../route.json';
 import Map from '../components/Map';
 import HapticCompass from '../components/HapticCompass';
 import Joystick from '../components/Joystick';
@@ -34,7 +31,7 @@ const ENDING_SOURCE = require('../assets/Ending.m4a');
 const { width } = Dimensions.get('window');
 
 export default function HomeScreen() {
-     const rounds = (useSelector as any)((state: any) => state.userData.round);
+  const rounds = (useSelector as any)((state: any) => state.userData.round);
   const dispatch = useDispatch();
   const navigation = useNavigation();
   const endingPlayer = useAudioPlayer(ENDING_SOURCE);
@@ -46,21 +43,10 @@ export default function HomeScreen() {
     return 'No Feedback';
   }, [hapticEnabled, soundEnabled]);
 
-  const [selectedLocation, setSelectedLocation] = useState<{
-    lat: number;
-    lng: number;
-  } | null>(null);
-  const [isNavigating, setIsNavigating] = useState(false);
-  const [showHapticOverlay, setShowHapticOverlay] = useState(false);
-  const [userLocation, setUserLocation] = useState<[number, number] | null>(
-    null
-  );
-  const [gpsHeading, setGpsHeading] = useState<number | null>(null);
   const [speed, setSpeed] = useState<number | null>(null);
 
-  const [showSearchModal, setShowSearchModal] = useState(false);
+  const [isPreviewMode, setIsPreviewMode] = useState(false);
   const [showCompletionModal, setShowCompletionModal] = useState(false);
-  const [searchQuery, setSearchQuery] = useState('');
 
   const [centerTrigger, setCenterTrigger] = useState(0);
   const [nextCheckpoint, setNextCheckpoint] = useState<{
@@ -70,15 +56,42 @@ export default function HomeScreen() {
 
   /* New State for Compass Visibility */
   const [showCompassContent, setShowCompassContent] = useState(true);
-    const userUid = (useSelector as any)((state: any) => state.userData.userProfile.Uid);
-    
-  /* Debug Mode State */
-  const [isDebugMode, setIsDebugMode] = useState(false);
+  const userUid = (useSelector as any)(
+    (state: any) => state.userData.userProfile.Uid
+  );
+  const userName = (useSelector as any)(
+    (state: any) => state.userData.userProfile.Name
+  );
+
+  const [isNavigating, setIsNavigating] = useState(false);
+  const [showHapticOverlay, setShowHapticOverlay] = useState(false);
+  const [userLocation, setUserLocation] = useState<[number, number] | null>(
+    null
+  );
+  const [gpsHeading, setGpsHeading] = useState<number | null>(null);
+
+  /* Debug Mode State - Moved to Redux */
+  const isDebugMode = (useSelector as any)(
+    (state: any) => state.appSettings?.debugMode || false
+  );
   const [mockLocation, setMockLocation] = useState<{
     latitude: number;
     longitude: number;
     heading: number;
   } | null>(null);
+
+  // Initialize mock location when debug mode is enabled
+  React.useEffect(() => {
+    if (isDebugMode && !mockLocation && userLocation) {
+      setMockLocation({
+        latitude: userLocation[0],
+        longitude: userLocation[1],
+        heading: gpsHeading || 0,
+      });
+    } else if (!isDebugMode) {
+      setMockLocation(null);
+    }
+  }, [isDebugMode]);
 
   const heading = useCompass(gpsHeading, speed);
 
@@ -86,11 +99,12 @@ export default function HomeScreen() {
     if (!userLocation) return 0;
 
     // Target the next checkpoint if available, otherwise the final destination
-    const target = nextCheckpoint
-      ? { lat: nextCheckpoint.latitude, lng: nextCheckpoint.longitude }
-      : selectedLocation;
+    if (!nextCheckpoint) return 0;
 
-    if (!target) return 0;
+    const target = {
+      lat: nextCheckpoint.latitude,
+      lng: nextCheckpoint.longitude,
+    };
 
     const lat1 = (userLocation[0] * Math.PI) / 180;
     const lat2 = (target.lat * Math.PI) / 180;
@@ -103,7 +117,7 @@ export default function HomeScreen() {
     const bearing = (Math.atan2(y, x) * 180) / Math.PI;
 
     return (bearing + 360) % 360;
-  }, [userLocation, selectedLocation, nextCheckpoint]);
+  }, [userLocation, nextCheckpoint]);
 
   // ✅ Unified Guidance Hook
   useGuidance(
@@ -114,66 +128,64 @@ export default function HomeScreen() {
     soundEnabled
   );
 
-  const handleCheckpointUpdate = (checkpoint: { latitude: number; longitude: number } | null) => {
+  const handleCheckpointUpdate = (
+    checkpoint: { latitude: number; longitude: number } | null
+  ) => {
     setNextCheckpoint(checkpoint);
     if (checkpoint === null && isNavigating) {
       // Reached destination
-      const userUid = (useSelector as any)((state: any) => state.userData.userProfile.Uid);
-      
+
       // Only update round timing if user is logged in
       if (userUid) {
         const finishTime = Date.now();
-        const rounds = (useSelector as any)((state: any) => state.userData.round);
         const currentRoundIndex = rounds.length - 1;
-        
+
         if (currentRoundIndex >= 0 && rounds[currentRoundIndex]) {
           const startTime = rounds[currentRoundIndex].timeSpent.start;
           const duration = finishTime - startTime;
-          
-          dispatch(updateRoundTiming(currentRoundIndex, {
-            finish: finishTime,
-            duration: duration,
-            hapticEnabled,
-            soundEnabled,
-          }));
+
+          dispatch(
+            updateRoundTiming(currentRoundIndex, {
+              finish: finishTime,
+              duration: duration,
+              hapticEnabled,
+              soundEnabled,
+            })
+          );
         }
       }
-      
+
       endingPlayer.seekTo(0);
       endingPlayer.play();
       setShowCompletionModal(true);
 
       setIsNavigating(false);
       setShowHapticOverlay(false);
+      setIsPreviewMode(false); // Reset preview mode on finish
     }
   };
 
-  const handleLocationSelect = (lat: number, lng: number) => {
-    setSelectedLocation({ lat, lng });
-    setIsNavigating(false);
-    setShowHapticOverlay(false);
-  };
-
   const handleStartNavigation = () => {
-    if (!selectedLocation) return;
-
+    if (!isPreviewMode) return;
 
     // Only track rounds if user is logged in
     if (userUid) {
       const startTime = Date.now();
-      dispatch(addRound({
-        timeSpent: {
-          start: startTime,
-          finish: 0,
-          duration: 0,
-          stop: 0,
-          hapticEnabled,
-          soundEnabled,
-        },
-        mistake: [],
-      }));
+      dispatch(
+        addRound({
+          timeSpent: {
+            start: startTime,
+            finish: 0,
+            duration: 0,
+            stop: 0,
+            hapticEnabled,
+            soundEnabled,
+          },
+          mistake: [],
+        })
+      );
     }
-    
+
     setIsNavigating(true);
     setCenterTrigger((c) => c + 1);
   };
@@ -182,53 +194,28 @@ export default function HomeScreen() {
     // Update stop time if user is logged in and navigating
     if (userUid && isNavigating) {
       const stopTime = Date.now();
-   
+
       const currentRoundIndex = rounds.length - 1;
-      
+
       if (currentRoundIndex >= 0 && rounds[currentRoundIndex]) {
         const startTime = rounds[currentRoundIndex].timeSpent.start;
         const duration = stopTime - startTime;
-        
-        dispatch(updateRoundTiming(currentRoundIndex, {
-          stop: stopTime,
-          duration: duration,
-          hapticEnabled,
-          soundEnabled,
-        }));
+
+        dispatch(
+          updateRoundTiming(currentRoundIndex, {
+            stop: stopTime,
+            duration: duration,
+            hapticEnabled,
+            soundEnabled,
+          })
+        );
       }
     }
-    
-    setSelectedLocation(null);
+
     setIsNavigating(false);
     setShowHapticOverlay(false);
     setNextCheckpoint(null);
-  };
-
-  const handleSearchSubmit = () => {
-    // Expected format "lat, lng"
-    const parts = searchQuery.split(',');
-    if (parts.length !== 2) {
-      Alert.alert('Invalid Format', 'Please enter "Latitude, Longitude"');
-      return;
-    }
-    const lat = parseFloat(parts[0].trim());
-    const lng = parseFloat(parts[1].trim());
-
-    if (isNaN(lat) || isNaN(lng)) {
-      Alert.alert('Invalid Coordinates', 'Please enter valid numbers.');
-      return;
-    }
-
-    if (lat < -90 || lat > 90 || lng < -180 || lng > 180) {
-      Alert.alert('Out of Range', 'Latitude or Longitude is out of bounds.');
-      return;
-    }
-
-    setSelectedLocation({ lat, lng });
-    setShowSearchModal(false);
-    setSearchQuery('');
-    setShowSearchModal(false);
-    setSearchQuery('');
+    setIsPreviewMode(false);
   };
 
   const finalMockLocation = useMemo(() => {
@@ -278,8 +265,7 @@ export default function HomeScreen() {
   return (
     <View style={styles.container}>
       <Map
-        onLocationSelect={handleLocationSelect}
-        selectedLocation={selectedLocation}
+        // selectedLocation prop removed from Map
         centerOnUserTrigger={centerTrigger}
         onUserLocationUpdate={(loc) => {
           // Prevent infinite loop by checking if values actually changed
@@ -297,13 +283,29 @@ export default function HomeScreen() {
         heading={heading}
         onNextCheckpointUpdate={handleCheckpointUpdate}
         mockUserLocation={finalMockLocation}
+        route={isPreviewMode ? routeData : null}
       />
 
       <TouchableOpacity
-        style={styles.feedbackTag}
+        style={[
+          styles.feedbackTag,
+          isDebugMode && { backgroundColor: '#A855F7' },
+        ]}
         onPress={() => (navigation as any).navigate('Tutorial')}
       >
-        <Text style={styles.feedbackText}>{feedbackText}</Text>
+        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+          {isDebugMode && (
+            <Ionicons
+              name="bug-outline"
+              size={18}
+              color="white"
+              style={{ marginRight: 8 }}
+            />
+          )}
+          <Text style={styles.feedbackText}>
+            {userUid ? userUid : 'Not login'} • {feedbackText}
+          </Text>
+        </View>
       </TouchableOpacity>
 
       {showHapticOverlay && (
@@ -348,7 +350,7 @@ export default function HomeScreen() {
         <>
           {!isNavigating && (
             <View style={styles.bottomNav}>
-              {selectedLocation ? (
+              {isPreviewMode ? (
                 <View style={styles.selectedLocationContainer}>
                   <TouchableOpacity
                     style={styles.startButton}
@@ -372,11 +374,12 @@ export default function HomeScreen() {
               ) : (
                 <View style={styles.menuBar}>
                   <TouchableOpacity
-                    style={styles.searchButton}
-                    onPress={() => setShowSearchModal(true)}
+                    style={[styles.startButton, { backgroundColor: '#333' }]} // Reuse start button style for Preview
+                    onPress={() => setIsPreviewMode(true)}
                   >
-                    <SearchIcon width={30} height={30} color="#fff" />
+                    <Text style={styles.startButtonText}>Preview Route</Text>
                   </TouchableOpacity>
+
                   <TouchableOpacity
                     style={styles.locateButton}
                     onPress={() => setCenterTrigger((c) => c + 1)}
@@ -417,54 +420,7 @@ export default function HomeScreen() {
         </>
       )}
 
-      {/* Search Input Modal */}
-      <Modal
-        visible={showSearchModal}
-        transparent={true}
-        animationType="fade"
-        onRequestClose={() => setShowSearchModal(false)}
-      >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>Enter Destination</Text>
-            <Text style={styles.modalSubtitle}>
-              Format: Latitude, Longitude
-            </Text>
-
-            <TouchableOpacity
-              style={styles.defaultButton}
-              onPress={() => setSearchQuery(GlobalStore.DEFAULT_DESTINATION)}
-            >
-              <Text style={styles.defaultButtonText}>
-                Use Default: {GlobalStore.DEFAULT_DESTINATION}
-              </Text>
-            </TouchableOpacity>
-
-            <TextInput
-              style={styles.input}
-              placeholder="e.g. 37.7749, -122.4194"
-              placeholderTextColor="#666"
-              value={searchQuery}
-              onChangeText={setSearchQuery}
-              keyboardType="numbers-and-punctuation"
-            />
-            <View style={styles.modalButtons}>
-              <TouchableOpacity
-                style={[styles.modalButton, styles.cancelModalButton]}
-                onPress={() => setShowSearchModal(false)}
-              >
-                <Text style={styles.modalButtonText}>Cancel</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.modalButton, styles.confirmModalButton]}
-                onPress={handleSearchSubmit}
-              >
-                <Text style={styles.modalButtonText}>Search</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </View>
-      </Modal>
+      {/* Search Modal Removed */}
 
       {/* Completion Modal */}
       <Modal
@@ -490,8 +446,8 @@ export default function HomeScreen() {
                 style={[styles.modalButton, styles.confirmModalButton]}
                 onPress={() => {
                   setShowCompletionModal(false);
-                  setSelectedLocation(null);
                   setNextCheckpoint(null);
+                  setIsPreviewMode(false);
                 }}
               >
                 <Text style={styles.modalButtonText}>Close</Text>
@@ -503,25 +459,6 @@ export default function HomeScreen() {
 
       {/* Debug Controls */}
       <View style={styles.debugContainer}>
-        <TouchableOpacity
-          style={[styles.debugButton, isDebugMode && styles.debugButtonActive]}
-          onPress={() => {
-            setIsDebugMode(!isDebugMode);
-            if (!isDebugMode && userLocation) {
-              // Initialize mock location to current real location when enabling
-              setMockLocation({
-                latitude: userLocation[0],
-                longitude: userLocation[1],
-                heading: gpsHeading || 0,
-              });
-            } else {
-              setMockLocation(null);
-            }
-          }}
-        >
-          <Ionicons name="bug-outline" size={24} color="white" />
-        </TouchableOpacity>
-
         {isDebugMode && (
           <View style={styles.joystickContainer}>
             <Joystick
@@ -591,9 +528,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   menuBar: {
-    flexDirection: 'column',
-    alignItems: 'flex-end',
+    flexDirection: 'row',
+    alignItems: 'center',
     width: '100%',
+    gap: 15,
   },
   selectedLocationContainer: {
     flexDirection: 'row',
@@ -826,7 +764,7 @@ const styles = StyleSheet.create({
   },
   debugContainer: {
     position: 'absolute',
-    top: 80,
+    bottom: 140,
     right: 26,
     alignItems: 'flex-end',
     gap: 10,
