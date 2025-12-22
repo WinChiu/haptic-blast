@@ -92,9 +92,9 @@ export function useGuidance(
     // HAPTIC ACTION
     if (hapticEnabled) {
       let hapticType = Haptics.ImpactFeedbackStyle.Light;
-      if (strength > 0.66) {
+      if (strength > 0.3) {
         hapticType = Haptics.ImpactFeedbackStyle.Heavy;
-      } else if (strength > 0.33) {
+      } else if (strength > 0.15) {
         hapticType = Haptics.ImpactFeedbackStyle.Medium;
       }
       Haptics.impactAsync(hapticType);
