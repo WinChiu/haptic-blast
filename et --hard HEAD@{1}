@@ -1,0 +1,38 @@
+[33mbe91f98[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mwin-hardcode-route[m[33m)[m HEAD@{0}: reset: moving to ORIG_HEAD
+[33mbe91f98[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mwin-hardcode-route[m[33m)[m HEAD@{1}: commit: 1222
+[33mc0f4114[m HEAD@{2}: commit: remove history
+[33m11eacad[m HEAD@{3}: checkout: moving from main to win-hardcode-route
+[33mc915317[m[33m ([m[1;31morigin/main[m[33m, [m[1;31morigin/HEAD[m[33m, [m[1;32mmain[m[33m)[m HEAD@{4}: pull: Fast-forward
+[33m39b8676[m HEAD@{5}: pull: Fast-forward
+[33ma68ff03[m[33m ([m[1;31morigin/win-bug-fix[m[33m)[m HEAD@{6}: checkout: moving from win-end-fix to main
+[33m366d9a8[m[33m ([m[1;31morigin/win-end-fix[m[33m, [m[1;32mwin-end-fix[m[33m)[m HEAD@{7}: pull: Fast-forward
+[33m9d2b4cb[m HEAD@{8}: commit: o
+[33m0868437[m HEAD@{9}: checkout: moving from main to win-end-fix
+[33ma68ff03[m[33m ([m[1;31morigin/win-bug-fix[m[33m)[m HEAD@{10}: reset: moving to origin/main
+[33m558ecf4[m[33m ([m[1;31morigin/yung[m[33m)[m HEAD@{11}: pull: Fast-forward
+[33ma84777f[m[33m ([m[1;32mwin-bug-fix[m[33m)[m HEAD@{12}: checkout: moving from win-bug-fix to main
+[33ma84777f[m[33m ([m[1;32mwin-bug-fix[m[33m)[m HEAD@{13}: checkout: moving from main to win-bug-fix
+[33ma84777f[m[33m ([m[1;32mwin-bug-fix[m[33m)[m HEAD@{14}: commit: Dec.03
+[33m25de04e[m HEAD@{15}: commit (merge): v1
+[33m5352510[m[33m ([m[1;31morigin/win-checkpoint[m[33m, [m[1;32mwin-checkpoint[m[33m)[m HEAD@{16}: merge win-checkpoint: Fast-forward
+[33mc08aee9[m[33m ([m[1;31morigin/win-ui[m[33m, [m[1;31morigin/win-compass-fix[m[33m, [m[1;32mwin-compass-fix[m[33m, [m[1;32mdev[m[33m)[m HEAD@{17}: checkout: moving from win-checkpoint to main
+[33m5352510[m[33m ([m[1;31morigin/win-checkpoint[m[33m, [m[1;32mwin-checkpoint[m[33m)[m HEAD@{18}: commit: checkpoint v1
+[33mc08aee9[m[33m ([m[1;31morigin/win-ui[m[33m, [m[1;31morigin/win-compass-fix[m[33m, [m[1;32mwin-compass-fix[m[33m, [m[1;32mdev[m[33m)[m HEAD@{19}: Branch: renamed refs/heads/win-ui to refs/heads/win-checkpoint
+[33mc08aee9[m[33m ([m[1;31morigin/win-ui[m[33m, [m[1;31morigin/win-compass-fix[m[33m, [m[1;32mwin-compass-fix[m[33m, [m[1;32mdev[m[33m)[m HEAD@{21}: checkout: moving from dev to win-ui
+[33mc08aee9[m[33m ([m[1;31morigin/win-ui[m[33m, [m[1;31morigin/win-compass-fix[m[33m, [m[1;32mwin-compass-fix[m[33m, [m[1;32mdev[m[33m)[m HEAD@{22}: checkout: moving from main to dev
+[33mc08aee9[m[33m ([m[1;31morigin/win-ui[m[33m, [m[1;31morigin/win-compass-fix[m[33m, [m[1;32mwin-compass-fix[m[33m, [m[1;32mdev[m[33m)[m HEAD@{23}: merge win-compass-fix: Fast-forward
+[33me505c6f[m HEAD@{24}: checkout: moving from win-compass-fix to main
+[33mc08aee9[m[33m ([m[1;31morigin/win-ui[m[33m, [m[1;31morigin/win-compass-fix[m[33m, [m[1;32mwin-compass-fix[m[33m, [m[1;32mdev[m[33m)[m HEAD@{25}: commit: compass rotation fix
+[33me505c6f[m HEAD@{26}: Branch: renamed refs/heads/win-checkpoint to refs/heads/win-compass-fix
+[33me505c6f[m HEAD@{28}: checkout: moving from main to win-checkpoint
+[33me505c6f[m HEAD@{29}: checkout: moving from win-ui to main
+[33me505c6f[m HEAD@{30}: checkout: moving from main to win-ui
+[33me505c6f[m HEAD@{31}: pull: Fast-forward
+[33mbd7ded0[m[33m ([m[1;31morigin/win[m[33m)[m HEAD@{32}: checkout: moving from win to main
+[33mbd7ded0[m[33m ([m[1;31morigin/win[m[33m)[m HEAD@{33}: checkout: moving from main to win
+[33mbd7ded0[m[33m ([m[1;31morigin/win[m[33m)[m HEAD@{34}: commit: merge
+[33mde51c7f[m[33m ([m[1;31morigin/react-native-test[m[33m, [m[1;32mreact-native-test[m[33m)[m HEAD@{35}: merge react-native-test: Fast-forward
+[33me4655df[m HEAD@{36}: checkout: moving from react-native-test to main
+[33mde51c7f[m[33m ([m[1;31morigin/react-native-test[m[33m, [m[1;32mreact-native-test[m[33m)[m HEAD@{37}: commit: update
+[33me582af5[m HEAD@{38}: checkout: moving from main to react-native-test
+[33me4655df[m HEAD@{39}: clone: from https://github.com/AlexEmrik/haptic-navigator.git

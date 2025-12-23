@@ -245,7 +245,7 @@ export default function Map({
         subscription = await Location.watchPositionAsync(
           {
             accuracy: Location.Accuracy.BestForNavigation,
-            timeInterval: 0,
+            timeInterval: 500,
             distanceInterval: 0,
           },
           (location) => {
