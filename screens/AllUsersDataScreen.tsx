@@ -49,7 +49,7 @@ export default function AllUsersDataScreen() {
       finish: number;
       duration: number; // ms
     };
-    if (item.id === '005') {
+    if (item.id === '017') {
       let data = item.userData.round[0].mistake;
       const totalDuration = data.reduce(
         (sum: number, item: TimeRecord) => sum + item.duration,
