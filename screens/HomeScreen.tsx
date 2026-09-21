@@ -308,7 +308,11 @@ export default function HomeScreen() {
         </View>
       </TouchableOpacity>
 
-      {showHapticOverlay && (
+      <Modal
+        visible={showHapticOverlay}
+        animationType="none"
+        onRequestClose={() => setShowHapticOverlay(false)}
+      >
         <View style={styles.hapticOverlay}>
           <View style={styles.header}>
             <TouchableOpacity
@@ -344,7 +348,7 @@ export default function HomeScreen() {
             </View>
           )}
         </View>
-      )}
+      </Modal>
 
       {!showHapticOverlay && (
         <>
@@ -516,8 +520,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#000',
   },
   hapticOverlay: {
-    ...StyleSheet.absoluteFillObject,
-    zIndex: 2000,
+    flex: 1,
     backgroundColor: '#171717',
   },
   bottomNav: {
@@ -645,9 +648,6 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: '#262626',
     width: '100%',
-    position: 'absolute',
-    top: 0,
-    zIndex: 10,
     backgroundColor: '#171717',
   },
   backButton: {
