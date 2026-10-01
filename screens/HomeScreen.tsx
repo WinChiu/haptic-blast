@@ -35,13 +35,13 @@ export default function HomeScreen() {
   const dispatch = useDispatch();
   const navigation = useNavigation();
   const endingPlayer = useAudioPlayer(ENDING_SOURCE);
-  const { hapticEnabled, soundEnabled } = useFeedback();
+  const { hapticEnabled, soundEnabled, hapticStyle } = useFeedback();
   const feedbackText = useMemo(() => {
-    if (hapticEnabled && soundEnabled) return 'Hybrid Mode';
-    if (hapticEnabled) return 'Haptic Mode';
+    if (hapticEnabled && soundEnabled) return `Hybrid Mode (${hapticStyle})`;
+    if (hapticEnabled) return `Haptic Mode (${hapticStyle})`;
     if (soundEnabled) return 'Audio Mode';
     return 'No Feedback';
-  }, [hapticEnabled, soundEnabled]);
+  }, [hapticEnabled, soundEnabled, hapticStyle]);
 
   const [speed, setSpeed] = useState<number | null>(null);
 
@@ -125,7 +125,8 @@ export default function HomeScreen() {
     targetBearing,
     isNavigating,
     hapticEnabled,
-    soundEnabled
+    soundEnabled,
+    hapticStyle
   );
 
   const handleCheckpointUpdate = (
@@ -150,6 +151,7 @@ export default function HomeScreen() {
               duration: duration,
               hapticEnabled,
               soundEnabled,
+              hapticStyle,
             })
           );
         }
@@ -180,6 +182,7 @@ export default function HomeScreen() {
             stop: 0,
             hapticEnabled,
             soundEnabled,
+            hapticStyle,
           },
           mistake: [],
         })
@@ -207,6 +210,7 @@ export default function HomeScreen() {
             duration: duration,
             hapticEnabled,
             soundEnabled,
+            hapticStyle,
           })
         );
       }

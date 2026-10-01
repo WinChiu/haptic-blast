@@ -14,6 +14,8 @@ const initialState = {
         stop: number;
         hapticEnabled: boolean;
         soundEnabled: boolean;
+        // Absent on rounds recorded before haptic styles existed (= 'tap')
+        hapticStyle?: 'tap' | 'pulse' | 'continuous';
       };
       mistake: Array<{
         start: number;

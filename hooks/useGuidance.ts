@@ -4,6 +4,8 @@ import * as Haptics from 'expo-haptics';
 import { useAudioPlayer } from 'expo-audio';
 import { GlobalStore } from '../util/globals';
 import { addMistakeToRound } from '../util/store';
+import { HapticStyle } from './FeedbackContext';
+import { useBuzz, BUZZ_BACKEND } from './useBuzz';
 
 const BEEP_SOURCE = require('../assets/beep.mp3');
 
@@ -22,13 +24,32 @@ const shortestDiff = (target: number, current: number) => {
   return diff;
 };
 
+// Map angle error to 0..1 (larger error = closer to 1)
+const strengthOf = (angleDiff: number) => {
+  const { MAX_DIFF, MIN_DIFF } = GlobalStore.FEEDBACK;
+  return Math.max(0, Math.min(1, (angleDiff - MIN_DIFF) / (MAX_DIFF - MIN_DIFF)));
+};
+
+// Whether the timed loop has work: sound beeps, or tap/pulse haptics.
+// Continuous buzz is driven directly by heading changes instead.
+const loopNeeded = (s: {
+  hapticEnabled: boolean;
+  soundEnabled: boolean;
+  hapticStyle: HapticStyle;
+}) => s.soundEnabled || (s.hapticEnabled && s.hapticStyle !== 'continuous');
+
 export function useGuidance(
   currentHeading: number,
   targetBearing: number,
   isNavigating: boolean,
   hapticEnabled: boolean,
-  soundEnabled: boolean
+  soundEnabled: boolean,
+  requestedHapticStyle: HapticStyle
 ) {
+  // Expo Go on iOS has no way to buzz, so fall back to taps there.
+  const hapticStyle: HapticStyle =
+    BUZZ_BACKEND === 'none' ? 'tap' : requestedHapticStyle;
+
   const dispatch = useDispatch();
   const rounds = useSelector((state: any) => state.userData.round);
   const userUid = useSelector((state: any) => state.userData.userProfile.Uid);
@@ -37,6 +58,7 @@ export function useGuidance(
   const timeoutRef = useRef<NodeJS.Timeout | null>(null);
   const wasAlignedRef = useRef<boolean>(true);
   const mistakeStartTimeRef = useRef<number | null>(null);
+  const isContinuousBuzzingRef = useRef<boolean>(false);
 
   // Refs for current state so the loop sees latest values without restarting
   const stateRef = useRef({
@@ -45,6 +67,7 @@ export function useGuidance(
     isNavigating,
     hapticEnabled,
     soundEnabled,
+    hapticStyle,
   });
 
   useEffect(() => {
@@ -54,6 +77,7 @@ export function useGuidance(
       isNavigating,
       hapticEnabled,
       soundEnabled,
+      hapticStyle,
     };
   }, [
     currentHeading,
@@ -61,18 +85,25 @@ export function useGuidance(
     isNavigating,
     hapticEnabled,
     soundEnabled,
+    hapticStyle,
   ]);
 
   // Audio setup
   const player = useAudioPlayer(BEEP_SOURCE);
+  const { start: startBuzz, stop: stopBuzz, pulse: pulseBuzz } = useBuzz();
 
   // Constants
-  const { MAX_INTERVAL, MIN_INTERVAL, MAX_DIFF, MIN_DIFF, STEP } =
-    GlobalStore.FEEDBACK;
+  const { MAX_INTERVAL, MIN_INTERVAL, STEP } = GlobalStore.FEEDBACK;
 
   const playFeedback = useCallback(async () => {
-    const { heading, target, isNavigating, hapticEnabled, soundEnabled } =
-      stateRef.current;
+    const {
+      heading,
+      target,
+      isNavigating,
+      hapticEnabled,
+      soundEnabled,
+      hapticStyle,
+    } = stateRef.current;
 
     // Check if we should be giving feedback
     if (!isNavigating) return;
@@ -82,15 +113,13 @@ export function useGuidance(
 
     if (isAligned) return;
 
-    // Calculate intensity (0 to 1)
-    // Larger diff = closer to 1 (stronger/faster)
-    const strength = Math.max(
-      0,
-      Math.min(1, (angleDiff - MIN_DIFF) / (MAX_DIFF - MIN_DIFF))
-    );
+    const strength = strengthOf(angleDiff);
 
-    // HAPTIC ACTION
-    if (hapticEnabled) {
+    // HAPTIC ACTION (continuous buzz is handled by its own effect)
+    if (hapticEnabled && hapticStyle === 'pulse') {
+      const { PULSE_MIN_ON, PULSE_MAX_ON } = GlobalStore.BUZZ;
+      pulseBuzz(strength, PULSE_MIN_ON + strength * (PULSE_MAX_ON - PULSE_MIN_ON));
+    } else if (hapticEnabled && hapticStyle === 'tap') {
       let hapticType = Haptics.ImpactFeedbackStyle.Light;
       if (strength > 0.3) {
         hapticType = Haptics.ImpactFeedbackStyle.Heavy;
@@ -109,15 +138,14 @@ export function useGuidance(
         console.warn('Audio play error', err);
       }
     }
-  }, [player]);
+  }, [player, pulseBuzz]);
 
   // The Loop
   const loop = useCallback(() => {
-    const { heading, target, isNavigating, hapticEnabled, soundEnabled } =
-      stateRef.current;
+    const { heading, target, isNavigating } = stateRef.current;
 
     // Stop conditions
-    if (!isNavigating || (!hapticEnabled && !soundEnabled)) {
+    if (!isNavigating || !loopNeeded(stateRef.current)) {
       isLoopRunningRef.current = false;
       return;
     }
@@ -137,14 +165,8 @@ export function useGuidance(
     // Perform Feedback
     playFeedback();
 
-    // Calculate next interval
-    const strength = Math.max(
-      0,
-      Math.min(1, (angleDiff - MIN_DIFF) / (MAX_DIFF - MIN_DIFF))
-    );
-
     // Inverse relationship: High strength (large error) = Low interval (fast beeps)
-    // Using the formula from useHapticGuidance:
+    const strength = strengthOf(angleDiff);
     const interval =
       Math.round(((1 - strength) * (MAX_INTERVAL - MIN_INTERVAL)) / STEP) *
         STEP +
@@ -155,8 +177,8 @@ export function useGuidance(
 
   // Watcher to start/stop loop and track mistakes
   useEffect(() => {
-    const { isNavigating, hapticEnabled, soundEnabled } = stateRef.current;
-    
+    const { isNavigating } = stateRef.current;
+
     // Reset mistake tracking only when navigation stops
     if (!isNavigating) {
       wasAlignedRef.current = true;
@@ -164,7 +186,7 @@ export function useGuidance(
     }
     
     // Stop feedback loop when navigation stops or no feedback enabled
-    if (!isNavigating || (!hapticEnabled && !soundEnabled)) {
+    if (!isNavigating || !loopNeeded(stateRef.current)) {
       if (timeoutRef.current) clearTimeout(timeoutRef.current);
       isLoopRunningRef.current = false;
       if (!isNavigating) return; // Exit early only if not navigating
@@ -216,10 +238,38 @@ export function useGuidance(
     isNavigating,
     hapticEnabled,
     soundEnabled,
+    hapticStyle,
     loop,
     dispatch,
     rounds.length,
     userUid,
+  ]);
+
+  // Continuous buzz: follows every heading update instead of the timed loop
+  useEffect(() => {
+    const angleDiff = Math.abs(shortestDiff(targetBearing, currentHeading));
+    const shouldBuzz =
+      isNavigating &&
+      hapticEnabled &&
+      hapticStyle === 'continuous' &&
+      angleDiff > GlobalStore.COMPASS_ANGLE_TOLERANCE;
+
+    if (shouldBuzz) {
+      startBuzz(strengthOf(angleDiff));
+      isContinuousBuzzingRef.current = true;
+    } else if (isContinuousBuzzingRef.current) {
+      // Only stop our own buzz, so pulse bursts aren't cut short
+      stopBuzz();
+      isContinuousBuzzingRef.current = false;
+    }
+  }, [
+    currentHeading,
+    targetBearing,
+    isNavigating,
+    hapticEnabled,
+    hapticStyle,
+    startBuzz,
+    stopBuzz,
   ]);
 
   // Cleanup
