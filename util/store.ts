@@ -14,7 +14,8 @@ const initialState = {
         stop: number;
         hapticEnabled: boolean;
         soundEnabled: boolean;
-        // Absent on rounds recorded before haptic styles existed (= 'tap')
+        // Absent on rounds recorded before haptic styles existed (= 'tap');
+        // 'pulse' only on rounds from when it was selectable
         hapticStyle?: 'tap' | 'pulse' | 'continuous';
       };
       mistake: Array<{

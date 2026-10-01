@@ -19,7 +19,7 @@ import HapticCompass from '../components/HapticCompass';
 import Joystick from '../components/Joystick';
 
 import { useCompass } from '../hooks/useCompass';
-import { useGuidance } from '../hooks/useGuidance';
+import { useGuidance, HAPTIC_STYLE } from '../hooks/useGuidance';
 import { useFeedback } from '../hooks/FeedbackContext';
 import { GlobalStore } from '../util/globals';
 import { addRound, updateRoundTiming } from '../util/store';
@@ -35,13 +35,13 @@ export default function HomeScreen() {
   const dispatch = useDispatch();
   const navigation = useNavigation();
   const endingPlayer = useAudioPlayer(ENDING_SOURCE);
-  const { hapticEnabled, soundEnabled, hapticStyle } = useFeedback();
+  const { hapticEnabled, soundEnabled } = useFeedback();
   const feedbackText = useMemo(() => {
-    if (hapticEnabled && soundEnabled) return `Hybrid Mode (${hapticStyle})`;
-    if (hapticEnabled) return `Haptic Mode (${hapticStyle})`;
+    if (hapticEnabled && soundEnabled) return 'Hybrid Mode';
+    if (hapticEnabled) return 'Haptic Mode';
     if (soundEnabled) return 'Audio Mode';
     return 'No Feedback';
-  }, [hapticEnabled, soundEnabled, hapticStyle]);
+  }, [hapticEnabled, soundEnabled]);
 
   const [isPreviewMode, setIsPreviewMode] = useState(false);
   const [showCompletionModal, setShowCompletionModal] = useState(false);
@@ -123,8 +123,7 @@ export default function HomeScreen() {
     targetBearing,
     isNavigating,
     hapticEnabled,
-    soundEnabled,
-    hapticStyle
+    soundEnabled
   );
 
   const handleCheckpointUpdate = (
@@ -149,7 +148,7 @@ export default function HomeScreen() {
               duration: duration,
               hapticEnabled,
               soundEnabled,
-              hapticStyle,
+              hapticStyle: HAPTIC_STYLE,
             })
           );
         }
@@ -180,7 +179,7 @@ export default function HomeScreen() {
             stop: 0,
             hapticEnabled,
             soundEnabled,
-            hapticStyle,
+            hapticStyle: HAPTIC_STYLE,
           },
           mistake: [],
         })
@@ -208,7 +207,7 @@ export default function HomeScreen() {
             duration: duration,
             hapticEnabled,
             soundEnabled,
-            hapticStyle,
+            hapticStyle: HAPTIC_STYLE,
           })
         );
       }

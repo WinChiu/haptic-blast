@@ -13,10 +13,6 @@ export const GlobalStore = {
     MIN_AMPLITUDE: 0.2,
     MAX_AMPLITUDE: 1,
     FREQUENCY: 0.5,
-    // Pulse mode: each burst lasts between these (ms), longer for larger error.
-    // Bursts repeat on the same interval as tap mode (FEEDBACK.MIN/MAX_INTERVAL).
-    PULSE_MIN_ON: 120,
-    PULSE_MAX_ON: 250,
   },
   DEBUG_MODE: {
     STEP: 0.000001,

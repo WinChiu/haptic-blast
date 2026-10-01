@@ -32,7 +32,6 @@ export function useBuzz() {
   // call always takes the same branch.
   const realtime = PULSAR_AVAILABLE ? Pulsar.useRealtimeComposer() : null;
   const isBuzzingRef = useRef(false);
-  const pulseTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Start buzzing, or update the strength of an ongoing buzz.
   const start = useCallback(
@@ -48,7 +47,6 @@ export function useBuzz() {
   );
 
   const stop = useCallback(() => {
-    if (pulseTimeoutRef.current) clearTimeout(pulseTimeoutRef.current);
     if (!isBuzzingRef.current) return;
     if (realtime) {
       realtime.stop();
@@ -58,21 +56,7 @@ export function useBuzz() {
     isBuzzingRef.current = false;
   }, [realtime]);
 
-  // One burst of `durationMs`.
-  const pulse = useCallback(
-    (strength: number, durationMs: number) => {
-      if (pulseTimeoutRef.current) clearTimeout(pulseTimeoutRef.current);
-      if (BUZZ_BACKEND === 'android-vibration') {
-        Vibration.vibrate(durationMs);
-        return;
-      }
-      start(strength);
-      pulseTimeoutRef.current = setTimeout(stop, durationMs);
-    },
-    [start, stop]
-  );
-
   useEffect(() => stop, [stop]);
 
-  return { start, stop, pulse };
+  return { start, stop };
 }

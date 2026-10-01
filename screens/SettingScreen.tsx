@@ -11,35 +11,15 @@ import {
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
-import { useFeedback, HapticStyle } from '../hooks/FeedbackContext';
-import { BUZZ_BACKEND } from '../hooks/useBuzz';
+import { useFeedback } from '../hooks/FeedbackContext';
 import { useSelector, useDispatch } from 'react-redux';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { updateUserProfile, logout, setDebugMode } from '../util/store';
 
-const HAPTIC_STYLES: { value: HapticStyle; label: string }[] = [
-  { value: 'tap', label: 'Tap' },
-  { value: 'pulse', label: 'Pulse' },
-  { value: 'continuous', label: 'Continuous' },
-];
-
-const BUZZ_BACKEND_NOTE = {
-  pulsar: 'Buzz strength follows how far off course you are.',
-  'android-vibration':
-    'Running in Expo Go: buzz works but at a fixed strength. Use a dev build for variable strength.',
-  none: 'Running in Expo Go on iOS: buzz is unavailable and falls back to Tap. Use a dev build.',
-}[BUZZ_BACKEND];
-
 export default function SettingScreen() {
   const navigation = useNavigation();
-  const {
-    hapticEnabled,
-    soundEnabled,
-    hapticStyle,
-    toggleHaptic,
-    toggleSound,
-    setHapticStyle,
-  } = useFeedback();
+  const { hapticEnabled, soundEnabled, toggleHaptic, toggleSound } =
+    useFeedback();
   const dispatch = useDispatch();
 
   // Get data from Redux
@@ -187,29 +167,6 @@ export default function SettingScreen() {
             </View>
           </View>
         ))}
-
-        <View style={styles.card}>
-          <Text style={styles.cardTitle}>Haptic Style</Text>
-          <Text style={styles.cardText}>
-            Tap: discrete taps. Pulse: short buzz bursts. Continuous: steady
-            buzz while off course.
-          </Text>
-          <View style={styles.segmentRow}>
-            {HAPTIC_STYLES.map(({ value, label }) => (
-              <TouchableOpacity
-                key={value}
-                style={[
-                  styles.segment,
-                  hapticStyle === value && styles.segmentActive,
-                ]}
-                onPress={() => setHapticStyle(value)}
-              >
-                <Text style={styles.segmentText}>{label}</Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-          <Text style={styles.noteText}>{BUZZ_BACKEND_NOTE}</Text>
-        </View>
       </ScrollView>
     </View>
   );
@@ -247,17 +204,6 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   toggleLabel: { color: '#fff', fontWeight: '600', fontSize: 14 },
-  segmentRow: { flexDirection: 'row', gap: 8 },
-  segment: {
-    flex: 1,
-    backgroundColor: '#404040',
-    paddingVertical: 10,
-    borderRadius: 8,
-    alignItems: 'center',
-  },
-  segmentActive: { backgroundColor: '#22c55e' },
-  segmentText: { color: '#fff', fontWeight: '600', fontSize: 14 },
-  noteText: { fontSize: 12, color: '#737373', lineHeight: 18 },
   saveButton: {
     backgroundColor: '#0ea5e9', // sky-500
     paddingVertical: 12,
