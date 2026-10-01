@@ -1,0 +1,7 @@
+{
+  "name": "fused-orientation",
+  "version": "0.1.0",
+  "description": "Google Play services Fused Orientation Provider for Android",
+  "main": "index.ts",
+  "private": true
+}

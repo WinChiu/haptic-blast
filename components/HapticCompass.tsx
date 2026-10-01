@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Platform, StyleSheet, Text, View, Dimensions } from 'react-native';
+import { StyleSheet, Text, View, Dimensions } from 'react-native';
 import Animated, {
   Easing,
   SensorType,
@@ -13,10 +13,14 @@ import Svg, { Circle, Path, G } from 'react-native-svg';
 import { GlobalStore } from '../util/globals';
 import {
   ANDROID_UPDATE_INTERVAL_MS,
+  HEADING_SOURCE,
   angleDiff,
-  headingFromRotation,
+  axesFromEuler,
+  axesFromQuaternion,
+  headingFromAxes,
   nextIsUpright,
 } from '../hooks/useCompass';
+import { addOrientationListener } from '../modules/fused-orientation';
 
 // Normalize angle to [0, 360)
 const normalizeAngle = (angle: number) => {
@@ -33,12 +37,14 @@ const shortestDiff = (target: number, current: number) => {
   return diff;
 };
 
-// Android: the target dot is driven by the fused rotation sensor directly on
-// the UI thread every frame, bypassing JS (and HomeScreen re-renders).
-// iOS keeps animating from the heading prop, since Reanimated's iOS rotation
-// reference frame hasn't been verified to point at magnetic north.
-const UI_THREAD_SENSOR = Platform.OS === 'android';
-// Per-frame low-pass on the UI-thread heading, to hide sensor jitter
+// How the target dot follows the phone, bypassing HomeScreen re-renders:
+// - fused-orientation: every Fused Orientation Provider sample (~50Hz)
+// - rotation-vector: the rotation sensor directly on the UI thread every frame
+// - system (iOS): animated from the heading prop, since Reanimated's iOS
+//   rotation reference frame hasn't been verified to point at north
+const UI_THREAD_SENSOR = HEADING_SOURCE === 'rotation-vector';
+const DIRECT_HEADING = HEADING_SOURCE !== 'system';
+// Low-pass per sample on the dot's heading, to hide sensor jitter
 const UI_SMOOTHING_ALPHA = 0.3;
 // iOS: animate over one heading update so the dot moves instead of stepping
 const ROTATION_ANIMATION_MS = ANDROID_UPDATE_INTERVAL_MS;
@@ -94,8 +100,9 @@ export default function HapticCompass({
         return { yaw, pitch, roll };
       },
       ({ yaw, pitch, roll }) => {
-        uiUprightSV.value = nextIsUpright(pitch, roll, uiUprightSV.value);
-        const raw = headingFromRotation(yaw, pitch, roll, uiUprightSV.value);
+        const axes = axesFromEuler(yaw, pitch, roll);
+        uiUprightSV.value = nextIsUpright(axes, uiUprightSV.value);
+        const raw = headingFromAxes(axes, uiUprightSV.value);
         const next =
           uiHeadingSV.value +
           angleDiff(raw, uiHeadingSV.value) * UI_SMOOTHING_ALPHA;
@@ -104,10 +111,26 @@ export default function HapticCompass({
     );
   }
 
+  // Fused Orientation Provider: update the dot on every sample
+  useEffect(() => {
+    if (HEADING_SOURCE !== 'fused-orientation') return;
+    let upright = false;
+    const sub = addOrientationListener(({ qx, qy, qz, qw }) => {
+      const axes = axesFromQuaternion(qx, qy, qz, qw);
+      upright = nextIsUpright(axes, upright);
+      const raw = headingFromAxes(axes, upright);
+      const next =
+        uiHeadingSV.value +
+        angleDiff(raw, uiHeadingSV.value) * UI_SMOOTHING_ALPHA;
+      uiHeadingSV.value = (next + 360) % 360;
+    });
+    return () => sub?.remove();
+  }, []);
+
   // iOS: unwrapped rotation so 359° -> 1° animates 2°, not -358°
   const propRotationSV = useSharedValue(targetRotation);
   useEffect(() => {
-    if (UI_THREAD_SENSOR) return;
+    if (DIRECT_HEADING) return;
     const next =
       propRotationSV.value + angleDiff(targetRotation, propRotationSV.value);
     propRotationSV.value = withTiming(next, {
@@ -117,7 +140,7 @@ export default function HapticCompass({
   }, [targetRotation]);
 
   const arcStyle = useAnimatedStyle(() => {
-    const rotation = UI_THREAD_SENSOR
+    const rotation = DIRECT_HEADING
       ? targetSV.value - uiHeadingSV.value
       : propRotationSV.value;
     return { transform: [{ rotate: `${rotation}deg` }] };
@@ -130,7 +153,7 @@ export default function HapticCompass({
     const timer = setInterval(
       () =>
         setRenderedRotation(
-          UI_THREAD_SENSOR
+          DIRECT_HEADING
             ? targetSV.value - uiHeadingSV.value
             : propRotationSV.value
         ),
@@ -231,6 +254,7 @@ export default function HapticCompass({
       </Text>
 
       <View style={styles.debug}>
+        <Text style={{ color: 'white' }}>Source: {HEADING_SOURCE}</Text>
         <Text style={{ color: 'white' }}>Heading: {heading.toFixed(0)}°</Text>
         <Text style={{ color: 'white' }}>
           Target bearing: {normalizeAngle(targetAngle).toFixed(0)}°
