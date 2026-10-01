@@ -15,6 +15,7 @@ import {
   ANDROID_UPDATE_INTERVAL_MS,
   angleDiff,
   headingFromRotation,
+  nextIsUpright,
 } from '../hooks/useCompass';
 
 // Normalize angle to [0, 360)
@@ -81,6 +82,7 @@ export default function HapticCompass({
 
   // Android: heading computed on the UI thread from the sensor
   const uiHeadingSV = useSharedValue(heading);
+  const uiUprightSV = useSharedValue(false);
   if (UI_THREAD_SENSOR) {
     // UI_THREAD_SENSOR is fixed per platform, so these hooks always run
     const rotationSensor = useAnimatedSensor(SensorType.ROTATION, {
@@ -89,9 +91,11 @@ export default function HapticCompass({
     useAnimatedReaction(
       () => {
         const { yaw, pitch, roll } = rotationSensor.sensor.value;
-        return headingFromRotation(yaw, pitch, roll);
+        return { yaw, pitch, roll };
       },
-      (raw) => {
+      ({ yaw, pitch, roll }) => {
+        uiUprightSV.value = nextIsUpright(pitch, roll, uiUprightSV.value);
+        const raw = headingFromRotation(yaw, pitch, roll, uiUprightSV.value);
         const next =
           uiHeadingSV.value +
           angleDiff(raw, uiHeadingSV.value) * UI_SMOOTHING_ALPHA;

@@ -24,15 +24,37 @@ export const angleDiff = (to: number, from: number) => {
   return diff;
 };
 
+// Tilt of the screen away from facing up (0 = flat, 90 = upright) at which
+// the heading switches between flat and upright mode. The gap between them
+// (hysteresis) stops it flipping back and forth around a single threshold.
+const UPRIGHT_ENTER_DEG = 60;
+const UPRIGHT_EXIT_DEG = 40;
+
+// Whether the phone is in upright mode, given the previous mode.
+// Angles are W3C-style Euler angles in radians.
+export const nextIsUpright = (
+  beta: number,
+  gamma: number,
+  wasUpright: boolean
+) => {
+  'worklet';
+  const cosTilt = Math.max(-1, Math.min(1, Math.cos(beta) * Math.cos(gamma)));
+  const tiltDeg = (Math.acos(cosTilt) * 180) / Math.PI;
+  return wasUpright ? tiltDeg > UPRIGHT_EXIT_DEG : tiltDeg > UPRIGHT_ENTER_DEG;
+};
+
 // Heading (degrees clockwise from magnetic north) the phone points to, from
-// W3C-style Euler angles in radians. Uses the horizontal direction of
-// (top edge - screen normal): the top edge dominates when the phone is flat,
-// the back camera when it is held upright, so both grips work.
-// Reanimated's ROTATION sensor uses the same angles (yaw, pitch, roll).
+// W3C-style Euler angles in radians (Reanimated's ROTATION sensor uses the
+// same angles as yaw, pitch, roll). Same idea as Android's
+// remapCoordinateSystem for camera views:
+// - flat: direction of the top edge, which ignores sideways roll
+// - upright: direction of the back camera, which stays defined when the top
+//   edge points at the sky (the top edge alone flips 180° there)
 export const headingFromRotation = (
   alpha: number,
   beta: number,
-  gamma: number
+  gamma: number,
+  upright: boolean
 ) => {
   'worklet';
   const cA = Math.cos(alpha);
@@ -42,8 +64,8 @@ export const headingFromRotation = (
   const cG = Math.cos(gamma);
   const sG = Math.sin(gamma);
 
-  const east = -sA * cB - cA * sG - sA * sB * cG;
-  const north = cA * cB - sA * sG + cA * sB * cG;
+  const east = upright ? -cA * sG - sA * sB * cG : -sA * cB;
+  const north = upright ? -sA * sG + cA * sB * cG : cA * cB;
 
   return ((Math.atan2(east, north) * 180) / Math.PI + 360) % 360;
 };
@@ -68,10 +90,13 @@ export function useCompass() {
     (async () => {
       if (Platform.OS === 'android' && (await DeviceMotion.isAvailableAsync())) {
         DeviceMotion.setUpdateInterval(ANDROID_UPDATE_INTERVAL_MS);
+        let upright = false;
         const sub = DeviceMotion.addListener(({ rotation }) => {
           if (!rotation) return;
+          const { alpha, beta, gamma } = rotation;
+          upright = nextIsUpright(beta, gamma, upright);
           smooth(
-            headingFromRotation(rotation.alpha, rotation.beta, rotation.gamma),
+            headingFromRotation(alpha, beta, gamma, upright),
             ANDROID_SMOOTHING_ALPHA,
             ANDROID_MIN_CHANGE_DEG
           );
