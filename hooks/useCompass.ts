@@ -1,58 +1,93 @@
 import { useState, useEffect } from 'react';
+import { Platform } from 'react-native';
 import * as Location from 'expo-location';
+import { DeviceMotion } from 'expo-sensors';
 
-export function useCompass(gpsHeading?: number | null, speed?: number | null) {
+// Android heading comes from DeviceMotion, which uses the fused
+// TYPE_ROTATION_VECTOR sensor (accelerometer + magnetometer + gyroscope).
+// expo-location's watchHeadingAsync on Android uses raw accelerometer +
+// magnetometer only, which is jittery and only fires on ~2° changes.
+// The fused sensor is already stable, so keep smoothing light: heavier
+// smoothing makes the heading lag behind the phone while it turns.
+export const ANDROID_UPDATE_INTERVAL_MS = 50;
+const ANDROID_SMOOTHING_ALPHA = 0.6;
+// Skip re-renders for sub-degree jitter
+const ANDROID_MIN_CHANGE_DEG = 0.5;
+
+// Shortest signed difference to - from in [-180, 180]
+const angleDiff = (to: number, from: number) => {
+  let diff = to - from;
+  if (diff > 180) diff -= 360;
+  if (diff < -180) diff += 360;
+  return diff;
+};
+
+// Heading (degrees clockwise from magnetic north) the phone points to, from
+// W3C-style Euler angles in radians. Uses the horizontal direction of
+// (top edge - screen normal): the top edge dominates when the phone is flat,
+// the back camera when it is held upright, so both grips work.
+const headingFromRotation = (alpha: number, beta: number, gamma: number) => {
+  const cA = Math.cos(alpha);
+  const sA = Math.sin(alpha);
+  const cB = Math.cos(beta);
+  const sB = Math.sin(beta);
+  const cG = Math.cos(gamma);
+  const sG = Math.sin(gamma);
+
+  const east = -sA * cB - cA * sG - sA * sB * cG;
+  const north = cA * cB - sA * sG + cA * sB * cG;
+
+  return ((Math.atan2(east, north) * 180) / Math.PI + 360) % 360;
+};
+
+// Heading is always where the phone points (users turn the phone to find the
+// direction), never the GPS course of movement.
+export function useCompass() {
   const [magHeading, setMagHeading] = useState(0);
-  const [subscription, setSubscription] =
-    useState<Location.LocationSubscription | null>(null);
 
   useEffect(() => {
-    _subscribe();
-    return () => _unsubscribe();
-  }, []);
+    let cancelled = false;
+    let remove: (() => void) | null = null;
 
-  const _subscribe = async () => {
-    const { status } = await Location.requestForegroundPermissionsAsync();
-    if (status !== 'granted') return;
-
-    const sub = await Location.watchHeadingAsync((obj) => {
-      const { magHeading } = obj;
-      // setMagHeading(magHeading);
+    // Circular low-pass filter
+    const smooth = (raw: number, alpha: number, minChange = 0) =>
       setMagHeading((prev) => {
-        // Circular Smoothing (Low-Pass Filter)
-        // Calculate shortest difference between angles
-        let diff = magHeading - prev;
-        if (diff > 180) diff -= 360;
-        if (diff < -180) diff += 360;
+        const step = angleDiff(raw, prev) * alpha;
+        if (Math.abs(step) < minChange) return prev;
+        return (prev + step + 360) % 360;
+      });
+
+    (async () => {
+      if (Platform.OS === 'android' && (await DeviceMotion.isAvailableAsync())) {
+        DeviceMotion.setUpdateInterval(ANDROID_UPDATE_INTERVAL_MS);
+        const sub = DeviceMotion.addListener(({ rotation }) => {
+          if (!rotation) return;
+          smooth(
+            headingFromRotation(rotation.alpha, rotation.beta, rotation.gamma),
+            ANDROID_SMOOTHING_ALPHA,
+            ANDROID_MIN_CHANGE_DEG
+          );
+        });
+        remove = () => sub.remove();
+      } else {
+        const { status } = await Location.requestForegroundPermissionsAsync();
+        if (status !== 'granted') return;
 
         // Alpha: 0.1 = very smooth (slow), 0.5 = balanced, 1.0 = no smoothing
-        const alpha = 0.1;
-        const newHeading = prev + diff * alpha;
+        const sub = await Location.watchHeadingAsync((obj) =>
+          smooth(obj.magHeading, 0.1)
+        );
+        remove = () => sub.remove();
+      }
 
-        // Normalize to 0-360
-        return (newHeading + 360) % 360;
-      });
-    });
-    setSubscription(sub);
-  };
+      if (cancelled) remove();
+    })();
 
-  const _unsubscribe = () => {
-    subscription && subscription.remove();
-    setSubscription(null);
-  };
-
-  // Sensor Fusion Logic
-  // If speed is > 1 m/s (approx 3.6 km/h) and we have a valid GPS heading, use it.
-  // Otherwise fallback to magnetometer.
-  if (
-    speed &&
-    speed > 1 &&
-    gpsHeading !== null &&
-    gpsHeading !== undefined &&
-    gpsHeading >= 0
-  ) {
-    return gpsHeading;
-  }
+    return () => {
+      cancelled = true;
+      remove?.();
+    };
+  }, []);
 
   return magHeading;
 }

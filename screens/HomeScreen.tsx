@@ -43,8 +43,6 @@ export default function HomeScreen() {
     return 'No Feedback';
   }, [hapticEnabled, soundEnabled, hapticStyle]);
 
-  const [speed, setSpeed] = useState<number | null>(null);
-
   const [isPreviewMode, setIsPreviewMode] = useState(false);
   const [showCompletionModal, setShowCompletionModal] = useState(false);
 
@@ -93,7 +91,7 @@ export default function HomeScreen() {
     }
   }, [isDebugMode]);
 
-  const heading = useCompass(gpsHeading, speed);
+  const heading = useCompass();
 
   const targetBearing = useMemo(() => {
     if (!userLocation) return 0;
@@ -282,7 +280,6 @@ export default function HomeScreen() {
           });
 
           setGpsHeading((prev) => (prev !== loc.heading ? loc.heading : prev));
-          setSpeed((prev) => (prev !== loc.speed ? loc.speed : prev));
         }}
         heading={heading}
         onNextCheckpointUpdate={handleCheckpointUpdate}

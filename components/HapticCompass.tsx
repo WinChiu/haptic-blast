@@ -1,7 +1,15 @@
-import React from 'react';
-import { StyleSheet, Text, View, Dimensions } from 'react-native';
+import React, { useEffect, useRef, useState } from 'react';
+import {
+  Animated,
+  Easing,
+  StyleSheet,
+  Text,
+  View,
+  Dimensions,
+} from 'react-native';
 import Svg, { Circle, Path, G } from 'react-native-svg';
 import { GlobalStore } from '../util/globals';
+import { ANDROID_UPDATE_INTERVAL_MS } from '../hooks/useCompass';
 
 // Normalize angle to [0, 360)
 const normalizeAngle = (angle: number) => {
@@ -18,14 +26,22 @@ const shortestDiff = (target: number, current: number) => {
   return diff;
 };
 
+// Animate over one heading update interval so the arc rotates continuously
+// instead of stepping, without adding more lag than one update.
+const ROTATION_ANIMATION_MS = ANDROID_UPDATE_INTERVAL_MS;
+
+// How often the debug readout refreshes
+const DEBUG_REFRESH_MS = 100;
+
 interface HapticCompassProps {
   targetAngle?: number;
+  heading: number;
 }
 
 export default function HapticCompass({
   targetAngle = 0,
   heading = 0,
-}: HapticCompassProps & { heading: number }) {
+}: HapticCompassProps) {
   // Visuals
   const radius = 90;
   const centerX = 100;
@@ -45,6 +61,45 @@ export default function HapticCompass({
   // If target is 90 (East) and heading is 90 (East), diff is 0. Arc should be at 0 deg (Top).
   const torchRotation = 0;
   const targetRotation = targetAngle - heading;
+
+  // Unwrapped angle so 359° -> 1° animates 2°, not -358°
+  const rotationRef = useRef(targetRotation);
+  const rotationAnim = useRef(new Animated.Value(targetRotation)).current;
+
+  useEffect(() => {
+    rotationRef.current += shortestDiff(targetRotation, rotationRef.current);
+    Animated.timing(rotationAnim, {
+      toValue: rotationRef.current,
+      duration: ROTATION_ANIMATION_MS,
+      easing: Easing.linear,
+      useNativeDriver: true,
+    }).start();
+  }, [targetRotation]);
+
+  // Debug: read the arc's actually rendered rotation, so lag shows up as
+  // "Dot bearing" drifting away from "Target bearing" while turning.
+  const renderedRotationRef = useRef(targetRotation);
+  const [renderedRotation, setRenderedRotation] = useState(targetRotation);
+
+  useEffect(() => {
+    const id = rotationAnim.addListener(({ value }) => {
+      renderedRotationRef.current = value;
+    });
+    const timer = setInterval(
+      () => setRenderedRotation(renderedRotationRef.current),
+      DEBUG_REFRESH_MS
+    );
+    return () => {
+      rotationAnim.removeListener(id);
+      clearInterval(timer);
+    };
+  }, [rotationAnim]);
+
+  const rotate = rotationAnim.interpolate({
+    inputRange: [0, 360],
+    outputRange: ['0deg', '360deg'],
+    extrapolate: 'extend',
+  });
 
   const isAligned = Math.abs(shortestDiff(targetAngle, heading)) <= 25;
 
@@ -76,7 +131,13 @@ export default function HapticCompass({
   return (
     <View style={styles.container}>
       <View style={styles.compassContainer}>
-        <Svg height="300" width="300" viewBox="0 0 200 200">
+        {/* Layers: circle, rotating target arc, fixed torch on top */}
+        <Svg
+          height="300"
+          width="300"
+          viewBox="0 0 200 200"
+          style={StyleSheet.absoluteFill}
+        >
           {/* Outer Circle */}
           <Circle
             cx={centerX}
@@ -86,9 +147,13 @@ export default function HapticCompass({
             strokeWidth="3"
             fill="none"
           />
+        </Svg>
 
-          {/* Target Arc */}
-          <G rotation={targetRotation} origin={`${centerX}, ${centerY}`}>
+        {/* Target Arc: rotated natively so it animates smoothly */}
+        <Animated.View
+          style={[StyleSheet.absoluteFill, { transform: [{ rotate }] }]}
+        >
+          <Svg height="300" width="300" viewBox="0 0 200 200">
             <Path
               d={`M ${arcLeftX} ${arcLeftY} A ${radius} ${radius} 0 0 1 ${arcRightX} ${arcRightY}`}
               stroke={isAligned ? torchActiveStroke : staticArcColor}
@@ -96,8 +161,15 @@ export default function HapticCompass({
               strokeLinecap="round"
               fill="none"
             />
-          </G>
+          </Svg>
+        </Animated.View>
 
+        <Svg
+          height="300"
+          width="300"
+          viewBox="0 0 200 200"
+          style={StyleSheet.absoluteFill}
+        >
           {/* Torch Cone */}
           <G rotation={torchRotation} origin={`${centerX}, ${centerY}`}>
             <Path
@@ -122,15 +194,18 @@ export default function HapticCompass({
         Rotate your phone until the cone lines up with the top arc.
       </Text>
 
-      {/* <View style={styles.debug}>
+      <View style={styles.debug}>
         <Text style={{ color: 'white' }}>Heading: {heading.toFixed(0)}°</Text>
         <Text style={{ color: 'white' }}>
-          Target: {targetAngle.toFixed(0)}°
+          Target bearing: {normalizeAngle(targetAngle).toFixed(0)}°
+        </Text>
+        <Text style={{ color: 'white' }}>
+          Dot bearing: {normalizeAngle(heading + renderedRotation).toFixed(0)}°
         </Text>
         <Text style={{ color: 'white' }}>
           Diff: {shortestDiff(targetAngle, heading).toFixed(0)}°
         </Text>
-      </View> */}
+      </View>
     </View>
   );
 }
