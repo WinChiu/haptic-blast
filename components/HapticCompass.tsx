@@ -1,15 +1,21 @@
-import React, { useEffect, useRef, useState } from 'react';
-import {
-  Animated,
+import React, { useEffect, useState } from 'react';
+import { Platform, StyleSheet, Text, View, Dimensions } from 'react-native';
+import Animated, {
   Easing,
-  StyleSheet,
-  Text,
-  View,
-  Dimensions,
-} from 'react-native';
+  SensorType,
+  useAnimatedReaction,
+  useAnimatedSensor,
+  useAnimatedStyle,
+  useSharedValue,
+  withTiming,
+} from 'react-native-reanimated';
 import Svg, { Circle, Path, G } from 'react-native-svg';
 import { GlobalStore } from '../util/globals';
-import { ANDROID_UPDATE_INTERVAL_MS } from '../hooks/useCompass';
+import {
+  ANDROID_UPDATE_INTERVAL_MS,
+  angleDiff,
+  headingFromRotation,
+} from '../hooks/useCompass';
 
 // Normalize angle to [0, 360)
 const normalizeAngle = (angle: number) => {
@@ -26,8 +32,14 @@ const shortestDiff = (target: number, current: number) => {
   return diff;
 };
 
-// Animate over one heading update interval so the arc rotates continuously
-// instead of stepping, without adding more lag than one update.
+// Android: the target dot is driven by the fused rotation sensor directly on
+// the UI thread every frame, bypassing JS (and HomeScreen re-renders).
+// iOS keeps animating from the heading prop, since Reanimated's iOS rotation
+// reference frame hasn't been verified to point at magnetic north.
+const UI_THREAD_SENSOR = Platform.OS === 'android';
+// Per-frame low-pass on the UI-thread heading, to hide sensor jitter
+const UI_SMOOTHING_ALPHA = 0.3;
+// iOS: animate over one heading update so the dot moves instead of stepping
 const ROTATION_ANIMATION_MS = ANDROID_UPDATE_INTERVAL_MS;
 
 // How often the debug readout refreshes
@@ -62,44 +74,66 @@ export default function HapticCompass({
   const torchRotation = 0;
   const targetRotation = targetAngle - heading;
 
-  // Unwrapped angle so 359° -> 1° animates 2°, not -358°
-  const rotationRef = useRef(targetRotation);
-  const rotationAnim = useRef(new Animated.Value(targetRotation)).current;
-
+  const targetSV = useSharedValue(targetAngle);
   useEffect(() => {
-    rotationRef.current += shortestDiff(targetRotation, rotationRef.current);
-    Animated.timing(rotationAnim, {
-      toValue: rotationRef.current,
+    targetSV.value = targetAngle;
+  }, [targetAngle]);
+
+  // Android: heading computed on the UI thread from the sensor
+  const uiHeadingSV = useSharedValue(heading);
+  if (UI_THREAD_SENSOR) {
+    // UI_THREAD_SENSOR is fixed per platform, so these hooks always run
+    const rotationSensor = useAnimatedSensor(SensorType.ROTATION, {
+      interval: 'auto',
+    });
+    useAnimatedReaction(
+      () => {
+        const { yaw, pitch, roll } = rotationSensor.sensor.value;
+        return headingFromRotation(yaw, pitch, roll);
+      },
+      (raw) => {
+        const next =
+          uiHeadingSV.value +
+          angleDiff(raw, uiHeadingSV.value) * UI_SMOOTHING_ALPHA;
+        uiHeadingSV.value = (next + 360) % 360;
+      }
+    );
+  }
+
+  // iOS: unwrapped rotation so 359° -> 1° animates 2°, not -358°
+  const propRotationSV = useSharedValue(targetRotation);
+  useEffect(() => {
+    if (UI_THREAD_SENSOR) return;
+    const next =
+      propRotationSV.value + angleDiff(targetRotation, propRotationSV.value);
+    propRotationSV.value = withTiming(next, {
       duration: ROTATION_ANIMATION_MS,
       easing: Easing.linear,
-      useNativeDriver: true,
-    }).start();
+    });
   }, [targetRotation]);
 
-  // Debug: read the arc's actually rendered rotation, so lag shows up as
-  // "Dot bearing" drifting away from "Target bearing" while turning.
-  const renderedRotationRef = useRef(targetRotation);
-  const [renderedRotation, setRenderedRotation] = useState(targetRotation);
+  const arcStyle = useAnimatedStyle(() => {
+    const rotation = UI_THREAD_SENSOR
+      ? targetSV.value - uiHeadingSV.value
+      : propRotationSV.value;
+    return { transform: [{ rotate: `${rotation}deg` }] };
+  });
 
+  // Debug: where the dot actually points on screen, so a mismatch with
+  // "Target bearing" shows lag between the dot and the heading readout.
+  const [renderedRotation, setRenderedRotation] = useState(targetRotation);
   useEffect(() => {
-    const id = rotationAnim.addListener(({ value }) => {
-      renderedRotationRef.current = value;
-    });
     const timer = setInterval(
-      () => setRenderedRotation(renderedRotationRef.current),
+      () =>
+        setRenderedRotation(
+          UI_THREAD_SENSOR
+            ? targetSV.value - uiHeadingSV.value
+            : propRotationSV.value
+        ),
       DEBUG_REFRESH_MS
     );
-    return () => {
-      rotationAnim.removeListener(id);
-      clearInterval(timer);
-    };
-  }, [rotationAnim]);
-
-  const rotate = rotationAnim.interpolate({
-    inputRange: [0, 360],
-    outputRange: ['0deg', '360deg'],
-    extrapolate: 'extend',
-  });
+    return () => clearInterval(timer);
+  }, []);
 
   const isAligned = Math.abs(shortestDiff(targetAngle, heading)) <= 25;
 
@@ -149,10 +183,8 @@ export default function HapticCompass({
           />
         </Svg>
 
-        {/* Target Arc: rotated natively so it animates smoothly */}
-        <Animated.View
-          style={[StyleSheet.absoluteFill, { transform: [{ rotate }] }]}
-        >
+        {/* Target Arc: rotated on the UI thread so it moves smoothly */}
+        <Animated.View style={[StyleSheet.absoluteFill, arcStyle]}>
           <Svg height="300" width="300" viewBox="0 0 200 200">
             <Path
               d={`M ${arcLeftX} ${arcLeftY} A ${radius} ${radius} 0 0 1 ${arcRightX} ${arcRightY}`}

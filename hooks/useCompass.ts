@@ -15,7 +15,9 @@ const ANDROID_SMOOTHING_ALPHA = 0.6;
 const ANDROID_MIN_CHANGE_DEG = 0.5;
 
 // Shortest signed difference to - from in [-180, 180]
-const angleDiff = (to: number, from: number) => {
+// (worklet: also runs on the UI thread, see HapticCompass)
+export const angleDiff = (to: number, from: number) => {
+  'worklet';
   let diff = to - from;
   if (diff > 180) diff -= 360;
   if (diff < -180) diff += 360;
@@ -26,7 +28,13 @@ const angleDiff = (to: number, from: number) => {
 // W3C-style Euler angles in radians. Uses the horizontal direction of
 // (top edge - screen normal): the top edge dominates when the phone is flat,
 // the back camera when it is held upright, so both grips work.
-const headingFromRotation = (alpha: number, beta: number, gamma: number) => {
+// Reanimated's ROTATION sensor uses the same angles (yaw, pitch, roll).
+export const headingFromRotation = (
+  alpha: number,
+  beta: number,
+  gamma: number
+) => {
+  'worklet';
   const cA = Math.cos(alpha);
   const sA = Math.sin(alpha);
   const cB = Math.cos(beta);
