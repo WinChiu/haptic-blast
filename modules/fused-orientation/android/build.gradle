@@ -15,5 +15,7 @@ android {
 }
 
 dependencies {
-  implementation 'com.google.android.gms:play-services-location:21.4.0'
+  // Matches react-native-maps; 21.4.0+ is built with Kotlin 2.3, newer than
+  // the Kotlin 2.1 React Native pins
+  implementation 'com.google.android.gms:play-services-location:21.3.0'
 }
