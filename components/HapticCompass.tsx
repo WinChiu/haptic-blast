@@ -21,6 +21,8 @@ import {
   nextIsUpright,
 } from '../hooks/useCompass';
 import { addOrientationListener } from '../modules/fused-orientation';
+import { getVibratorCapabilities } from '../modules/vibrator-info';
+import { BUZZ_BACKEND } from '../hooks/useBuzz';
 
 // Normalize angle to [0, 360)
 const normalizeAngle = (angle: number) => {
@@ -51,6 +53,15 @@ const ROTATION_ANIMATION_MS = ANDROID_UPDATE_INTERVAL_MS;
 
 // How often the debug readout refreshes
 const DEBUG_REFRESH_MS = 100;
+
+// Debug: vibrator hardware support, which decides how the buzz feels
+const VIBRATOR = getVibratorCapabilities();
+const yesNo = (value: boolean) => (value ? 'yes' : 'no');
+const VIBRATOR_TEXT = VIBRATOR
+  ? `API ${VIBRATOR.apiLevel}, amplitude control: ${yesNo(
+      VIBRATOR.hasAmplitudeControl
+    )}, primitives: ${yesNo(VIBRATOR.clickPrimitive && VIBRATOR.tickPrimitive)}`
+  : 'unavailable (iOS or Expo Go)';
 
 interface HapticCompassProps {
   targetAngle?: number;
@@ -255,6 +266,8 @@ export default function HapticCompass({
 
       <View style={styles.debug}>
         <Text style={{ color: 'white' }}>Source: {HEADING_SOURCE}</Text>
+        <Text style={{ color: 'white' }}>Buzz: {BUZZ_BACKEND}</Text>
+        <Text style={{ color: 'white' }}>Vibrator: {VIBRATOR_TEXT}</Text>
         <Text style={{ color: 'white' }}>Heading: {heading.toFixed(0)}°</Text>
         <Text style={{ color: 'white' }}>
           Target bearing: {normalizeAngle(targetAngle).toFixed(0)}°

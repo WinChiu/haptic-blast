@@ -1,0 +1,7 @@
+{
+  "name": "vibrator-info",
+  "version": "0.1.0",
+  "description": "Reports what the Android vibrator hardware supports",
+  "main": "index.ts",
+  "private": true
+}
