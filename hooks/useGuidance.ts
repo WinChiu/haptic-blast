@@ -52,7 +52,7 @@ export function useGuidance(
   const userUid = useSelector((state: any) => state.userData.userProfile.Uid);
   
   const isLoopRunningRef = useRef<boolean>(false);
-  const timeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const wasAlignedRef = useRef<boolean>(true);
   const mistakeStartTimeRef = useRef<number | null>(null);
   const isContinuousBuzzingRef = useRef<boolean>(false);

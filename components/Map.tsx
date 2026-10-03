@@ -306,7 +306,7 @@ export default function Map({
         showsScale={false}
         showsBuildings={false}
         showsTraffic={false}
-        showsPointsOfInterest={false}
+        showsPointsOfInterests={false}
         mapType="none" // Hides Google/Apple default map
       >
         {/* Self-Hosted Tiles */}
