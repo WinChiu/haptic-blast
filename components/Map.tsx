@@ -14,6 +14,13 @@ import { generateCheckpoints } from '../util/checkpoints';
 
 interface MapProps {
   route: { latitude: number; longitude: number }[] | null;
+  // Where the user wants to go. Shown as a pin until a route is drawn.
+  destination?: { latitude: number; longitude: number } | null;
+  // Long-press on the map picks a destination. Omit to disable picking.
+  onDestinationSelect?: (coordinate: {
+    latitude: number;
+    longitude: number;
+  }) => void;
   centerOnUserTrigger: number;
   onUserLocationUpdate?: (location: {
     latitude: number;
@@ -40,6 +47,8 @@ interface MapProps {
 
 export default function Map({
   route,
+  destination = null,
+  onDestinationSelect,
   centerOnUserTrigger,
   onUserLocationUpdate,
   heading = 0,
@@ -283,6 +292,11 @@ export default function Map({
         style={styles.map}
         provider={PROVIDER_DEFAULT}
         showsUserLocation={!mockUserLocation} // Only show native blue dot if NOT mocking
+        onLongPress={
+          onDestinationSelect
+            ? (e) => onDestinationSelect(e.nativeEvent.coordinate)
+            : undefined
+        }
         showsCompass={false}
         showsScale={false}
         showsBuildings={false}
@@ -339,6 +353,9 @@ export default function Map({
         )}
 
         {/* Destination Marker - Only show if NO route is loaded (otherwise the last checkpoint covers it) */}
+        {destination && routeCoordinates.length === 0 && (
+          <Marker coordinate={destination} pinColor="#EF4444" />
+        )}
       </MapView>
     </View>
   );

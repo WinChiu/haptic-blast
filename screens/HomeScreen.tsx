@@ -24,7 +24,6 @@ import { useFeedback } from '../hooks/FeedbackContext';
 import { GlobalStore } from '../util/globals';
 import { addRound, updateRoundTiming } from '../util/store';
 import { fetchRoute, Coord } from '../util/routing';
-import { DESTINATION } from '../util/config';
 
 import { useAudioPlayer } from 'expo-audio';
 
@@ -47,6 +46,7 @@ export default function HomeScreen() {
 
   const [isPreviewMode, setIsPreviewMode] = useState(false);
   const [route, setRoute] = useState<Coord[] | null>(null);
+  const [destination, setDestination] = useState<Coord | null>(null);
   const [isLoadingRoute, setIsLoadingRoute] = useState(false);
   const [showCompletionModal, setShowCompletionModal] = useState(false);
 
@@ -183,10 +183,14 @@ export default function HomeScreen() {
       Alert.alert('No location yet', 'Waiting for your GPS position.');
       return;
     }
+    if (!destination) {
+      Alert.alert('No destination', 'Long-press the map to choose where to go.');
+      return;
+    }
 
     setIsLoadingRoute(true);
     try {
-      setRoute(await fetchRoute(start, DESTINATION));
+      setRoute(await fetchRoute(start, destination));
       setIsPreviewMode(true);
     } catch (e: any) {
       Alert.alert('Could not get route', e?.message ?? 'Unknown error');
@@ -315,6 +319,10 @@ export default function HomeScreen() {
         onNextCheckpointUpdate={handleCheckpointUpdate}
         mockUserLocation={finalMockLocation}
         route={isPreviewMode ? route : null}
+        destination={destination}
+        onDestinationSelect={
+          isPreviewMode || isNavigating ? undefined : setDestination
+        }
       />
 
       <TouchableOpacity
@@ -409,14 +417,26 @@ export default function HomeScreen() {
               ) : (
                 <View style={styles.menuBar}>
                   <TouchableOpacity
-                    style={[styles.startButton, { backgroundColor: '#333' }]} // Reuse start button style for Preview
+                    style={[
+                      styles.startButton,
+                      { backgroundColor: '#333' }, // Reuse start button style for Preview
+                      !destination && { opacity: 0.6 },
+                    ]}
                     onPress={handlePreviewRoute}
-                    disabled={isLoadingRoute}
+                    disabled={isLoadingRoute || !destination}
                   >
                     {isLoadingRoute ? (
                       <ActivityIndicator color="#fff" />
                     ) : (
-                      <Text style={styles.startButtonText}>Preview Route</Text>
+                      <Text
+                        style={styles.startButtonText}
+                        numberOfLines={1}
+                        adjustsFontSizeToFit
+                      >
+                        {destination
+                          ? 'Preview Route'
+                          : 'Long-press map to set destination'}
+                      </Text>
                     )}
                   </TouchableOpacity>
 

@@ -108,7 +108,8 @@ HomeScreen → util/routing.ts (fetchRoute) → GraphHopper server
 | Generate checkpoints | [`util/checkpoints.ts`](util/checkpoints.ts) | Turns the dense route (~130 points for 3 km) into checkpoints at every real turn, plus extra ones so no straight stretch has a gap over `maxSpacing`. |
 | Geometry helpers | [`util/geo.ts`](util/geo.ts) | Distance, bearing and distance-to-segment in metres. |
 | Settings | [`util/globals.ts`](util/globals.ts) → `CHECKPOINTS` | `simplifyTolerance` 8 m, `maxSpacing` 50 m, `minSpacing` 15 m. |
-| Server address, destination | [`util/config.ts`](util/config.ts) | `MAP_SERVER_URL` and the temporary fixed `DESTINATION`. |
+| Server address | [`util/config.ts`](util/config.ts) | `MAP_SERVER_URL`, the address of the routing server. |
+| Choose a destination | [`components/Map.tsx`](components/Map.tsx), [`screens/HomeScreen.tsx`](screens/HomeScreen.tsx) | Long-press the map to drop a red pin. **Preview Route** stays disabled until a pin is set, then routes from the current position (or the debug position) to the pin. The pin can't be moved while a route is previewed or navigating. |
 
 ### How checkpoints are generated
 
