@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { StyleSheet, View, Alert, Text } from 'react-native';
+import { StyleSheet, View, Alert, Text, Platform } from 'react-native';
 import MapView, {
   Marker,
   Polyline,
@@ -314,13 +314,16 @@ export default function Map({
         showsPointsOfInterests={false}
         mapType="none" // Hides Google/Apple default map
       >
-        {/* Self-Hosted Tiles */}
-        <UrlTile
-          urlTemplate={API_ENDPOINTS.TILES}
-          maximumZ={19}
-          flipY={false}
-          zIndex={-1}
-        />
+        {/* Self-Hosted Tiles. Skipped on iOS: the Apple map is used there, and
+            every tile request to a server without tiles just fails with 404. */}
+        {Platform.OS !== 'ios' && (
+          <UrlTile
+            urlTemplate={API_ENDPOINTS.TILES}
+            maximumZ={19}
+            flipY={false}
+            zIndex={-1}
+          />
+        )}
 
         {/* Route Polyline */}
         {routeCoordinates.length > 0 && (

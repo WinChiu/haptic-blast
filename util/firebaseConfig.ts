@@ -1,5 +1,4 @@
 import { initializeApp } from 'firebase/app';
-import { getAuth } from 'firebase/auth';
 import { getFirestore } from 'firebase/firestore';
 
 // Your Firebase configuration
@@ -17,6 +16,6 @@ const firebaseConfig = {
 // Initialize Firebase
 const app = initializeApp(firebaseConfig);
 
-// Initialize Firebase Authentication and Firestore
-export const auth = getAuth(app);
+// Firestore only: users are identified by a username used as the document ID,
+// not by Firebase Auth (which also warned about missing persistence on every launch).
 export const db = getFirestore(app);
