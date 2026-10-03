@@ -77,10 +77,6 @@ export default function Map({
     latitude: number;
     longitude: number;
   } | null>(null);
-  const [lastFetchLocation, setLastFetchLocation] = useState<{
-    latitude: number;
-    longitude: number;
-  } | null>(null);
   const [routeCoordinates, setRouteCoordinates] = useState<
     { latitude: number; longitude: number }[]
   >([]);

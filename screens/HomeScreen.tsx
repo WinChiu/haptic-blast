@@ -8,12 +8,12 @@ import {
   Modal,
   TextInput,
   Alert,
+  ActivityIndicator,
 } from 'react-native';
 import { useDispatch, useSelector } from 'react-redux';
 import { useNavigation } from '@react-navigation/native';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { RadarIcon, CurrentLocationIcon } from '../components/Icons';
-import routeData from '../route.json';
 import Map from '../components/Map';
 import HapticCompass from '../components/HapticCompass';
 import Joystick from '../components/Joystick';
@@ -23,6 +23,8 @@ import { useGuidance, HAPTIC_STYLE } from '../hooks/useGuidance';
 import { useFeedback } from '../hooks/FeedbackContext';
 import { GlobalStore } from '../util/globals';
 import { addRound, updateRoundTiming } from '../util/store';
+import { fetchRoute, Coord } from '../util/routing';
+import { DESTINATION } from '../util/config';
 
 import { useAudioPlayer } from 'expo-audio';
 
@@ -44,6 +46,8 @@ export default function HomeScreen() {
   }, [hapticEnabled, soundEnabled]);
 
   const [isPreviewMode, setIsPreviewMode] = useState(false);
+  const [route, setRoute] = useState<Coord[] | null>(null);
+  const [isLoadingRoute, setIsLoadingRoute] = useState(false);
   const [showCompletionModal, setShowCompletionModal] = useState(false);
 
   const [centerTrigger, setCenterTrigger] = useState(0);
@@ -161,6 +165,33 @@ export default function HomeScreen() {
       setIsNavigating(false);
       setShowHapticOverlay(false);
       setIsPreviewMode(false); // Reset preview mode on finish
+    }
+  };
+
+  const handlePreviewRoute = async () => {
+    // In debug mode the joystick position is the start point
+    const start = finalMockLocation
+      ? {
+          latitude: finalMockLocation.latitude,
+          longitude: finalMockLocation.longitude,
+        }
+      : userLocation
+        ? { latitude: userLocation[0], longitude: userLocation[1] }
+        : null;
+
+    if (!start) {
+      Alert.alert('No location yet', 'Waiting for your GPS position.');
+      return;
+    }
+
+    setIsLoadingRoute(true);
+    try {
+      setRoute(await fetchRoute(start, DESTINATION));
+      setIsPreviewMode(true);
+    } catch (e: any) {
+      Alert.alert('Could not get route', e?.message ?? 'Unknown error');
+    } finally {
+      setIsLoadingRoute(false);
     }
   };
 
@@ -283,7 +314,7 @@ export default function HomeScreen() {
         heading={heading}
         onNextCheckpointUpdate={handleCheckpointUpdate}
         mockUserLocation={finalMockLocation}
-        route={isPreviewMode ? routeData : null}
+        route={isPreviewMode ? route : null}
       />
 
       <TouchableOpacity
@@ -379,9 +410,14 @@ export default function HomeScreen() {
                 <View style={styles.menuBar}>
                   <TouchableOpacity
                     style={[styles.startButton, { backgroundColor: '#333' }]} // Reuse start button style for Preview
-                    onPress={() => setIsPreviewMode(true)}
+                    onPress={handlePreviewRoute}
+                    disabled={isLoadingRoute}
                   >
-                    <Text style={styles.startButtonText}>Preview Route</Text>
+                    {isLoadingRoute ? (
+                      <ActivityIndicator color="#fff" />
+                    ) : (
+                      <Text style={styles.startButtonText}>Preview Route</Text>
+                    )}
                   </TouchableOpacity>
 
                   <TouchableOpacity
