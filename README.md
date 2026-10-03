@@ -153,6 +153,35 @@ On a real 3.1 km route this gives 134 server points → 78 checkpoints. The coun
 
 A destination less than 15 m from the start shows "Already there" instead of asking the server.
 
+### Map background (open issue)
+
+**The problem.** The original code hid the platform map (`mapType="none"`) and drew tiles from our own tile server (`API_ENDPOINTS.TILES` in `util/config.ts`). That tile server was a teammate's temporary ngrok address, which is now offline, and no replacement exists. Effects:
+
+- **iOS:** Apple Maps shows through anyway (iOS ignores `mapType="none"`), so the map looked fine, but every pan or zoom sent tile requests that failed with 404 through ngrok. Those wasted requests could crowd out route requests on ngrok's free plan.
+- **Android:** with `mapType="none"` and no tiles, the map is most likely **blank** (read from the code; not run on Android by us).
+
+**The temporary change (2026-10-03).** One flag, `USE_SELF_HOSTED_TILES` in `util/config.ts`, now set to `false`:
+
+| Flag | Map type | Tile layer | Needs |
+|---|---|---|---|
+| `false` (current) | `standard`: Apple Maps on iOS, Google map on Android | not rendered, no tile requests | Android needs `GOOGLE_MAPS_ANDROID_API_KEY` (already required, see the Android setup) |
+| `true` | `none` | `UrlTile` from `API_ENDPOINTS.TILES` | a running tile server |
+
+To go back to the old behaviour, set the flag to `true` once a tile server is available. The code that uses the flag is in `components/Map.tsx` (`mapType` and the `UrlTile` block).
+
+**Not yet verified:** the Android map with `false` has not been run by us (no Android device). Please check that the map, route line, checkpoints and pin show, and report back.
+
+**Options for a permanent solution (to decide as a team):**
+
+| Option | Cost | Pros | Cons |
+|---|---|---|---|
+| **1. Keep platform maps** (what the flag does now) | Free to use; check Google's pricing and quota for the key | Nothing to run or host, works on both systems | Depends on Apple and Google; look and data can't be customised; Google usage may be billed |
+| **2. Our own tile server** (for example `tileserver-gl` in Docker with OpenMapTiles/OpenStreetMap data for the test area, exposed with ngrok or hosted) | Free software and data; about 1–2 hours plus a large download; needs a machine that stays on | Independent of Google and Apple; same map on both systems; works with the self-hosted routing | Another server to keep running; the ngrok free plan has request limits; OpenStreetMap credit must be shown |
+| **3. Hosted tile service** (for example MapTiler or similar, with an API key) | Free tiers exist, limits and terms vary, check before relying on it | No server to run | Needs an account and key; usage limits; terms may restrict how it is used |
+| **4. Pre-downloaded offline tiles** bundled for the test area | Free; the area is fixed in advance | Works with no internet; fits fixed study routes | Larger app; only covers the chosen area |
+
+**Do not use the public OpenStreetMap tile servers** (`tile.openstreetmap.org`) for this: their usage policy forbids heavy use from apps.
+
 ### What the routes are based on, and what to decide later
 
 For development and testing we use **OpenStreetMap map data** (a downloaded `.osm.pbf` file) with **GraphHopper**, an open-source routing engine that we run ourselves. It is free and has no request limits, but a route is only as good as the map data:

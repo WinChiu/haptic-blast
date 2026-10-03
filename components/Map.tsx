@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { StyleSheet, View, Alert, Text, Platform } from 'react-native';
+import { StyleSheet, View, Alert, Text } from 'react-native';
 import MapView, {
   Marker,
   Polyline,
@@ -7,7 +7,7 @@ import MapView, {
   PROVIDER_DEFAULT,
 } from 'react-native-maps';
 import * as Location from 'expo-location';
-import { API_ENDPOINTS } from '../util/config';
+import { API_ENDPOINTS, USE_SELF_HOSTED_TILES } from '../util/config';
 import { GlobalStore } from '../util/globals';
 import { distanceMeters, alongTrackMeters } from '../util/geo';
 import { generateCheckpoints } from '../util/checkpoints';
@@ -312,11 +312,11 @@ export default function Map({
         showsBuildings={false}
         showsTraffic={false}
         showsPointsOfInterests={false}
-        mapType="none" // Hides Google/Apple default map
+        mapType={USE_SELF_HOSTED_TILES ? 'none' : 'standard'} // none hides the platform map so our tiles show instead
       >
-        {/* Self-Hosted Tiles. Skipped on iOS: the Apple map is used there, and
-            every tile request to a server without tiles just fails with 404. */}
-        {Platform.OS !== 'ios' && (
+        {/* Self-Hosted Tiles. Off by default: there is no tile server yet, so
+            every request would fail. See "Map background" in the README. */}
+        {USE_SELF_HOSTED_TILES && (
           <UrlTile
             urlTemplate={API_ENDPOINTS.TILES}
             maximumZ={19}
