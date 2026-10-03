@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useRef, useEffect } from 'react';
+import React, { useState, useMemo, useRef } from 'react';
 import {
   StyleSheet,
   View,
@@ -11,7 +11,6 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import { useDispatch, useSelector } from 'react-redux';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useNavigation } from '@react-navigation/native';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { RadarIcon, CurrentLocationIcon } from '../components/Icons';
@@ -53,17 +52,8 @@ export default function HomeScreen() {
   const [isLoadingRoute, setIsLoadingRoute] = useState(false);
   const [showCompletionModal, setShowCompletionModal] = useState(false);
 
-  // "How to follow the guidance" is shown once, before the first Start
-  const TIP_SEEN_KEY = 'guidanceTipSeen';
+  // "How to follow the guidance" is shown before every journey
   const [showTip, setShowTip] = useState(false);
-  const tipSeenRef = useRef(false);
-  useEffect(() => {
-    AsyncStorage.getItem(TIP_SEEN_KEY)
-      .then((value) => {
-        tipSeenRef.current = value === '1';
-      })
-      .catch(() => {});
-  }, []);
 
   const [centerTrigger, setCenterTrigger] = useState(0);
   const [nextCheckpoint, setNextCheckpoint] = useState<{
@@ -258,16 +248,11 @@ export default function HomeScreen() {
 
   const handleStartNavigation = () => {
     if (!isPreviewMode) return;
-    if (!tipSeenRef.current) {
-      setShowTip(true);
-      return;
-    }
-    beginNavigation();
+    console.log('[nav] showing the guidance tip before starting');
+    setShowTip(true);
   };
 
   const handleTipDismissed = () => {
-    tipSeenRef.current = true;
-    AsyncStorage.setItem(TIP_SEEN_KEY, '1').catch(() => {});
     setShowTip(false);
     beginNavigation();
   };

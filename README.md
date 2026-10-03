@@ -105,6 +105,8 @@ Haptic Blast guides you by **which way the phone points**, not by where you stan
 6. The stronger and faster the buzz, the further off the direction you are. Within about 25° of the target (`COMPASS_ANGLE_TOLERANCE`) it is silent.
 7. The radar button on the bottom bar opens a Compass screen showing the target direction and where the phone is pointing, which helps when learning.
 
+A short reminder of these steps appears before every journey, when you tap **Start**, and is listed at the bottom of Settings (`components/GuidanceTip.tsx`).
+
 If you leave the route for more than a few seconds, the app plans a new route from where you are.
 
 **Testing at a desk with Debug Mode:** only your position is fake (moved with the joystick). The compass is the real phone, so you still have to point it. The joystick lets you walk through buildings and fences, which real people cannot. This causes odd beeping and odd re-routes that do not happen outdoors. Test re-routing outdoors on real paths.

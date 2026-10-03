@@ -2,7 +2,7 @@ import React from 'react';
 import { Modal, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 
-// Shown before the first Start, and listed in Settings. Keep in sync with
+// Shown before every Start, and listed in Settings. Keep in sync with
 // "How to use the app" in the README.
 export const GUIDANCE_STEPS = [
   'Hold the phone flat in front of you, screen up, with the top edge pointing forward.',
