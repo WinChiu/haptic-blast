@@ -23,6 +23,12 @@ export const GlobalStore = {
   // and has already gone past it towards the next one (GPS drift can keep
   // someone just outside CHECKPOINT_THRESHOLD while walking by).
   CHECKPOINT_PASS_RADIUS: 12, //meters
+  // GPS quality (accuracy in metres, smaller is better). Measured on a real
+  // walk: median 6.7 m, but 12 to 29 m in the first 30 s after standing still.
+  GPS: {
+    maxUsableAccuracy: 20, // worse fixes are ignored for route progress
+    maxStartAccuracy: 15, // Preview Route and Start wait for a fix this good
+  },
   // The how-to reminder shown when a journey starts. In 'adaptive' mode the
   // full tip appears until the user has finished `fullUntilFinished` journeys,
   // then only a small reminder for `compactSeconds` seconds.

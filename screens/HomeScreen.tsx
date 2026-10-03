@@ -26,6 +26,7 @@ import {
 } from '../util/guidancePrefs';
 import { chooseTipMode, TipMode } from '../util/tipMode';
 import { Recording, Sample } from '../util/recorder';
+import { isFixGoodToStart } from '../util/gps';
 import { loadRecordingPrefs, saveRecording } from '../util/recordingStorage';
 
 import { useCompass } from '../hooks/useCompass';
@@ -118,6 +119,9 @@ export default function HomeScreen() {
     null
   );
   const [gpsHeading, setGpsHeading] = useState<number | null>(null);
+  // Accuracy (metres) of the latest GPS fix. A route starts at the GPS position,
+  // so Preview Route and Start wait for a good fix (see util/gps.ts).
+  const [gpsAccuracy, setGpsAccuracy] = useState<number | null>(null);
 
   /* Debug Mode State - Moved to Redux */
   const isDebugMode = (useSelector as any)(
@@ -175,6 +179,7 @@ export default function HomeScreen() {
           tip: tipShown,
           debug_mode: String(isDebugMode),
           dev_build: String(__DEV__),
+          heading_reference: 'true-north-preferred', // recordings made before this are magnetic north
         },
         samples: [],
       },
@@ -320,6 +325,10 @@ export default function HomeScreen() {
       Alert.alert('No destination', 'Long-press the map to choose where to go.');
       return;
     }
+    if (!gpsGood) {
+      Alert.alert('GPS not accurate yet', 'Wait a moment for a better GPS signal.');
+      return;
+    }
 
     if (distanceMeters(start, destination) < 15) {
       Alert.alert('Already there', 'The destination is right next to you.');
@@ -376,6 +385,7 @@ export default function HomeScreen() {
   const startingRef = useRef(false);
   const handleStartNavigation = async () => {
     if (!isPreviewMode || isNavigating || startingRef.current) return;
+    if (!gpsGood) return; // the Start button is disabled meanwhile
     startingRef.current = true; // ignore a second tap while preferences load
     const prefs = await loadGuidancePrefs();
     startingRef.current = false;
@@ -478,6 +488,10 @@ export default function HomeScreen() {
       : null;
   }, [isDebugMode, mockLocation, heading]);
 
+  // The joystick position (debug mode) has no GPS accuracy, so it never waits
+  const gpsGood = finalMockLocation ? true : isFixGoodToStart(gpsAccuracy);
+  const gpsWaitLabel = `Waiting for GPS (±${Math.round(gpsAccuracy ?? 0)} m)`;
+
   const handleMockMove = (direction: 'up' | 'down' | 'left' | 'right') => {
     setMockLocation((prev) => {
       // Initialize if null
@@ -522,16 +536,24 @@ export default function HomeScreen() {
         // selectedLocation prop removed from Map
         centerOnUserTrigger={centerTrigger}
         onUserLocationUpdate={(loc) => {
-          // Prevent infinite loop by checking if values actually changed
-          const newLoc: [number, number] = [loc.latitude, loc.longitude];
-          setUserLocation((prev) => {
-            if (!prev || prev[0] !== newLoc[0] || prev[1] !== newLoc[1]) {
-              return newLoc;
-            }
-            return prev;
-          });
+          setGpsAccuracy(loc.accuracy ?? null);
 
-          setGpsHeading((prev) => (prev !== loc.heading ? loc.heading : prev));
+          // Fixes that are too inaccurate must not move the position the
+          // route logic uses (they are still recorded below)
+          if (loc.usable !== false) {
+            // Prevent infinite loop by checking if values actually changed
+            const newLoc: [number, number] = [loc.latitude, loc.longitude];
+            setUserLocation((prev) => {
+              if (!prev || prev[0] !== newLoc[0] || prev[1] !== newLoc[1]) {
+                return newLoc;
+              }
+              return prev;
+            });
+
+            setGpsHeading((prev) =>
+              prev !== loc.heading ? loc.heading : prev
+            );
+          }
           recordSample(loc);
         }}
         heading={heading}
@@ -616,10 +638,17 @@ export default function HomeScreen() {
               {isPreviewMode ? (
                 <View style={styles.selectedLocationContainer}>
                   <TouchableOpacity
-                    style={styles.startButton}
+                    style={[styles.startButton, !gpsGood && { opacity: 0.6 }]}
                     onPress={handleStartNavigation}
+                    disabled={!gpsGood}
                   >
-                    <Text style={styles.startButtonText}>Start</Text>
+                    <Text
+                      style={styles.startButtonText}
+                      numberOfLines={1}
+                      adjustsFontSizeToFit
+                    >
+                      {gpsGood ? 'Start' : gpsWaitLabel}
+                    </Text>
                   </TouchableOpacity>
                   <TouchableOpacity
                     style={styles.cancelButton}
@@ -640,10 +669,10 @@ export default function HomeScreen() {
                     style={[
                       styles.startButton,
                       { backgroundColor: '#333' }, // Reuse start button style for Preview
-                      !destination && { opacity: 0.6 },
+                      (!destination || !gpsGood) && { opacity: 0.6 },
                     ]}
                     onPress={handlePreviewRoute}
-                    disabled={isLoadingRoute || !destination}
+                    disabled={isLoadingRoute || !destination || !gpsGood}
                   >
                     {isLoadingRoute ? (
                       <ActivityIndicator color="#fff" />
@@ -653,9 +682,11 @@ export default function HomeScreen() {
                         numberOfLines={1}
                         adjustsFontSizeToFit
                       >
-                        {destination
-                          ? 'Preview Route'
-                          : 'Long-press map to set destination'}
+                        {!destination
+                          ? 'Long-press map to set destination'
+                          : gpsGood
+                            ? 'Preview Route'
+                            : gpsWaitLabel}
                       </Text>
                     )}
                   </TouchableOpacity>

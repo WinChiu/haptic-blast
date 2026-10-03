@@ -252,11 +252,12 @@ Suggested next step: a small **feasibility test** before any design decision. Ru
 
 **What was done.** One person, an iPhone 14 with the Release build (mobile data, laptop routing server), two real outdoor walks of about 3 minutes each in Stockholm (house to ICA Lappis and back), phone **held flat in the hand** both times, haptics and sound on, recording on. A third recording was a debug-mode mistake and is ignored. **This is two walks by one person in one position.** It shows what the data looks like and what to fix. It proves nothing statistically, and **pocket, bag and upright-in-hand positions have not been tried yet.**
 
-**Reported by the walker:** the vibration and beeping worked well, got stronger the more they deviated, and worked well in corners.
+**Reported by the walker:** the vibration and beeping worked well, got stronger the more they deviated, and worked well in corners. **At the start the phone began buzzing and beeping straight away, before the walker had done anything, which was confusing and annoying.** That is how the guidance works today (it compares the phone's heading with the target at once, and the person has not turned yet), made worse by the poor start fix described below. Whether it needs a calmer start (a short silent period, or ramping up) is a design decision for the team.
+**Battery:** about 97% at the start of the outing and 77% at the end, with the phone at 82% battery health, in the cold, with screen on, GPS, mobile data, haptics and sound. The walker did not time the outing carefully, so this is a rough figure and not a measurement.
 
 | Finding | Walk 1 | Walk 2 (back) | What it means |
 |---|---|---|---|
-| App kept running (no gaps in the samples after the GPS settled) | yes | yes | The screen stayed on, or the app was otherwise not suspended, for the whole walk. It does not tell us **which**: Auto-Lock set to Never, or `expo-keep-awake`. |
+| App kept running (no gaps in the samples after the GPS settled) | yes | yes | The walker did **not** change the phone's Auto-Lock, so `expo-keep-awake` kept the screen on and the app running for the whole walk. |
 | GPS accuracy, median / worst | 6.7 m / 24 m | 6.7 m / 29 m | Worse than the 4 m checkpoint distance. Checkpoints were reached mostly through the "walked past within 12 m" rule. Accuracy was 12 to 29 m in the first 30 seconds after standing still. |
 | GPS update rate | about 1 per second | about 1 per second | iOS delivers about one fix a second. |
 | Phone heading was within 25° of the guidance target | 79% of the time | 84% | With the phone held flat the guidance would fire 16% to 21% of the time, in 10 to 11 separate episodes per walk (about 4 a minute, much more than the 13 per km the simulation predicted for a perfect walker). |
@@ -279,6 +280,36 @@ Suggested next step: a small **feasibility test** before any design decision. Ru
 2. Walk the same short route in each carry position (**pocket, bag, hand upright**), haptics only, with recording on. Then run `npm run analyse-recording`. This is the data that decides the hands-free design.
 3. Separate haptics from sound in at least one walk each.
 4. Test with the screen locked on purpose (Auto-Lock short, keep-awake off), to learn what really happens in the background.
+
+### Changes made after the first walks (not yet tried on a phone)
+
+- **True north.** On iOS the compass now prefers `trueHeading` and falls back to the magnetic heading when it is not available (`pickHeading` in `util/gps.ts`, used in `hooks/useCompass.ts`). **Check:** on a hand-flat walk, the average difference between GPS direction and phone heading should drop from about +8° to about 0°. Recordings now carry `heading_reference=true-north-preferred` in the header; older recordings are magnetic.
+- **Wait for a good GPS fix.** Preview Route and Start are disabled, with the label "Waiting for GPS (±N m)", until the latest fix is accurate to 15 m or better (`GPS.maxStartAccuracy` in `util/globals.ts`). Fixes worse than 20 m (`GPS.maxUsableAccuracy`) are ignored for route progress and off-route detection, but are still recorded. Debug mode (joystick) never waits. **Check:** the first checkpoint should be near you, and standing still should not move the route on.
+- Not changed: the buzz at the start, the 4 m checkpoint distance, and the 25° tolerance. These need more data or a team decision.
+
+### How to collect meaningful test data before user testing
+
+The two walks above are a **pilot**: they find problems and give rough numbers. They cannot support claims such as "the pocket is as good as the hand". To get data that can, plan it before walking.
+
+1. **Write down the questions first.** For example: (a) does the compass heading in a pocket, bag or upright hand agree with the direction of travel well enough? (b) do haptics, sound or both work better? (c) what does a journey cost in battery? (d) is the start of a journey understandable?
+2. **Choose the conditions** and test every one: carry position (hand flat, hand upright, pocket, bag), feedback (haptics only, sound only, both), and at least two routes (one with a long straight, one with curves and corners). Walk a fixed route, so differences come from the condition and not the route.
+3. **Repeat.** Samples within one walk are not independent (a second of data is almost the same as the next), so **the walk is the unit of analysis, not the sample**. Aim for at least 3 walks per condition per person, and at least 3 different people (different phones, heights, walking speeds). Keep walks of at least a few minutes, so there are hundreds of samples to summarise.
+4. **Reduce bias.** Vary the order of conditions between people or days (do not always test the pocket last, when the walker is tired or cold), keep the same build of the app, and avoid mixing in debug-mode runs.
+5. **Record what the app does not.** One line per walk in a shared sheet: walk ID, person, route, carry position, feedback setting, app build date, start and end time, battery % at both, weather and temperature, and a short note or a 1 to 5 rating for how clear and how annoying the guidance felt. Give each person a separate username.
+6. **Name the things you will compare in advance:** for example, median and spread of the compass vs GPS direction offset, the share of time within 25° of the target, episodes of guidance per minute, and battery per 10 minutes. Summarise each walk first, then compare walks.
+7. **Be honest about the claim.** A pilot of a few people supports "this looks promising, here is what to fix". It does not prove anything about blind or low-vision users. Testing with blind or low-vision participants needs their involvement in the design, the approval your university requires, and a safe route. Use sighted pilots only on quiet, safe routes.
+8. **Decide the stopping rules now.** For example: ready for user testing when the compass or GPS approach in the chosen carry position is within 25° of the target on most walks, the start of a journey is not confusing, there are no crashes or silent suspensions, and the battery use is acceptable to the team.
+
+Possible tooling to add if the team wants it: a free-text "walk label" (person, route, condition) saved in each recording, and a table in the analysis tool that groups many recordings by condition.
+
+### After a laptop restart (resuming the local setup)
+
+The routing server, the tunnel and the build all live on one team member's laptop.
+1. Start **Docker Desktop**, then `docker start graphhopper` (the first start after a restart takes about a minute; check `curl localhost:8989/health`).
+2. Start the tunnel: `ngrok http 8989`. **A free ngrok address changes every time it restarts, and the address is built into the app.** After a restart, update `MAP_SERVER_URL` in `util/config.ts` and rebuild the app, or the phone will try a dead address. To avoid that, claim the free static domain in the ngrok dashboard (Domains) and start with `ngrok http --domain=<your-domain> 8989`. Then the address never changes.
+3. Keep the laptop awake while anyone walks (`caffeinate -dimsu -t 21600` keeps a Mac awake for 6 hours) and plugged in, with the lid open.
+4. Rebuild and install when needed: `npx expo run:ios --device <device-id> --configuration Release` (about 15 minutes, phone unlocked and plugged in). The `ios/` folder is not in the repository: it holds your own signing settings and bundle identifier, so do not regenerate it with `expo prebuild`.
+5. Run `npm install` after pulling new commits, and `npm run test:logic` to check the logic.
 
 ## Tests
 

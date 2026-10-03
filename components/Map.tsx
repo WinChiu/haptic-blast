@@ -11,6 +11,7 @@ import { API_ENDPOINTS, USE_SELF_HOSTED_TILES } from '../util/config';
 import { GlobalStore } from '../util/globals';
 import { distanceMeters } from '../util/geo';
 import { generateCheckpoints } from '../util/checkpoints';
+import { isFixUsable } from '../util/gps';
 import {
   distanceToRoute,
   findSkipTarget,
@@ -37,6 +38,9 @@ interface MapProps {
     heading: number | null;
     speed: number | null;
     accuracy?: number | null; // GPS accuracy in metres (absent for mock locations)
+    // false when the fix is too inaccurate to use for route progress; it is
+    // still reported (for the GPS indicator and recordings)
+    usable?: boolean;
   }) => void;
 
   heading?: number;
@@ -321,25 +325,28 @@ export default function Map({
           },
           (location) => {
             let { latitude, longitude } = location.coords;
-            const { heading, speed } = location.coords;
+            const { heading, speed, accuracy } = location.coords;
+            const usable = isFixUsable(accuracy);
 
-            // Low-Pass Filter for Smoothing
-            // alpha = 0.2 means 20% new data, 80% old data (very smooth, more lag)
-            // alpha = 0.5 means 50% new data, 50% old data (balanced)
-            const alpha = 0.5;
+            if (usable) {
+              // Low-Pass Filter for Smoothing
+              // alpha = 0.2 means 20% new data, 80% old data (very smooth, more lag)
+              // alpha = 0.5 means 50% new data, 50% old data (balanced)
+              const alpha = 0.5;
 
-            if (lastLocationRef.current) {
-              latitude =
-                lastLocationRef.current.latitude * (1 - alpha) +
-                latitude * alpha;
-              longitude =
-                lastLocationRef.current.longitude * (1 - alpha) +
-                longitude * alpha;
+              if (lastLocationRef.current) {
+                latitude =
+                  lastLocationRef.current.latitude * (1 - alpha) +
+                  latitude * alpha;
+                longitude =
+                  lastLocationRef.current.longitude * (1 - alpha) +
+                  longitude * alpha;
+              }
+
+              const coords = { latitude, longitude };
+              lastLocationRef.current = coords;
+              setUserLocation(coords);
             }
-
-            const coords = { latitude, longitude };
-            lastLocationRef.current = coords;
-            setUserLocation(coords);
 
             if (onUserLocationUpdate) {
               onUserLocationUpdate({
@@ -347,7 +354,8 @@ export default function Map({
                 longitude,
                 heading,
                 speed,
-                accuracy: location.coords.accuracy,
+                accuracy,
+                usable,
               });
             }
           }

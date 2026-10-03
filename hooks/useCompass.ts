@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { Platform } from 'react-native';
 import * as Location from 'expo-location';
 import { DeviceMotion } from 'expo-sensors';
+import { pickHeading } from '../util/gps';
 import {
   addOrientationListener,
   isFusedOrientationAvailable,
@@ -174,8 +175,10 @@ export function useCompass() {
         if (status !== 'granted') return;
 
         // Alpha: 0.1 = very smooth (slow), 0.5 = balanced, 1.0 = no smoothing
+        // True north when iOS can provide it (routes use true north); magnetic
+        // north reads about 7 to 9 degrees low in Stockholm
         const sub = await Location.watchHeadingAsync((obj) =>
-          smooth(obj.magHeading, 0.1)
+          smooth(pickHeading(obj.trueHeading, obj.magHeading), 0.1)
         );
         remove = () => sub.remove();
       }
