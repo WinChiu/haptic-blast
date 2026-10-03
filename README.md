@@ -159,11 +159,13 @@ A reasonable first prototype is **A as the baseline, with the phone-pointing mod
 
 Settings → **Walk recording** records sensor data during a journey so we can answer the questions above. It is **off by default**.
 
-**What is recorded** (about twice a second, from Start until the finish or cancel): time, latitude and longitude, GPS accuracy, speed, GPS direction of travel, the phone's heading (the value the app uses), the direction the guidance is steering towards, the current checkpoint, plus the phone position you chose, haptic and sound settings and the reminder shown. The username is not recorded.
+**What is recorded** (at most about twice a second, however often the position updates, from Start until the finish or cancel): time, latitude and longitude, GPS accuracy, speed, GPS direction of travel, the phone's heading (the value the app uses), the direction the guidance is steering towards, the current checkpoint, plus the phone position you chose, haptic and sound settings and the reminder shown. The username is not recorded.
 
 **Where it is kept.** Only on the phone, in the app's private storage (`util/recordingStorage.ts`, the last 5 recordings, saved about once a minute while walking and again at the end). It is **not** sent to Firebase and is not in the repo. It contains a location trace, so share it only with people who should see it. **Deleting or reinstalling the app deletes the recordings, so share them first.**
 
-**Getting it off the phone.** Settings → **Share recordings** opens the iPhone share sheet (Mail, AirDrop, Notes, Save to Files). The text is a CSV with a short header per recording.
+**Getting it off the phone.** Settings → Walk recording has two buttons, both open the iPhone share sheet (Mail, AirDrop, Notes, Save to Files):
+- **Share short summary (paste-able):** a few lines per recording (how the phone's heading compares with the direction of travel, GPS accuracy, and so on). Small enough to paste into a chat or an email.
+- **Share full data (file):** every sample as CSV, with a short header per recording. A 30-minute walk is about 3,600 lines (roughly 250 KB), too long to paste into most chats, so send it as a file (for example Save to Files, then AirDrop or email it).
 
 **Analysing it** on a computer:
 
@@ -181,7 +183,7 @@ It reports, for the walking samples (speed of at least 1 m/s): how far the phone
 4. Note by hand: could you feel the buzz through your clothing? Did the phone move around?
 5. Share the recordings before deleting or reinstalling the app.
 
-The recorder logic and the analysis are tested (`tests/recorder.test.ts`). The capture and the share button run only on a phone and have not been tried on one yet.
+The recorder logic and the analysis are tested (`tests/recorder.test.ts`). The recorder was tried on a phone in **debug mode**, where positions are fake, speed is 0 and the "direction of travel" is just the phone's heading, so a debug recording says nothing about real walking. A recording made while really walking has not been tried yet.
 
 ## Tests
 

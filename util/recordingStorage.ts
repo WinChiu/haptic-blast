@@ -1,5 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { Recording, toCsv } from './recorder';
+import { Recording, formatSummary, toCsv } from './recorder';
 
 // Recordings stay on the phone (AsyncStorage, the app's private storage). They
 // are never sent to Firebase. Deleting or reinstalling the app deletes them.
@@ -74,4 +74,10 @@ export async function clearRecordings(): Promise<void> {
 export async function recordingsAsText(): Promise<string> {
   const all = await loadRecordings();
   return all.map(toCsv).join('\n\n');
+}
+
+// A few lines per recording (no samples), small enough to paste into a chat
+export async function recordingsSummaryText(): Promise<string> {
+  const all = await loadRecordings();
+  return all.map((r, i) => formatSummary(r, i)).join('\n\n');
 }

@@ -6,6 +6,7 @@ import {
   Sample,
   circularDiff,
   circularStats,
+  formatSummary,
   parseCsv,
   summariseHeading,
   toCsv,
@@ -103,4 +104,19 @@ test('summariseHeading with no walking samples does not crash', () => {
   const s = summariseHeading([]);
   assert.equal(s.walking, 0);
   assert.ok(Number.isNaN(s.offsetMean));
+});
+
+test('formatSummary: a short report with the offset and the carry position', () => {
+  const samples = [0, 90, 180].map((c) =>
+    sample({ course: c, phoneHeading: (c - 40 + 360) % 360, targetBearing: c })
+  );
+  const text = formatSummary({ meta: { started: 'x', phone_position: 'pocket', ended: 'finished' }, samples });
+  assert.ok(text.includes('phone carried: pocket'));
+  assert.ok(text.includes('average offset 40 deg'));
+  assert.ok(text.split('\n').length < 10, 'should be a few lines');
+});
+
+test('formatSummary: says so when there is no walking data (e.g. debug mode)', () => {
+  const text = formatSummary({ meta: { started: 'x' }, samples: [sample({ speed: 0 })] });
+  assert.ok(text.includes('Not enough walking data'));
 });

@@ -134,6 +134,8 @@ export default function HomeScreen() {
     lastSavedMs: number;
   } | null>(null);
   const SAVE_EVERY_MS = 60_000; // so little is lost if the app is killed mid-walk
+  const MIN_SAMPLE_GAP_MS = 450; // about 2 samples a second, whatever the update rate
+  const lastSampleMsRef = useRef(0);
 
   const startRecording = async (tipShown: TipMode) => {
     const prefs = await loadRecordingPrefs();
@@ -178,6 +180,8 @@ export default function HomeScreen() {
     const active = recordingRef.current;
     if (!active) return;
     const now = Date.now();
+    if (now - lastSampleMsRef.current < MIN_SAMPLE_GAP_MS) return;
+    lastSampleMsRef.current = now;
     const sample: Sample = {
       t: now - active.startedAtMs,
       lat: loc.latitude,

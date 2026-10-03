@@ -160,3 +160,37 @@ export function summariseHeading(
     ),
   };
 }
+
+const pct = (v: number) => (Number.isNaN(v) ? 'n/a' : `${(v * 100).toFixed(0)}%`);
+const deg = (v: number) => (Number.isNaN(v) ? 'n/a' : `${v.toFixed(0)} deg`);
+
+// A short plain-text report of one recording (a few lines, easy to paste)
+export function formatSummary(recording: Recording, index = 0): string {
+  const s = summariseHeading(recording.samples);
+  const last = recording.samples[recording.samples.length - 1];
+  const seconds = last ? last.t / 1000 : 0;
+  const accuracies = recording.samples
+    .map((x) => x.accuracy)
+    .filter((a): a is number => a !== null);
+  const meanAccuracy = accuracies.length
+    ? accuracies.reduce((a, b) => a + b, 0) / accuracies.length
+    : NaN;
+  const m = recording.meta;
+
+  const lines = [
+    `Recording ${index + 1}: started ${m.started}`,
+    `  phone carried: ${m.phone_position} | haptic=${m.haptic} sound=${m.sound} | debug mode=${m.debug_mode} | ended: ${m.ended ?? 'unknown (app closed?)'}`,
+    `  ${s.samples} samples over ${seconds.toFixed(0)} s; mean GPS accuracy ${Number.isNaN(meanAccuracy) ? 'n/a' : meanAccuracy.toFixed(1) + ' m'}`,
+    `  walking samples (speed >= 1 m/s with a GPS direction): ${s.walking} (${pct(s.walking / Math.max(s.samples, 1))})`,
+  ];
+  if (s.walking === 0) {
+    lines.push('  Not enough walking data to say anything about heading.');
+    return lines.join('\n');
+  }
+  lines.push(
+    `  phone heading vs direction of travel: average offset ${deg(s.offsetMean)}, spread ${deg(s.offsetStdDev)}`,
+    `    small spread (under ~20 deg) = a fixed correction could work; large = phone orientation is not usable`,
+    `  within 25 deg of the guidance target: by GPS direction ${pct(s.courseWithinToleranceOfTarget)}, by phone heading ${pct(s.phoneWithinToleranceOfTarget)}`
+  );
+  return lines.join('\n');
+}

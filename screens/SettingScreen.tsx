@@ -31,6 +31,7 @@ import {
   loadRecordingPrefs,
   loadRecordings,
   recordingsAsText,
+  recordingsSummaryText,
   saveRecordingPrefs,
 } from '../util/recordingStorage';
 
@@ -84,6 +85,18 @@ export default function SettingScreen() {
     }
     try {
       await Share.share({ message: text, title: 'Haptic Blast recordings' });
+    } catch (e: any) {
+      Alert.alert('Could not share', e?.message ?? 'Unknown error');
+    }
+  };
+  const shareSummary = async () => {
+    const text = await recordingsSummaryText();
+    if (!text) {
+      Alert.alert('Nothing to share', 'No journey has been recorded yet.');
+      return;
+    }
+    try {
+      await Share.share({ message: text, title: 'Haptic Blast recording summary' });
     } catch (e: any) {
       Alert.alert('Could not share', e?.message ?? 'Unknown error');
     }
@@ -295,8 +308,11 @@ export default function SettingScreen() {
             Saved on this phone: {recCount} recording{recCount === 1 ? '' : 's'},{' '}
             {recSamples} samples (the last 5 are kept).
           </Text>
+          <TouchableOpacity style={styles.saveButton} onPress={shareSummary}>
+            <Text style={styles.saveButtonText}>Share short summary (paste-able)</Text>
+          </TouchableOpacity>
           <TouchableOpacity style={styles.saveButton} onPress={shareRecordings}>
-            <Text style={styles.saveButtonText}>Share recordings</Text>
+            <Text style={styles.saveButtonText}>Share full data (file)</Text>
           </TouchableOpacity>
           <TouchableOpacity onPress={confirmClearRecordings}>
             <Text style={styles.linkText}>Delete recordings</Text>
