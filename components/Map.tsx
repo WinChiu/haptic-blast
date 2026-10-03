@@ -80,6 +80,9 @@ export default function Map({
       setRouteCoordinates(route);
       // Draw the whole line, but only steer between a few meaningful points
       const checkpoints = generateCheckpoints(route);
+      console.log(
+        `[route] ${route.length} route points -> ${checkpoints.length} checkpoints`
+      );
       setRouteCheckpoints(checkpoints);
       setCurrentTotalCheckpoint(checkpoints.length);
       setCurrentCheckpointIndex(0);

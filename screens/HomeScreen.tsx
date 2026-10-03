@@ -159,6 +159,7 @@ export default function HomeScreen() {
         }
       }
 
+      console.log('[nav] finished: destination reached, showing completion');
       endingPlayer.seekTo(0);
       endingPlayer.play();
       setShowCompletionModal(true);
@@ -196,10 +197,15 @@ export default function HomeScreen() {
 
     setIsLoadingRoute(true);
     try {
-      setRoute(await fetchRoute(start, destination));
+      const fetched = await fetchRoute(start, destination);
+      console.log(
+        `[route] loaded ${fetched.length} points, ${distanceMeters(start, destination).toFixed(0)} m straight line`
+      );
+      setRoute(fetched);
       setIsPreviewMode(true);
     } catch (e: any) {
       const routeError = e instanceof RouteError ? e : null;
+      console.log(`[route] failed: ${routeError?.kind ?? 'unknown'} - ${e?.message}`);
       const title =
         routeError?.kind === 'out-of-area'
           ? 'Outside the map area'
@@ -241,11 +247,15 @@ export default function HomeScreen() {
       );
     }
 
+    console.log(
+      `[nav] started (haptic=${hapticEnabled}, sound=${soundEnabled}, logged in=${!!userUid})`
+    );
     setIsNavigating(true);
     setCenterTrigger((c) => c + 1);
   };
 
   const handleCloseOverlay = () => {
+    console.log(`[nav] cancelled (was navigating=${isNavigating})`);
     // Update stop time if user is logged in and navigating
     if (userUid && isNavigating) {
       const stopTime = Date.now();
