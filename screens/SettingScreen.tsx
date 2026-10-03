@@ -61,6 +61,7 @@ export default function SettingScreen() {
   const [recPrefs, setRecPrefs] = useState<RecordingPrefs>({
     enabled: false,
     phonePosition: 'pocket',
+    label: '',
   });
   const [recCount, setRecCount] = useState(0);
   const [recSamples, setRecSamples] = useState(0);
@@ -308,6 +309,18 @@ export default function SettingScreen() {
               </TouchableOpacity>
             ))}
           </View>
+          <Text style={styles.cardText}>
+            Label for the next walks (person, route, condition, repeat):
+          </Text>
+          <TextInput
+            style={styles.input}
+            placeholder="e.g. angel-lappis-pocket-1"
+            placeholderTextColor="#737373"
+            value={recPrefs.label}
+            onChangeText={(label) => updateRecPrefs({ label })}
+            autoCapitalize="none"
+            autoCorrect={false}
+          />
           <Text style={styles.cardText}>
             Saved on this phone: {recCount} recording{recCount === 1 ? '' : 's'},{' '}
             {recSamples} samples (the last 5 are kept).

@@ -6,8 +6,12 @@ import {
   Sample,
   circularDiff,
   circularStats,
+  conditionOf,
   formatSummary,
+  formatTable,
+  groupWalks,
   parseCsv,
+  walkMetrics,
   summariseHeading,
   toCsv,
 } from '../util/recorder';
@@ -126,4 +130,66 @@ test('formatSummary: flags a debug-mode recording as fake positions', () => {
   assert.ok(text.includes('debug mode, the positions are fake'));
   const real = formatSummary({ meta: { started: 'x', debug_mode: 'false' }, samples: [sample()] });
   assert.ok(!real.includes('positions are fake'));
+});
+
+const recording = (meta: Record<string, string>, samples: Sample[]): Recording => ({
+  meta: { started: 'x', haptic: 'true', sound: 'false', debug_mode: 'false', phone_position: 'pocket', ...meta },
+  samples,
+});
+// a 60 s walk: the phone points 30 deg away from the target for 20 s in the middle
+const walkSamples = (): Sample[] =>
+  Array.from({ length: 61 }, (_, i) =>
+    sample({
+      t: i * 1000,
+      speed: 1.1,
+      course: 100,
+      phoneHeading: 100,
+      targetBearing: i >= 20 && i < 40 ? 130 : 100,
+    })
+  );
+
+test('conditionOf: carry position and feedback', () => {
+  assert.equal(conditionOf({ phone_position: 'pocket', haptic: 'true', sound: 'false' }), 'pocket | haptic');
+  assert.equal(conditionOf({ phone_position: 'bag', haptic: 'true', sound: 'true' }), 'bag | haptic+sound');
+  assert.equal(conditionOf({ phone_position: 'hand-flat', haptic: 'false', sound: 'true' }), 'hand-flat | sound');
+  assert.equal(conditionOf({ phone_position: 'hand-flat', haptic: 'false', sound: 'false' }), 'hand-flat | no feedback');
+});
+
+test('walkMetrics: aligned share, episodes per minute and the label', () => {
+  const w = walkMetrics(recording({ label: 'angel-test-1' }, walkSamples()));
+  assert.equal(w.label, 'angel-test-1');
+  assert.equal(w.condition, 'pocket | haptic');
+  assert.ok(Math.abs(w.minutes - 1) < 1e-9);
+  assert.ok(Math.abs(w.phoneAligned - 41 / 61) < 1e-9); // 20 of 61 samples are 30 deg off
+  assert.ok(Math.abs(w.episodesPerMin - 1) < 1e-9); // one stretch in one minute
+  assert.equal(w.offsetMean, 0);
+  assert.equal(walkMetrics(recording({}, walkSamples())).label, 'unlabelled');
+});
+
+test('groupWalks: groups by condition and leaves out debug-mode recordings', () => {
+  const walks = [
+    walkMetrics(recording({ label: 'a' }, walkSamples())),
+    walkMetrics(recording({ label: 'b' }, walkSamples())),
+    walkMetrics(recording({ label: 'c', phone_position: 'bag' }, walkSamples())),
+    walkMetrics(recording({ label: 'fake', debug_mode: 'true' }, walkSamples())),
+  ];
+  const groups = groupWalks(walks);
+  assert.equal(groups.length, 2);
+  assert.equal(groups.find((g) => g.condition === 'pocket | haptic')!.walks.length, 2);
+  assert.ok(!groups.some((g) => g.walks.some((w) => w.label === 'fake')));
+});
+
+test('formatTable: counts walks, flags debug recordings and few repeats', () => {
+  const text = formatTable([
+    recording({ label: 'a' }, walkSamples()),
+    recording({ label: 'fake', debug_mode: 'true' }, walkSamples()),
+  ]);
+  assert.ok(text.includes('Walks: 1'));
+  assert.ok(text.includes('1 debug-mode recording left out'));
+  assert.ok(text.includes('pocket | haptic  (1 walk, fewer than 3: treat as anecdotal)'));
+});
+
+test('formatTable: three repeats are no longer flagged as anecdotal', () => {
+  const text = formatTable([1, 2, 3].map((n) => recording({ label: 'r' + n }, walkSamples())));
+  assert.ok(text.includes('(3 walks)'));
 });

@@ -133,7 +133,7 @@ export function summariseHeading(
   samples: Sample[],
   options: { minSpeed?: number; tolerance?: number } = {}
 ): HeadingSummary {
-  const minSpeed = options.minSpeed ?? 1.0; // m/s, a slow walk
+  const minSpeed = options.minSpeed ?? 0.5; // m/s; real walking pace was 0.9-1.1 m/s, so 1.0 dropped many samples
   const tolerance = options.tolerance ?? 25;
   const walking = samples.filter(
     (s) => s.course !== null && s.speed !== null && s.speed >= minSpeed
@@ -181,7 +181,7 @@ export function formatSummary(recording: Recording, index = 0): string {
     `Recording ${index + 1}: started ${m.started}`,
     `  phone carried: ${m.phone_position} | haptic=${m.haptic} sound=${m.sound} | debug mode=${m.debug_mode} | ended: ${m.ended ?? 'unknown (app closed?)'}`,
     `  ${s.samples} samples over ${seconds.toFixed(0)} s; mean GPS accuracy ${Number.isNaN(meanAccuracy) ? 'n/a' : meanAccuracy.toFixed(1) + ' m'}`,
-    `  walking samples (speed >= 1 m/s with a GPS direction): ${s.walking} (${pct(s.walking / Math.max(s.samples, 1))})`,
+    `  walking samples (speed >= 0.5 m/s with a GPS direction): ${s.walking} (${pct(s.walking / Math.max(s.samples, 1))})`,
   ];
   if (m.debug_mode === 'true') {
     lines.push(
@@ -197,5 +197,133 @@ export function formatSummary(recording: Recording, index = 0): string {
     `    small spread (under ~20 deg) = a fixed correction could work; large = phone orientation is not usable`,
     `  within 25 deg of the guidance target: by GPS direction ${pct(s.courseWithinToleranceOfTarget)}, by phone heading ${pct(s.phoneWithinToleranceOfTarget)}`
   );
+  return lines.join('\n');
+}
+
+// ---------------------------------------------------------------------------
+// Comparing many walks. The walk, not the sample, is the unit of analysis:
+// samples within one walk are not independent, so each walk is reduced to a
+// few numbers first and conditions are compared across walks.
+// ---------------------------------------------------------------------------
+
+export type WalkMetrics = {
+  label: string;
+  condition: string;
+  minutes: number;
+  samples: number;
+  walking: number;
+  offsetMean: number; // course - phone heading, degrees
+  offsetStdDev: number;
+  phoneAligned: number; // share of samples with the phone within 25 deg of the target
+  courseAligned: number; // share of walking samples with the GPS direction within 25 deg
+  episodesPerMin: number; // separate stretches where the phone was > 25 deg off
+  meanAccuracy: number; // metres
+  debug: boolean;
+};
+
+export function conditionOf(meta: Record<string, string>): string {
+  const feedback =
+    meta.haptic === 'true' && meta.sound === 'true'
+      ? 'haptic+sound'
+      : meta.haptic === 'true'
+        ? 'haptic'
+        : meta.sound === 'true'
+          ? 'sound'
+          : 'no feedback';
+  return `${meta.phone_position ?? '?'} | ${feedback}`;
+}
+
+export function walkMetrics(
+  rec: Recording,
+  tolerance = 25
+): WalkMetrics {
+  const s = rec.samples;
+  const heading = summariseHeading(s, { tolerance });
+  const withTarget = s.filter((x) => x.targetBearing !== null);
+  let episodes = 0;
+  let inEpisode = false;
+  let aligned = 0;
+  for (const x of withTarget) {
+    const off = Math.abs(circularDiff(x.targetBearing!, x.phoneHeading)) > tolerance;
+    if (!off) aligned++;
+    if (off && !inEpisode) episodes++;
+    inEpisode = off;
+  }
+  const minutes = s.length ? s[s.length - 1].t / 60000 : 0;
+  const acc = s.map((x) => x.accuracy).filter((a): a is number => a !== null);
+  return {
+    label: rec.meta.label ?? 'unlabelled',
+    condition: conditionOf(rec.meta),
+    minutes,
+    samples: s.length,
+    walking: heading.walking,
+    offsetMean: heading.offsetMean,
+    offsetStdDev: heading.offsetStdDev,
+    phoneAligned: withTarget.length ? aligned / withTarget.length : NaN,
+    courseAligned: heading.courseWithinToleranceOfTarget,
+    episodesPerMin: minutes > 0 ? episodes / minutes : NaN,
+    meanAccuracy: acc.length ? acc.reduce((a, b) => a + b, 0) / acc.length : NaN,
+    debug: rec.meta.debug_mode === 'true',
+  };
+}
+
+const exactMedian = (values: number[]) => {
+  const v = values.filter((x) => !Number.isNaN(x)).sort((a, b) => a - b);
+  if (v.length === 0) return NaN;
+  const mid = Math.floor(v.length / 2);
+  return v.length % 2 ? v[mid] : (v[mid - 1] + v[mid]) / 2;
+};
+
+export type ConditionGroup = {
+  condition: string;
+  walks: WalkMetrics[];
+};
+
+// Group real walks (debug-mode ones are left out) by carry position + feedback
+export function groupWalks(walks: WalkMetrics[]): ConditionGroup[] {
+  const groups = new Map<string, WalkMetrics[]>();
+  for (const w of walks) {
+    if (w.debug) continue;
+    groups.set(w.condition, [...(groups.get(w.condition) ?? []), w]);
+  }
+  return [...groups.entries()].map(([condition, list]) => ({ condition, walks: list }));
+}
+
+const f = (v: number, digits = 0) => (Number.isNaN(v) ? 'n/a' : v.toFixed(digits));
+const p = (v: number) => (Number.isNaN(v) ? 'n/a' : `${Math.round(v * 100)}%`);
+const range = (values: number[], fmt: (n: number) => string) => {
+  const v = values.filter((x) => !Number.isNaN(x));
+  return v.length > 1 ? ` [${fmt(Math.min(...v))}..${fmt(Math.max(...v))}]` : '';
+};
+
+export function formatTable(recordings: Recording[]): string {
+  const all = recordings.map((r) => walkMetrics(r));
+  const real = all.filter((w) => !w.debug);
+  const skipped = all.length - real.length;
+  const lines: string[] = [];
+
+  lines.push(`Walks: ${real.length}${skipped ? ` (${skipped} debug-mode recording${skipped === 1 ? '' : 's'} left out: positions are fake)` : ''}`);
+  lines.push('');
+  lines.push(
+    ['label'.padEnd(26), 'condition'.padEnd(28), 'min'.padStart(5), 'walk'.padStart(5), 'offset'.padStart(7), 'spread'.padStart(7), 'phone<=25'.padStart(10), 'gps<=25'.padStart(8), 'ep/min'.padStart(7), 'acc m'.padStart(6)].join(' ')
+  );
+  for (const w of real) {
+    lines.push(
+      [w.label.slice(0, 26).padEnd(26), w.condition.padEnd(28), f(w.minutes, 1).padStart(5), String(w.walking).padStart(5), (f(w.offsetMean) + '°').padStart(7), (f(w.offsetStdDev) + '°').padStart(7), p(w.phoneAligned).padStart(10), p(w.courseAligned).padStart(8), f(w.episodesPerMin, 1).padStart(7), f(w.meanAccuracy, 1).padStart(6)].join(' ')
+    );
+  }
+
+  lines.push('');
+  lines.push('By condition: median across walks, [min..max] when there is more than one walk');
+  lines.push('  offset = GPS direction minus phone heading; spread = how much it varies;');
+  lines.push('  phone<=25 / gps<=25 = share of time within 25 deg of the guidance target; ep/min = separate stretches of guidance firing');
+  for (const g of groupWalks(all)) {
+    const w = g.walks;
+    lines.push('');
+    lines.push(`${g.condition}  (${w.length} walk${w.length === 1 ? '' : 's'}${w.length < 3 ? ', fewer than 3: treat as anecdotal' : ''})`);
+    lines.push(`  offset ${f(exactMedian(w.map((x) => x.offsetMean)))}°${range(w.map((x) => x.offsetMean), (n) => f(n) + '°')}   spread ${f(exactMedian(w.map((x) => x.offsetStdDev)))}°${range(w.map((x) => x.offsetStdDev), (n) => f(n) + '°')}`);
+    lines.push(`  phone<=25 ${p(exactMedian(w.map((x) => x.phoneAligned)))}${range(w.map((x) => x.phoneAligned), p)}   gps<=25 ${p(exactMedian(w.map((x) => x.courseAligned)))}${range(w.map((x) => x.courseAligned), p)}`);
+    lines.push(`  episodes/min ${f(exactMedian(w.map((x) => x.episodesPerMin)), 1)}${range(w.map((x) => x.episodesPerMin), (n) => f(n, 1))}   GPS accuracy ${f(exactMedian(w.map((x) => x.meanAccuracy)), 1)} m`);
+  }
   return lines.join('\n');
 }

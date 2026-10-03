@@ -173,6 +173,7 @@ export default function HomeScreen() {
         meta: {
           started: new Date(now).toISOString(),
           phone_position: prefs.phonePosition,
+          label: prefs.label.replace(/[\r\n=]/g, ' ').trim() || 'unlabelled',
           haptic: String(hapticEnabled),
           sound: String(soundEnabled),
           haptic_style: HAPTIC_STYLE,

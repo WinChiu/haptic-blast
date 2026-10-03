@@ -22,8 +22,18 @@ export const PHONE_POSITIONS: { value: PhonePosition; label: string }[] = [
   { value: 'other', label: 'Other' },
 ];
 
-export type RecordingPrefs = { enabled: boolean; phonePosition: PhonePosition };
-const DEFAULT_PREFS: RecordingPrefs = { enabled: false, phonePosition: 'pocket' };
+export type RecordingPrefs = {
+  enabled: boolean;
+  phonePosition: PhonePosition;
+  // Free text saved in every recording, for example "angel-lappis-pocket-1"
+  // (person, route, condition, repeat). Used to tell walks apart in the analysis.
+  label: string;
+};
+const DEFAULT_PREFS: RecordingPrefs = {
+  enabled: false,
+  phonePosition: 'pocket',
+  label: '',
+};
 
 export async function loadRecordingPrefs(): Promise<RecordingPrefs> {
   try {

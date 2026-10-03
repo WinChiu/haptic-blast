@@ -167,6 +167,8 @@ Settings → **Walk recording** records sensor data during a journey so we can a
 - **Share short summary (paste-able):** a few lines per recording (how the phone's heading compares with the direction of travel, GPS accuracy, and so on). Small enough to paste into a chat or an email.
 - **Share full data (.csv file):** every sample as CSV, with a short header per recording, sent as a real file called `haptic-blast-<date>.csv` (AirDrop, Mail, Messages, Save to Files). A 30-minute walk is about 3,600 lines (roughly 250 KB), too long to paste into most chats, so send it as a file. This uses the native modules `expo-file-system` and `expo-sharing`, so it only works in a build made after they were added (`npx expo run:ios --device`, or the Release build). In an older build the button falls back to sharing the same CSV as plain text, so nothing breaks.
 
+**Label every walk.** Settings → Walk recording has a **label** field. Put the person, route, condition and repeat in it (for example `angel-lappis-pocket-1`) before each walk. It is saved in the recording, so many walks can be told apart and grouped. An empty label is saved as `unlabelled`.
+
 **Analysing it** on a computer:
 
 ```bash
@@ -174,7 +176,15 @@ npm run analyse-recording -- path/to/recording.txt
 pbpaste | npm run analyse-recording     # macOS, with the shared text copied
 ```
 
-It reports, for the walking samples (speed of at least 1 m/s): how far the phone's heading is from the direction of travel (average and spread), and how often each was within 25° of the guidance target. A small, steady spread suggests the phone's heading can be corrected with a fixed offset; a large spread suggests the phone's orientation is not usable on its own.
+It reports, for the walking samples (speed of at least 0.5 m/s, since real walking pace was 0.9 to 1.1 m/s): how far the phone's heading is from the direction of travel (average and spread), and how often each was within 25° of the guidance target. A small, steady spread suggests the phone's heading can be corrected with a fixed offset; a large spread suggests the phone's orientation is not usable on its own.
+
+To compare many walks, give the tool several files and add `--table`:
+
+```bash
+npm run analyse-recording -- --table walk1.csv walk2.csv walk3.csv
+```
+
+It prints one row per walk (minutes, walking samples, offset and spread, share of time within 25° of the target by phone heading and by GPS direction, separate stretches of guidance per minute, GPS accuracy), then groups the walks by **carry position and feedback** and shows the **median across walks with the range**. Debug-mode recordings are left out. A group with fewer than 3 walks is marked as anecdotal, because the walk, not the sample, is the unit of analysis (see "How to collect meaningful test data").
 
 **Suggested protocol** (Release build, outdoors, haptics on):
 1. Settings → switch recording on, choose where the phone is carried.
@@ -222,7 +232,7 @@ Copy or adapt this when asking someone to take part in a walk. Adjust it to the 
 **Privacy.** A recording contains your location trace and stays on your phone until you share it. Only share it with people who should see it.
 
 **For the team, current limits** (details in the sections above):
-- The routing server currently runs on one team member's laptop and is reached through ngrok, so it must be on, online and awake while anyone walks. The ngrok address changes whenever ngrok restarts.
+- The routing server currently runs on one team member's laptop and is reached through ngrok, so it must be on, online and awake while anyone walks. The address is that account's free ngrok **dev domain** (`gullible-bulldozer-retype.ngrok-free.dev`), which ngrok describes as stable, so it should not change when ngrok restarts. If a different account runs the tunnel, its address is different and `MAP_SERVER_URL` must be updated and the app rebuilt.
 - Routes use OpenStreetMap data, which can be wrong or out of date. Walk each route yourself first.
 - The guidance has only been tried at a desk (with a fake position) and not yet on real outdoor walks.
 - There is no background mode (only "audio" is declared). The app relies on keeping the screen on; whether the buzz, GPS and recording survive a locked screen has not been tested. Adding background location would change this and needs its own design and permission review.
@@ -306,7 +316,7 @@ Possible tooling to add if the team wants it: a free-text "walk label" (person, 
 
 The routing server, the tunnel and the build all live on one team member's laptop.
 1. Start **Docker Desktop**, then `docker start graphhopper` (the first start after a restart takes about a minute; check `curl localhost:8989/health`).
-2. Start the tunnel: `ngrok http 8989`. **A free ngrok address changes every time it restarts, and the address is built into the app.** After a restart, update `MAP_SERVER_URL` in `util/config.ts` and rebuild the app, or the phone will try a dead address. To avoid that, claim the free static domain in the ngrok dashboard (Domains) and start with `ngrok http --domain=<your-domain> 8989`. Then the address never changes.
+2. Start the tunnel: `ngrok http 8989 --url https://gullible-bulldozer-retype.ngrok-free.dev` (this account's free dev domain; naming it explicitly makes sure the same address is used). ngrok's documentation calls a dev domain a stable, auto-assigned hostname, and the same address came back after every restart we did, so the address built into the app should stay valid. We have **not** tested a full laptop reboot or a long gap. If the address ever differs from `MAP_SERVER_URL` in `util/config.ts` (for example when another account runs the tunnel), update it and rebuild, or the phone will try a dead address. Check with `curl https://<address>/health` (it should print `OK`).
 3. Keep the laptop awake while anyone walks (`caffeinate -dimsu -t 21600` keeps a Mac awake for 6 hours) and plugged in, with the lid open.
 4. Rebuild and install when needed: `npx expo run:ios --device <device-id> --configuration Release` (about 15 minutes, phone unlocked and plugged in). The `ios/` folder is not in the repository: it holds your own signing settings and bundle identifier, so do not regenerate it with `expo prebuild`.
 5. Run `npm install` after pulling new commits, and `npm run test:logic` to check the logic.
@@ -409,7 +419,7 @@ Log lines to look for in the Metro log: `[nav] skipped ahead from checkpoint 2 t
 | `out-of-area` | A point is outside the map file the server loaded (GraphHopper: "out of bounds") | No |
 | `no-path` | A point is inside the map but not near a walkable path, for example in water (GraphHopper: "Cannot find point") | No |
 | `no-route` | Both points are valid but not connected by walkable paths | No |
-| `server-unreachable` | No internet, the server is stopped, or the ngrok URL is offline or has changed | Yes |
+| `server-unreachable` | No internet, the server is stopped, or the ngrok tunnel is offline, or its address differs from `MAP_SERVER_URL` | Yes |
 | `timeout` | No answer within 10 seconds | Yes |
 | `bad-response` | Anything else unexpected | Yes |
 
@@ -494,7 +504,7 @@ The old shared server is offline, so we run our own with Docker. This is for dev
    curl "localhost:8989/route?point=59.346856,18.072164&point=59.347535,18.073884&profile=foot&points_encoded=false"
    ```
 
-4. Expose it to the phone with [ngrok](https://ngrok.com) (`ngrok http 8989`) and put the URL it prints in `MAP_SERVER_URL` in `util/config.ts`. Free ngrok URLs change every time ngrok restarts, so update it each time.
+4. Expose it to the phone with [ngrok](https://ngrok.com): `ngrok http 8989`, or `ngrok http 8989 --url https://<your-dev-domain>` to use the free dev domain your account is assigned (see the ngrok dashboard, Domains). Put that address in `MAP_SERVER_URL` in `util/config.ts`. A different account has a different address.
 
 The server only knows the area in the map file. A start or destination outside it gives "No route found".
 
