@@ -248,6 +248,38 @@ Ideas to compare: background mode with audio cues; a black "journey in progress"
 
 Suggested next step: a small **feasibility test** before any design decision. Run a journey with the screen locked and check (1) whether GPS and the app keep running, (2) whether the buzz plays, and (3) the battery use compared with keeping the screen on.
 
+## First real-walk results (2026-10-03)
+
+**What was done.** One person, an iPhone 14 with the Release build (mobile data, laptop routing server), two real outdoor walks of about 3 minutes each in Stockholm (house to ICA Lappis and back), phone **held flat in the hand** both times, haptics and sound on, recording on. A third recording was a debug-mode mistake and is ignored. **This is two walks by one person in one position.** It shows what the data looks like and what to fix. It proves nothing statistically, and **pocket, bag and upright-in-hand positions have not been tried yet.**
+
+**Reported by the walker:** the vibration and beeping worked well, got stronger the more they deviated, and worked well in corners.
+
+| Finding | Walk 1 | Walk 2 (back) | What it means |
+|---|---|---|---|
+| App kept running (no gaps in the samples after the GPS settled) | yes | yes | The screen stayed on, or the app was otherwise not suspended, for the whole walk. It does not tell us **which**: Auto-Lock set to Never, or `expo-keep-awake`. |
+| GPS accuracy, median / worst | 6.7 m / 24 m | 6.7 m / 29 m | Worse than the 4 m checkpoint distance. Checkpoints were reached mostly through the "walked past within 12 m" rule. Accuracy was 12 to 29 m in the first 30 seconds after standing still. |
+| GPS update rate | about 1 per second | about 1 per second | iOS delivers about one fix a second. |
+| Phone heading was within 25° of the guidance target | 79% of the time | 84% | With the phone held flat the guidance would fire 16% to 21% of the time, in 10 to 11 separate episodes per walk (about 4 a minute, much more than the 13 per km the simulation predicted for a perfect walker). |
+| Compass vs GPS direction of travel: average offset | +7° | +9° | The compass reads about 7° to 9° lower than the true direction. This matches Stockholm's **magnetic declination** (the app uses magnetic north, the routes use true north). The size of the declination is from memory, not checked. |
+| Compass vs GPS direction: spread | 34° | 25° | The instant GPS direction at walking pace is noisy. |
+| Target direction change when the first checkpoint was passed | 70° | 104° | Large swing at the start, caused by GPS wander (see below). Later checkpoint changes were 10° to 20°. |
+
+**GPS direction alone is not good enough at walking pace (option A above).** Using the walking direction instead of the compass, the phone's instant GPS direction was within 25° of the target on 76% of walking samples, against 83% to 87% for the hand-held compass. Working the direction out from position changes over 4 to 12 seconds was **worse**, not better (spread 33° to 38° against 25°). So a GPS-only version would send wrong signals about a quarter of the time, and says nothing when the person stands still. It could be a useful part of a mix, not a replacement. (Walking pace was about 0.9 to 1.1 m/s, so a 1 m/s speed filter drops many samples; the analysis should use about 0.5 m/s.)
+
+**Problems found, in order of how clear the evidence is**
+1. **The compass uses magnetic north.** About 7° to 9° of the 25° tolerance is lost to the offset. `expo-location` can supply a true heading; using it, or applying the declination, is a small change. Not done yet.
+2. **A poor GPS fix at the start misleads the route.** The route is planned from the GPS position at the moment of Preview. With an accuracy of 13 to 29 m, that position can be 15 to 40 m from where the person really is, so the first checkpoint is somewhere else. In walk 1, GPS wander while the walker stood still moved the route on by a checkpoint. In walk 2, the person was steered towards a first checkpoint about 40 m away for 17 s, then the target swung 104°. Candidate fixes (not built): wait for an accuracy of about 12 m or better before Preview and Start, and ignore checkpoint progress from fixes with poor accuracy.
+3. **The 4 m checkpoint distance is smaller than the GPS accuracy.** It works only because of the 12 m "walked past" rule. Worth tuning with more data.
+4. **Which of haptics or sound helped?** Both were on. This is not separated.
+
+**What the data cannot say yet:** how the compass behaves in a pocket, bag or when held upright (the main question for hands-free use), anything at other times of year or in cold, battery use (the walker should have noted start and end percentages), or whether the screen stayed on because of the app or because of the phone's Auto-Lock setting.
+
+**Suggested next steps**
+1. Fix 1 (true north) and 2 (wait for a good GPS fix) and repeat the same route to see the difference.
+2. Walk the same short route in each carry position (**pocket, bag, hand upright**), haptics only, with recording on. Then run `npm run analyse-recording`. This is the data that decides the hands-free design.
+3. Separate haptics from sound in at least one walk each.
+4. Test with the screen locked on purpose (Auto-Lock short, keep-awake off), to learn what really happens in the background.
+
 ## Tests
 
 The route logic is plain TypeScript with no React or phone dependencies, so it is tested on your computer with Node's built-in test runner (run through [`tsx`](https://tsx.is), a dev dependency):
