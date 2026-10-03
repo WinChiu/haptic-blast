@@ -200,6 +200,7 @@ export default function Map({
   // Watch Position or Mock Position
   useEffect(() => {
     let subscription: Location.LocationSubscription | null = null;
+    let cancelled = false;
 
     if (mockUserLocation) {
       // USE MOCK LOCATION
@@ -228,7 +229,12 @@ export default function Map({
     } else {
       // USE REAL GPS
       (async () => {
-        subscription = await Location.watchPositionAsync(
+        // Wait for the permission answer first. On a first launch the
+        // prompt is still open here, and watching without permission throws.
+        const { status } = await Location.requestForegroundPermissionsAsync();
+        if (status !== 'granted' || cancelled) return;
+
+        const sub = await Location.watchPositionAsync(
           {
             accuracy: Location.Accuracy.BestForNavigation,
             timeInterval: 500,
@@ -266,10 +272,14 @@ export default function Map({
             }
           }
         );
+        // The effect may have been cleaned up while we were starting
+        if (cancelled) sub.remove();
+        else subscription = sub;
       })();
     }
 
     return () => {
+      cancelled = true;
       if (subscription) subscription.remove();
     };
   }, [mockUserLocation]);
