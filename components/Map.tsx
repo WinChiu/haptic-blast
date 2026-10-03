@@ -9,6 +9,8 @@ import MapView, {
 import * as Location from 'expo-location';
 import { API_ENDPOINTS } from '../util/config';
 import { GlobalStore } from '../util/globals';
+import { distanceMeters } from '../util/geo';
+import { generateCheckpoints } from '../util/checkpoints';
 
 interface MapProps {
   route: { latitude: number; longitude: number }[] | null;
@@ -34,30 +36,6 @@ interface MapProps {
     longitude: number;
     heading: number;
   } | null;
-}
-
-function getDistanceFromLatLonInMeters(
-  lat1: number,
-  lon1: number,
-  lat2: number,
-  lon2: number
-) {
-  var R = 6371; // Radius of the earth in km
-  var dLat = deg2rad(lat2 - lat1);
-  var dLon = deg2rad(lon2 - lon1);
-  var a =
-    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-    Math.cos(deg2rad(lat1)) *
-      Math.cos(deg2rad(lat2)) *
-      Math.sin(dLon / 2) *
-      Math.sin(dLon / 2);
-  var c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-  var d = R * c; // Distance in km
-  return d * 1000; // Distance in m
-}
-
-function deg2rad(deg: number) {
-  return deg * (Math.PI / 180);
 }
 
 export default function Map({
@@ -91,8 +69,10 @@ export default function Map({
   useEffect(() => {
     if (route && route.length > 0) {
       setRouteCoordinates(route);
-      setRouteCheckpoints(route);
-      setCurrentTotalCheckpoint(route.length);
+      // Draw the whole line, but only steer between a few meaningful points
+      const checkpoints = generateCheckpoints(route);
+      setRouteCheckpoints(checkpoints);
+      setCurrentTotalCheckpoint(checkpoints.length);
       setCurrentCheckpointIndex(0);
 
       // Fit bounds
@@ -136,12 +116,7 @@ export default function Map({
     const currentTarget = routeCheckpoints[currentCheckpointIndex];
     if (!currentTarget) return;
 
-    const dist = getDistanceFromLatLonInMeters(
-      userLocation.latitude,
-      userLocation.longitude,
-      currentTarget.latitude,
-      currentTarget.longitude
-    );
+    const dist = distanceMeters(userLocation, currentTarget);
 
     // Check if reached
     if (dist <= GlobalStore.CHECKPOINT_THRESHOLD) {

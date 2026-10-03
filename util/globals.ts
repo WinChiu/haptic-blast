@@ -19,4 +19,10 @@ export const GlobalStore = {
     SPEED_MULTIPLIER: 0.8,
   },
   CHECKPOINT_THRESHOLD: 4, //meters
+  // How a dense route from the server is reduced to checkpoints (metres)
+  CHECKPOINTS: {
+    simplifyTolerance: 8,
+    maxSpacing: 50,
+    minSpacing: 15,
+  },
 };
