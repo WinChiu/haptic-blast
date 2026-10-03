@@ -49,6 +49,19 @@ export function distanceToSegmentMeters(p: Coord, a: Coord, b: Coord): number {
   return Math.hypot(P.x - (A.x + t * dx), P.y - (A.y + t * dy));
 }
 
+// How far p is along the direction a -> b, measured from a, in metres.
+// Negative means p is still behind a; positive means p has gone past a
+// towards b. Used to tell whether someone has walked past a checkpoint.
+export function alongTrackMeters(p: Coord, a: Coord, b: Coord): number {
+  const cosLat = Math.cos(toRad(a.latitude));
+  const dx = toRad(b.longitude - a.longitude) * cosLat * EARTH_RADIUS_M;
+  const dy = toRad(b.latitude - a.latitude) * EARTH_RADIUS_M;
+  const px = toRad(p.longitude - a.longitude) * cosLat * EARTH_RADIUS_M;
+  const py = toRad(p.latitude - a.latitude) * EARTH_RADIUS_M;
+  const len = Math.hypot(dx, dy);
+  return len === 0 ? 0 : (px * dx + py * dy) / len;
+}
+
 // The point a fraction t (0..1) of the way from a to b.
 export function interpolate(a: Coord, b: Coord, t: number): Coord {
   return {

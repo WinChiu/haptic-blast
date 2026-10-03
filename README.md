@@ -116,7 +116,18 @@ HomeScreen → util/routing.ts (fetchRoute) → GraphHopper server
 2. **Thin out** points closer than `minSpacing` to the previous one. The first and last points are always kept.
 3. **Fill** long straight stretches with evenly spaced points so no gap exceeds `maxSpacing`.
 
-The full route is still drawn as the blue line; only the checkpoints are used for guidance. A checkpoint counts as reached when the user is within `CHECKPOINT_THRESHOLD` (4 m).
+The full route is still drawn as the blue line; only the checkpoints are used for guidance.
+
+### When a checkpoint counts as reached
+
+A checkpoint is reached when either:
+
+1. the user is within `CHECKPOINT_THRESHOLD` (4 m) of it, or
+2. the user is within `CHECKPOINT_PASS_RADIUS` (12 m) of it **and has already gone past it** towards the next checkpoint (`alongTrackMeters` in `util/geo.ts` is positive).
+
+Rule 2 exists because of GPS drift: walking past a checkpoint 6 m to the side never enters the 4 m circle, so the buzz would keep pointing back at it. The logic is in the "Calculate Next Checkpoint" effect in `components/Map.tsx`.
+
+Known limit: if the user is more than 12 m away when passing (for example cutting a corner), the checkpoint is not skipped and the guidance points back at it until they get within 12 m.
 
 On a real 3.1 km route this gives 134 server points → 78 checkpoints. The count is mainly set by `maxSpacing` (3100 m ÷ 50 m is at least 62), so use a larger value for fewer checkpoints:
 

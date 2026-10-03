@@ -19,6 +19,10 @@ export const GlobalStore = {
     SPEED_MULTIPLIER: 0.8,
   },
   CHECKPOINT_THRESHOLD: 4, //meters
+  // A checkpoint also counts as reached if the user is within this distance
+  // and has already gone past it towards the next one (GPS drift can keep
+  // someone just outside CHECKPOINT_THRESHOLD while walking by).
+  CHECKPOINT_PASS_RADIUS: 12, //meters
   // How a dense route from the server is reduced to checkpoints (metres)
   CHECKPOINTS: {
     simplifyTolerance: 8,
