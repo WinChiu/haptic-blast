@@ -8,6 +8,7 @@ import {
   TouchableOpacity,
   TextInput,
   Alert,
+  Linking,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
@@ -228,6 +229,21 @@ export default function SettingScreen() {
             </Text>
           ))}
         </View>
+
+        <View style={styles.card}>
+          <Text style={styles.cardTitle}>Map data</Text>
+          <Text style={styles.cardText}>
+            Routes are calculated with GraphHopper using map data © OpenStreetMap
+            contributors. The map you see is Apple Maps.
+          </Text>
+          <TouchableOpacity
+            onPress={() =>
+              Linking.openURL('https://www.openstreetmap.org/copyright')
+            }
+          >
+            <Text style={styles.linkText}>openstreetmap.org/copyright</Text>
+          </TouchableOpacity>
+        </View>
       </ScrollView>
     </View>
   );
@@ -265,6 +281,7 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   toggleLabel: { color: '#fff', fontWeight: '600', fontSize: 14 },
+  linkText: { color: '#0ea5e9', fontSize: 14, fontWeight: '600' },
   optionRow: { flexDirection: 'row', gap: 10 },
   optionChip: {
     flex: 1,

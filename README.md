@@ -263,6 +263,8 @@ For development and testing we use **OpenStreetMap map data** (a downloaded `.os
 - A start or destination that is not on a path (for example in a lake or a building) is silently moved to the nearest walkable spot.
 - Private or gated land may be mapped as walkable.
 
+**Credit.** OpenStreetMap data is licensed under the ODbL and must be credited: "© OpenStreetMap contributors", linking to <https://www.openstreetmap.org/copyright>. The app shows this in **Settings → Map data**. Before a public release, also show it near the map itself. If the routing data source changes, update this credit.
+
 **Open decision (to discuss with the team):** whether to keep this setup or switch to a hosted service such as the Google Routes API for the real study. Hosted services have fresher data and no server for us to run, but they cost money, have request limits and need an API key. Before any study, walk the chosen routes in person and fix bad stretches.
 
 ### Running your own routing server (GraphHopper)
