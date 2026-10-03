@@ -93,6 +93,22 @@ Native code used by this project:
 
 To write a new native module, see [Expo Modules API](https://docs.expo.dev/modules/overview/) (`npx create-expo-module --local` creates one under `modules/`).
 
+## How to use the app (for testers and participants)
+
+Haptic Blast guides you by **which way the phone points**, not by where you stand. The buzz and beep compare the direction the phone points with the direction of the next target on the route.
+
+1. In **Settings** (tap the tag at the top of the map), switch on **Haptic Feedback** and/or **Audio Feedback**. Both are off by default and reset when the app restarts.
+2. **Long-press** the map to choose a destination, tap **Preview Route**, then **Start**.
+3. Hold the phone **flat in front of you with the screen facing up and the top edge pointing forward**. The top edge is what the app reads. (We have not checked how the compass behaves with the phone held upright on iOS.)
+4. **Turn slowly** until the buzz or beeping **stops**. You are now facing the direction to walk. Walk that way, keeping the phone pointing the same way.
+5. At a turn the target changes and the buzz starts again. Turn until it stops again.
+6. The stronger and faster the buzz, the further off the direction you are. Within about 25° of the target (`COMPASS_ANGLE_TOLERANCE`) it is silent.
+7. The radar button on the bottom bar opens a Compass screen showing the target direction and where the phone is pointing, which helps when learning.
+
+If you leave the route for more than a few seconds, the app plans a new route from where you are.
+
+**Testing at a desk with Debug Mode:** only your position is fake (moved with the joystick). The compass is the real phone, so you still have to point it. The joystick lets you walk through buildings and fences, which real people cannot. This causes odd beeping and odd re-routes that do not happen outdoors. Test re-routing outdoors on real paths.
+
 ## Route planning
 
 Pressing **Preview Route** asks a routing server for a walking route, turns it into a short list of checkpoints, and draws it on the map. The haptic guidance then points at the next checkpoint.
