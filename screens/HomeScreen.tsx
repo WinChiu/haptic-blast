@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useRef } from 'react';
+import React, { useState, useMemo, useRef, useEffect } from 'react';
 import {
   StyleSheet,
   View,
@@ -11,12 +11,14 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import { useDispatch, useSelector } from 'react-redux';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useNavigation } from '@react-navigation/native';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { RadarIcon, CurrentLocationIcon } from '../components/Icons';
 import Map from '../components/Map';
 import HapticCompass from '../components/HapticCompass';
 import Joystick from '../components/Joystick';
+import GuidanceTip from '../components/GuidanceTip';
 
 import { useCompass } from '../hooks/useCompass';
 import { useGuidance, HAPTIC_STYLE } from '../hooks/useGuidance';
@@ -50,6 +52,18 @@ export default function HomeScreen() {
   const [destination, setDestination] = useState<Coord | null>(null);
   const [isLoadingRoute, setIsLoadingRoute] = useState(false);
   const [showCompletionModal, setShowCompletionModal] = useState(false);
+
+  // "How to follow the guidance" is shown once, before the first Start
+  const TIP_SEEN_KEY = 'guidanceTipSeen';
+  const [showTip, setShowTip] = useState(false);
+  const tipSeenRef = useRef(false);
+  useEffect(() => {
+    AsyncStorage.getItem(TIP_SEEN_KEY)
+      .then((value) => {
+        tipSeenRef.current = value === '1';
+      })
+      .catch(() => {});
+  }, []);
 
   const [centerTrigger, setCenterTrigger] = useState(0);
   const [nextCheckpoint, setNextCheckpoint] = useState<{
@@ -244,7 +258,21 @@ export default function HomeScreen() {
 
   const handleStartNavigation = () => {
     if (!isPreviewMode) return;
+    if (!tipSeenRef.current) {
+      setShowTip(true);
+      return;
+    }
+    beginNavigation();
+  };
 
+  const handleTipDismissed = () => {
+    tipSeenRef.current = true;
+    AsyncStorage.setItem(TIP_SEEN_KEY, '1').catch(() => {});
+    setShowTip(false);
+    beginNavigation();
+  };
+
+  const beginNavigation = () => {
     // Only track rounds if user is logged in
     if (userUid) {
       const startTime = Date.now();
@@ -531,6 +559,8 @@ export default function HomeScreen() {
       {/* Search Modal Removed */}
 
       {/* Completion Modal */}
+      <GuidanceTip visible={showTip} onClose={handleTipDismissed} />
+
       <Modal
         visible={showCompletionModal}
         transparent={true}

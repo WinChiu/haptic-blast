@@ -15,6 +15,7 @@ import { useFeedback } from '../hooks/FeedbackContext';
 import { useSelector, useDispatch } from 'react-redux';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { updateUserProfile, logout, setDebugMode } from '../util/store';
+import { GUIDANCE_STEPS } from '../components/GuidanceTip';
 
 export default function SettingScreen() {
   const navigation = useNavigation();
@@ -167,6 +168,15 @@ export default function SettingScreen() {
             </View>
           </View>
         ))}
+
+        <View style={styles.card}>
+          <Text style={styles.cardTitle}>How to follow the guidance</Text>
+          {GUIDANCE_STEPS.map((step, i) => (
+            <Text key={i} style={styles.cardText}>
+              {i + 1}. {step}
+            </Text>
+          ))}
+        </View>
       </ScrollView>
     </View>
   );
