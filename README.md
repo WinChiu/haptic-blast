@@ -92,3 +92,83 @@ Native code used by this project:
 | Compass heading | [`modules/fused-orientation`](modules/fused-orientation) (local Expo module) | — (uses CoreLocation via `expo-location`) | Google Play services Fused Orientation Provider |
 
 To write a new native module, see [Expo Modules API](https://docs.expo.dev/modules/overview/) (`npx create-expo-module --local` creates one under `modules/`).
+
+## Route planning
+
+Pressing **Preview Route** asks a routing server for a walking route, turns it into a short list of checkpoints, and draws it on the map. The haptic guidance then points at the next checkpoint.
+
+```
+HomeScreen → util/routing.ts (fetchRoute) → GraphHopper server
+          → components/Map.tsx → util/checkpoints.ts (generateCheckpoints) → checkpoints
+```
+
+| Part | File | What it does |
+|---|---|---|
+| Fetch a route | [`util/routing.ts`](util/routing.ts) | Calls `GET /route?point=lat,lng&point=lat,lng&profile=foot&points_encoded=false` and converts GraphHopper's `[lng, lat]` pairs into `{ latitude, longitude }`. Throws a readable error on timeout, bad status or an empty route. |
+| Generate checkpoints | [`util/checkpoints.ts`](util/checkpoints.ts) | Turns the dense route (~130 points for 3 km) into checkpoints at every real turn, plus extra ones so no straight stretch has a gap over `maxSpacing`. |
+| Geometry helpers | [`util/geo.ts`](util/geo.ts) | Distance, bearing and distance-to-segment in metres. |
+| Settings | [`util/globals.ts`](util/globals.ts) → `CHECKPOINTS` | `simplifyTolerance` 8 m, `maxSpacing` 50 m, `minSpacing` 15 m. |
+| Server address, destination | [`util/config.ts`](util/config.ts) | `MAP_SERVER_URL` and the temporary fixed `DESTINATION`. |
+
+### How checkpoints are generated
+
+1. **Simplify** the route with the Douglas-Peucker algorithm. A point is kept only if removing it would move the line by more than `simplifyTolerance` metres, so what is left are the real turns.
+2. **Thin out** points closer than `minSpacing` to the previous one. The first and last points are always kept.
+3. **Fill** long straight stretches with evenly spaced points so no gap exceeds `maxSpacing`.
+
+The full route is still drawn as the blue line; only the checkpoints are used for guidance. A checkpoint counts as reached when the user is within `CHECKPOINT_THRESHOLD` (4 m).
+
+On a real 3.1 km route this gives 134 server points → 78 checkpoints. The count is mainly set by `maxSpacing` (3100 m ÷ 50 m is at least 62), so use a larger value for fewer checkpoints:
+
+| `maxSpacing` | Checkpoints (3.1 km route) |
+|---|---|
+| 25 m | 152 |
+| 50 m | 78 |
+| 100 m | 47 |
+
+### Running your own routing server (GraphHopper)
+
+The old shared server is offline, so we run our own with Docker. This is for development only.
+
+1. Download a map of the area, for example Stockholm from <https://download.bbbike.org/osm/bbbike/Stockholm/Stockholm.osm.pbf>, into a folder such as `~/graphhopper-local/`.
+2. In that folder create `config.yml`:
+
+   ```yaml
+   graphhopper:
+     datareader.file: /data/stockholm.osm.pbf
+     graph.location: /data/graph-cache
+     profiles:
+       - name: foot
+         custom_model_files: [foot.json]
+     profiles_ch: []
+     profiles_lm: []
+     graph.encoded_values: foot_access, foot_average_speed, foot_priority, foot_road_access, hike_rating, road_class, roundabout, road_environment, country, mtb_rating, ferry_speed
+     prepare.min_network_size: 200
+     routing.snap_preventions_default: tunnel, bridge, ferry
+     graph.dataaccess.default_type: RAM
+   server:
+     application_connectors:
+       - type: http
+         port: 8989
+         bind_host: 0.0.0.0
+     admin_connectors:
+       - type: http
+         port: 8990
+   ```
+
+3. Start it (the first start builds the graph, about a minute for a city):
+
+   ```bash
+   docker run -d --name graphhopper -p 8989:8989 -v ~/graphhopper-local:/data israelhikingmap/graphhopper -c /data/config.yml
+   curl "localhost:8989/route?point=59.346856,18.072164&point=59.347535,18.073884&profile=foot&points_encoded=false"
+   ```
+
+4. Expose it to the phone with [ngrok](https://ngrok.com) (`ngrok http 8989`) and put the URL it prints in `MAP_SERVER_URL` in `util/config.ts`. Free ngrok URLs change every time ngrok restarts, so update it each time.
+
+The server only knows the area in the map file. A start or destination outside it gives "No route found".
+
+### iPhone notes
+
+- A dev build is needed for full haptics (`npx expo run:ios --device`). Expo Go on iOS only gives taps.
+- iOS 27 simulators crash this project at launch (the Expo SDK 57 iOS project has no scene delegate), so test on a real phone or an iOS 26 simulator.
+- Installing on your own iPhone needs an Apple ID in Xcode and a bundle identifier of your own (the one in `app.json` belongs to another account). Change it only in your local `ios/` project, not in `app.json`.
