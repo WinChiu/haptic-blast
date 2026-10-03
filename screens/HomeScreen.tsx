@@ -92,6 +92,27 @@ export default function HomeScreen() {
   );
 
   const [isNavigating, setIsNavigating] = useState(false);
+
+  // Keep the screen on during a journey. A locked screen suspends the app (no
+  // GPS, compass, guidance or recording) and haptics do not play in the
+  // background. Loaded lazily and wrapped in try/catch so a build without the
+  // native module (made before expo-keep-awake was added) keeps working.
+  useEffect(() => {
+    if (!isNavigating) return;
+    let keepAwake: typeof import('expo-keep-awake') | null = null;
+    try {
+      keepAwake = require('expo-keep-awake');
+      keepAwake?.activateKeepAwakeAsync('journey').catch(() => {});
+      console.log('[nav] screen kept awake for the journey');
+    } catch {
+      console.log('[nav] keep-awake not available in this build; screen may lock');
+    }
+    return () => {
+      try {
+        keepAwake?.deactivateKeepAwake('journey').catch(() => {});
+      } catch {}
+    };
+  }, [isNavigating]);
   const [showHapticOverlay, setShowHapticOverlay] = useState(false);
   const [userLocation, setUserLocation] = useState<[number, number] | null>(
     null

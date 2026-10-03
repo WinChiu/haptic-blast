@@ -197,7 +197,9 @@ Copy or adapt this when asking someone to take part in a walk. Adjust it to the 
 3. Open the app, tap the tag at the top of the map to open **Settings**, and switch on **Haptic Feedback** (and **Audio Feedback** if you want beeps). These switches reset when the app restarts, so check them every time.
 4. If you are helping with the research, switch on **Walk recording** and choose where the phone will be carried.
 5. Turn the volume up if you use beeps. Turn on Do Not Disturb so calls do not interrupt.
-6. Allow location access when asked, and choose "While using the app" or "Always". Keep the screen on, or the phone awake, while walking.
+6. Allow location access when asked, and choose "While using the app" or "Always".
+7. **Keep the app open and the screen on.** The app has no background mode: if the screen locks or you switch to another app, it is suspended (no GPS, compass, guidance or recording), and haptics do not play in the background. The app keeps the screen on while a journey is running (`expo-keep-awake`; only in builds made after it was added). Do not switch apps or press the side button during a journey.
+8. **If the phone is in a pocket or bag, the screen stays on and can be touched by accident** (for example the red × button). Turn on **Guided Access** (Settings → Accessibility → Guided Access, then triple-click the side button inside the app) to lock the touch screen while the app stays open. Triple-click again and enter the passcode to leave it. We have not tested this combination yet.
 
 **During the walk**
 1. Long-press the map to choose a destination, tap **Preview Route**, then **Start**. Read the short tip.
@@ -219,6 +221,7 @@ Copy or adapt this when asking someone to take part in a walk. Adjust it to the 
 - The routing server currently runs on one team member's laptop and is reached through ngrok, so it must be on, online and awake while anyone walks. The ngrok address changes whenever ngrok restarts.
 - Routes use OpenStreetMap data, which can be wrong or out of date. Walk each route yourself first.
 - The guidance has only been tried at a desk (with a fake position) and not yet on real outdoor walks.
+- There is no background mode (only "audio" is declared). The app relies on keeping the screen on; whether the buzz, GPS and recording survive a locked screen has not been tested. Adding background location would change this and needs its own design and permission review.
 - The Apple ID signing used for development expires after 7 days. Giving the app to other people's phones needs TestFlight or similar.
 - Android is not supported yet.
 
