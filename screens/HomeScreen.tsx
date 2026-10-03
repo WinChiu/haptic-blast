@@ -23,7 +23,8 @@ import { useGuidance, HAPTIC_STYLE } from '../hooks/useGuidance';
 import { useFeedback } from '../hooks/FeedbackContext';
 import { GlobalStore } from '../util/globals';
 import { addRound, updateRoundTiming } from '../util/store';
-import { fetchRoute, Coord } from '../util/routing';
+import { fetchRoute, Coord, RouteError } from '../util/routing';
+import { distanceMeters } from '../util/geo';
 
 import { useAudioPlayer } from 'expo-audio';
 
@@ -188,12 +189,31 @@ export default function HomeScreen() {
       return;
     }
 
+    if (distanceMeters(start, destination) < 15) {
+      Alert.alert('Already there', 'The destination is right next to you.');
+      return;
+    }
+
     setIsLoadingRoute(true);
     try {
       setRoute(await fetchRoute(start, destination));
       setIsPreviewMode(true);
     } catch (e: any) {
-      Alert.alert('Could not get route', e?.message ?? 'Unknown error');
+      const routeError = e instanceof RouteError ? e : null;
+      const title =
+        routeError?.kind === 'out-of-area'
+          ? 'Outside the map area'
+          : routeError?.kind === 'server-unreachable' ||
+              routeError?.kind === 'timeout'
+            ? 'Server not reachable'
+            : 'Could not get route';
+      const buttons = routeError?.retryable
+        ? [
+            { text: 'Cancel', style: 'cancel' as const },
+            { text: 'Retry', onPress: handlePreviewRoute },
+          ]
+        : [{ text: 'OK' }];
+      Alert.alert(title, e?.message ?? 'Unknown error', buttons);
     } finally {
       setIsLoadingRoute(false);
     }

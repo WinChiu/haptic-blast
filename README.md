@@ -138,6 +138,21 @@ On a real 3.1 km route this gives 134 server points → 78 checkpoints. The coun
 | 50 m | 78 |
 | 100 m | 47 |
 
+### When route requests fail
+
+`fetchRoute` throws a `RouteError` with a `kind`, and `HomeScreen` shows a matching alert. Only temporary problems offer **Retry**.
+
+| `kind` | Cause | Retry? |
+|---|---|---|
+| `out-of-area` | A point is outside the map file the server loaded (GraphHopper: "out of bounds") | No |
+| `no-path` | A point is inside the map but not near a walkable path, for example in water (GraphHopper: "Cannot find point") | No |
+| `no-route` | Both points are valid but not connected by walkable paths | No |
+| `server-unreachable` | No internet, the server is stopped, or the ngrok URL is offline or has changed | Yes |
+| `timeout` | No answer within 10 seconds | Yes |
+| `bad-response` | Anything else unexpected | Yes |
+
+A destination less than 15 m from the start shows "Already there" instead of asking the server.
+
 ### What the routes are based on, and what to decide later
 
 For development and testing we use **OpenStreetMap map data** (a downloaded `.osm.pbf` file) with **GraphHopper**, an open-source routing engine that we run ourselves. It is free and has no request limits, but a route is only as good as the map data:
