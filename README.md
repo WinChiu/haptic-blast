@@ -109,6 +109,27 @@ If you leave the route for more than a few seconds, the app plans a new route fr
 
 **Testing at a desk with Debug Mode:** only your position is fake (moved with the joystick). The compass is the real phone, so you still have to point it. The joystick lets you walk through buildings and fences, which real people cannot. This causes odd beeping and odd re-routes that do not happen outdoors. Test re-routing outdoors on real paths.
 
+## Tests
+
+The route logic is plain TypeScript with no React or phone dependencies, so it is tested on your computer with Node's built-in test runner (run through [`tsx`](https://tsx.is), a dev dependency):
+
+```bash
+npm run test:logic
+```
+
+(`npm test` is already used for the Expo tunnel, so the tests have their own script.) They take about a second, need no phone, no Docker and no network.
+
+| File | Covers |
+|---|---|
+| `tests/geo.test.ts` | distance, bearing, distance to a line, "past a point", interpolation |
+| `tests/checkpoints.test.ts` | checkpoint generation on a real 3.1 km route: first and last kept, no gap over `maxSpacing`, turns kept, edge cases |
+| `tests/progress.test.ts` | "checkpoint reached" (including walked-past drift), skipping ahead, distance to the route, aiming ahead |
+| `tests/routing.test.ts` | `fetchRoute` with a mocked server: parsing, and each `RouteError` kind and whether it is retryable |
+
+`tests/fixtures/stockholm-walk.json` is a real GraphHopper response, so the tests need no server. If you change a setting in `GlobalStore` (for example `CHECKPOINTS` or `CHECKPOINT_PASS_RADIUS`), a failing test tells you what the change affects. Update the test's expectation only if the new behaviour is intended.
+
+Not covered: anything that needs a phone (compass, haptics, GPS, the map, screens), and the real routing server. Those need testing on a device; see "How to use the app".
+
 ## Route planning
 
 Pressing **Preview Route** asks a routing server for a walking route, turns it into a short list of checkpoints, and draws it on the map. The haptic guidance then points at the next checkpoint.

@@ -1,5 +1,6 @@
 import {
   Coord,
+  alongTrackMeters,
   distanceMeters,
   distanceToSegmentMeters,
   interpolate,
@@ -15,6 +16,24 @@ export function distanceToRoute(user: Coord, route: Coord[]): number {
     best = Math.min(best, distanceToSegmentMeters(user, route[i - 1], route[i]));
   }
   return best;
+}
+
+// Has the user reached `current`? True when they are inside
+// CHECKPOINT_THRESHOLD of it, or within CHECKPOINT_PASS_RADIUS and already
+// past it towards `next` (GPS drift can keep someone just outside the
+// threshold while walking by).
+export function isCheckpointReached(
+  user: Coord,
+  current: Coord,
+  next?: Coord
+): boolean {
+  const dist = distanceMeters(user, current);
+  if (dist <= GlobalStore.CHECKPOINT_THRESHOLD) return true;
+  return (
+    !!next &&
+    dist <= GlobalStore.CHECKPOINT_PASS_RADIUS &&
+    alongTrackMeters(user, current, next) > 0
+  );
 }
 
 // If the user has cut a corner or taken another way, the checkpoint they are

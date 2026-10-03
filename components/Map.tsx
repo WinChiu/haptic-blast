@@ -9,9 +9,14 @@ import MapView, {
 import * as Location from 'expo-location';
 import { API_ENDPOINTS, USE_SELF_HOSTED_TILES } from '../util/config';
 import { GlobalStore } from '../util/globals';
-import { distanceMeters, alongTrackMeters } from '../util/geo';
+import { distanceMeters } from '../util/geo';
 import { generateCheckpoints } from '../util/checkpoints';
-import { distanceToRoute, findSkipTarget, aimPoint } from '../util/progress';
+import {
+  distanceToRoute,
+  findSkipTarget,
+  aimPoint,
+  isCheckpointReached,
+} from '../util/progress';
 
 interface MapProps {
   route: { latitude: number; longitude: number }[] | null;
@@ -169,14 +174,13 @@ export default function Map({
 
     const dist = distanceMeters(userLocation, currentTarget);
 
-    // Reached if inside the threshold, or close by and already past it
-    const nextTarget = routeCheckpoints[currentCheckpointIndex + 1];
-    const passed =
-      !!nextTarget &&
-      dist <= GlobalStore.CHECKPOINT_PASS_RADIUS &&
-      alongTrackMeters(userLocation, currentTarget, nextTarget) > 0;
-
-    if (dist <= GlobalStore.CHECKPOINT_THRESHOLD || passed) {
+    if (
+      isCheckpointReached(
+        userLocation,
+        currentTarget,
+        routeCheckpoints[currentCheckpointIndex + 1]
+      )
+    ) {
       // Reached! Move to next.
       console.log(
         'Reached checkpoint',
