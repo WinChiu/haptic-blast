@@ -126,6 +126,17 @@ On a real 3.1 km route this gives 134 server points → 78 checkpoints. The coun
 | 50 m | 78 |
 | 100 m | 47 |
 
+### What the routes are based on, and what to decide later
+
+For development and testing we use **OpenStreetMap map data** (a downloaded `.osm.pbf` file) with **GraphHopper**, an open-source routing engine that we run ourselves. It is free and has no request limits, but a route is only as good as the map data:
+
+- OpenStreetMap is edited by volunteers, so a path may be missing, closed, or out of date (the file is only as new as its download date).
+- "Walkable" does not mean pleasant or accessible. The default `foot` profile can use stairs or rough ground and knows nothing about wheelchairs or visual impairment.
+- A start or destination that is not on a path (for example in a lake or a building) is silently moved to the nearest walkable spot.
+- Private or gated land may be mapped as walkable.
+
+**Open decision (to discuss with the team):** whether to keep this setup or switch to a hosted service such as the Google Routes API for the real study. Hosted services have fresher data and no server for us to run, but they cost money, have request limits and need an API key. Before any study, walk the chosen routes in person and fix bad stretches.
+
 ### Running your own routing server (GraphHopper)
 
 The old shared server is offline, so we run our own with Docker. This is for development only.
