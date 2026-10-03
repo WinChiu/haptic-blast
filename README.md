@@ -187,6 +187,8 @@ The recorder logic and the analysis are tested (`tests/recorder.test.ts`). The r
 
 ## Instructions for people doing a walk test
 
+**If you are a teammate trying the app for yourself:** the same steps apply. Two things catch people out: switch recording and haptics on *before* you start (they reset when the app restarts), and delete old recordings first so test runs do not mix with the walk.
+
 Copy or adapt this when asking someone to take part in a walk. Adjust it to the final setup.
 
 **What the app does.** It guides you along a walking route with vibration (and optionally beeps) instead of the screen. It does not tell you where you are on the map. It tells you whether the direction you are facing or moving is right, and how far off you are.
@@ -195,7 +197,8 @@ Copy or adapt this when asking someone to take part in a walk. Adjust it to the 
 1. Charge the phone. Cold weather drains the battery quickly, and recording uses GPS the whole time.
 2. Make sure the phone has mobile data. Route requests need it.
 3. Open the app, tap the tag at the top of the map to open **Settings**, and switch on **Haptic Feedback** (and **Audio Feedback** if you want beeps). These switches reset when the app restarts, so check them every time.
-4. If you are helping with the research, switch on **Walk recording** and choose where the phone will be carried.
+4. If you are helping with the research, switch on **Walk recording** and choose where the phone will be carried. **First delete any old recordings** (Settings → Walk recording → **Delete recordings**, after sharing anything you want to keep). The app keeps the last 5 recordings, and test runs, debug-mode runs and real walks all end up in the same list, so old ones mix with the real data. Each recording says `debug_mode` and `dev_build` in its header, and the analysis tool warns about debug-mode ones, but a clean list is simpler.
+   Use a **separate username** for real walks (for example `yourname-walk-1`) so the rounds saved to Firebase are not mixed with desk tests either. Tell the team which usernames are test data.
 5. Turn the volume up if you use beeps. Turn on Do Not Disturb so calls do not interrupt.
 6. Allow location access when asked, and choose "While using the app" or "Always".
 7. **Keep the app open and the screen on.** The app has no background mode: if the screen locks or you switch to another app, it is suspended (no GPS, compass, guidance or recording), and haptics do not play in the background. The app keeps the screen on while a journey is running (`expo-keep-awake`; only in builds made after it was added). Do not switch apps or press the side button during a journey.

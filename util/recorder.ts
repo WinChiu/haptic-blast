@@ -183,6 +183,11 @@ export function formatSummary(recording: Recording, index = 0): string {
     `  ${s.samples} samples over ${seconds.toFixed(0)} s; mean GPS accuracy ${Number.isNaN(meanAccuracy) ? 'n/a' : meanAccuracy.toFixed(1) + ' m'}`,
     `  walking samples (speed >= 1 m/s with a GPS direction): ${s.walking} (${pct(s.walking / Math.max(s.samples, 1))})`,
   ];
+  if (m.debug_mode === 'true') {
+    lines.push(
+      '  NOTE: debug mode, the positions are fake and the "direction of travel" is just the phone heading. Ignore this recording for any heading analysis.'
+    );
+  }
   if (s.walking === 0) {
     lines.push('  Not enough walking data to say anything about heading.');
     return lines.join('\n');

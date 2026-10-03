@@ -120,3 +120,10 @@ test('formatSummary: says so when there is no walking data (e.g. debug mode)', (
   const text = formatSummary({ meta: { started: 'x' }, samples: [sample({ speed: 0 })] });
   assert.ok(text.includes('Not enough walking data'));
 });
+
+test('formatSummary: flags a debug-mode recording as fake positions', () => {
+  const text = formatSummary({ meta: { started: 'x', debug_mode: 'true' }, samples: [sample()] });
+  assert.ok(text.includes('debug mode, the positions are fake'));
+  const real = formatSummary({ meta: { started: 'x', debug_mode: 'false' }, samples: [sample()] });
+  assert.ok(!real.includes('positions are fake'));
+});
