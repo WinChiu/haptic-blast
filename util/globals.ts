@@ -23,6 +23,9 @@ export const GlobalStore = {
   // and has already gone past it towards the next one (GPS drift can keep
   // someone just outside CHECKPOINT_THRESHOLD while walking by).
   CHECKPOINT_PASS_RADIUS: 12, //meters
+  // Steer towards a point this far ahead along the path instead of straight at
+  // the next checkpoint, so curves don't make the guidance swing (0 = off)
+  AIM_LOOKAHEAD: 15, //meters
   // Cutting a corner: jump to a checkpoint further along (one of the next
   // `lookahead`, or the final one) once the user is within `radius` metres of it
   CHECKPOINT_SKIP: {

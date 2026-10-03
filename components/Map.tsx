@@ -11,7 +11,7 @@ import { API_ENDPOINTS, USE_SELF_HOSTED_TILES } from '../util/config';
 import { GlobalStore } from '../util/globals';
 import { distanceMeters, alongTrackMeters } from '../util/geo';
 import { generateCheckpoints } from '../util/checkpoints';
-import { distanceToRoute, findSkipTarget } from '../util/progress';
+import { distanceToRoute, findSkipTarget, aimPoint } from '../util/progress';
 
 interface MapProps {
   route: { latitude: number; longitude: number }[] | null;
@@ -87,7 +87,18 @@ export default function Map({
     if (route && route.length > 0) {
       setRouteCoordinates(route);
       // Draw the whole line, but only steer between a few meaningful points
-      const checkpoints = generateCheckpoints(route);
+      let checkpoints = generateCheckpoints(route);
+      // A route starts where the user is standing, so that first checkpoint is
+      // already reached. Dropping it makes the numbering start at the first
+      // point to walk to (matters after re-routing mid-walk).
+      if (
+        checkpoints.length > 1 &&
+        userLocation &&
+        distanceMeters(userLocation, checkpoints[0]) <=
+          GlobalStore.CHECKPOINT_PASS_RADIUS
+      ) {
+        checkpoints = checkpoints.slice(1);
+      }
       console.log(
         `[route] ${route.length} route points -> ${checkpoints.length} checkpoints`
       );
@@ -180,7 +191,7 @@ export default function Map({
       // If there is a next point, update target immediately
       if (nextIndex < routeCheckpoints.length) {
         onNextCheckpointUpdate(
-          routeCheckpoints[nextIndex],
+          aimPoint(userLocation, routeCheckpoints, nextIndex),
           nextIndex,
           routeCheckpoints.length
         );
@@ -191,7 +202,7 @@ export default function Map({
     } else {
       // Not reached yet, keep targeting this one
       onNextCheckpointUpdate(
-        currentTarget,
+        aimPoint(userLocation, routeCheckpoints, currentCheckpointIndex),
         currentCheckpointIndex,
         routeCheckpoints.length
       );

@@ -138,6 +138,14 @@ On a real 3.1 km route this gives 134 server points → 78 checkpoints. The coun
 | 50 m | 78 |
 | 100 m | 47 |
 
+### Which direction the buzz points
+
+The buzz and beeps compare the phone's heading with the bearing to a **target point**. The target is not the next checkpoint itself but a point `AIM_LOOKAHEAD` (15 m, `util/globals.ts`) ahead of the user along the path (`aimPoint` in `util/progress.ts`). Aiming straight at the next checkpoint made the direction swing on curves and just before each checkpoint, which caused beeping while the user was following the route. Set `AIM_LOOKAHEAD` to 0 to aim straight at the checkpoint again.
+
+Measured by replaying a real 3.1 km route with a walker who follows it exactly and holds the phone along the path (a Mac-side simulation, not a field test): with the 25° tolerance (`COMPASS_ANGLE_TOLERANCE`), 58 separate beeping episodes became 41 with the look-ahead. A wider tolerance reduces it further (35°: 26 episodes) but makes the guidance less sensitive, which is a study design decision and has not been changed.
+
+The first checkpoint of a route is dropped when the user is already standing on it (within `CHECKPOINT_PASS_RADIUS`), so numbering starts at the first point to walk to, including after re-routing.
+
 ### When the user leaves the route
 
 Users can cut a corner or take another way. The guidance handles it in two ways (logic in `util/progress.ts`, wired up in `components/Map.tsx`; tuning in `util/globals.ts`):

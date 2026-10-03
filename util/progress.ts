@@ -1,4 +1,9 @@
-import { Coord, distanceMeters, distanceToSegmentMeters } from './geo';
+import {
+  Coord,
+  distanceMeters,
+  distanceToSegmentMeters,
+  interpolate,
+} from './geo';
 import { GlobalStore } from './globals';
 
 // How far the user is from the nearest part of the route line, in metres.
@@ -47,4 +52,33 @@ export function findSkipTarget(
     }
   }
   return bestIndex;
+}
+
+// The point to steer towards: `lookahead` metres ahead of the user along the
+// path user -> current checkpoint -> following checkpoints. Aiming straight at
+// the next checkpoint makes the direction swing sharply on curves and just
+// before reaching a checkpoint; aiming a little further along smooths that.
+// With lookahead 0 this is simply the current checkpoint.
+export function aimPoint(
+  user: Coord,
+  checkpoints: Coord[],
+  currentIndex: number,
+  lookahead: number = GlobalStore.AIM_LOOKAHEAD
+): Coord {
+  const last = checkpoints.length - 1;
+  if (lookahead <= 0 || currentIndex >= last) {
+    return checkpoints[Math.min(currentIndex, last)];
+  }
+
+  let from = user;
+  let remaining = lookahead;
+  for (let i = currentIndex; i <= last; i++) {
+    const d = distanceMeters(from, checkpoints[i]);
+    if (d >= remaining) {
+      return interpolate(from, checkpoints[i], remaining / Math.max(d, 1e-9));
+    }
+    remaining -= d;
+    from = checkpoints[i];
+  }
+  return checkpoints[last];
 }
