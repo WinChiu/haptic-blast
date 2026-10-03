@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useRef } from 'react';
 import {
   StyleSheet,
   View,
@@ -225,6 +225,23 @@ export default function HomeScreen() {
     }
   };
 
+  // Called by the map when the user has left the route while navigating
+  const isReroutingRef = useRef(false);
+  const handleOffRoute = async (location: Coord) => {
+    if (!destination || isReroutingRef.current) return;
+    isReroutingRef.current = true;
+    try {
+      const fresh = await fetchRoute(location, destination);
+      console.log(`[route] re-routed: ${fresh.length} new points`);
+      setRoute(fresh);
+    } catch (e: any) {
+      // Keep the old route; the map will try again after its cooldown
+      console.log(`[route] re-route failed: ${e?.message}`);
+    } finally {
+      isReroutingRef.current = false;
+    }
+  };
+
   const handleStartNavigation = () => {
     if (!isPreviewMode) return;
 
@@ -350,6 +367,7 @@ export default function HomeScreen() {
         mockUserLocation={finalMockLocation}
         route={isPreviewMode ? route : null}
         destination={destination}
+        onOffRoute={isNavigating && destination ? handleOffRoute : undefined}
         onDestinationSelect={
           isPreviewMode || isNavigating ? undefined : setDestination
         }

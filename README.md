@@ -138,6 +138,21 @@ On a real 3.1 km route this gives 134 server points → 78 checkpoints. The coun
 | 50 m | 78 |
 | 100 m | 47 |
 
+### When the user leaves the route
+
+Users can cut a corner or take another way. The guidance handles it in two ways (logic in `util/progress.ts`, wired up in `components/Map.tsx`; tuning in `util/globals.ts`):
+
+1. **Skip to a checkpoint further along (`CHECKPOINT_SKIP`).** If the user gets within `radius` (15 m) of one of the next `lookahead` (5) checkpoints, or of the **final** checkpoint, guidance jumps to it instead of pointing back at one they will not walk to. Because the final checkpoint is always a candidate, arriving at the destination ends the round even if checkpoints were skipped.
+2. **Re-plan from where they are (`OFF_ROUTE`).** While navigating, if the user is more than `distance` (30 m) from the route line for `seconds` (5 s), the app asks the server for a new route from the current position to the same destination and replaces the old one. At most one new route per `cooldownSeconds` (15 s). If the request fails, the old route stays and it tries again after the cooldown. The map does not re-zoom when a route is replaced.
+
+Known limits:
+- A route that doubles back on itself within 15 m can make the skip rule jump too far; check this with real routes.
+- Someone standing more than 30 m from any path (for example in a field) triggers a new route request every 15 s, because the new route starts at the nearest path.
+- Re-routing needs the routing server. Without it the user keeps following the old route.
+- The study may want people to follow the suggested path only. If so, set `OFF_ROUTE.distance` very high and `CHECKPOINT_SKIP.radius` to 0, and discuss it with the team.
+
+Log lines to look for in the Metro log: `[nav] skipped ahead from checkpoint 2 to 4`, `[route] off route by more than 30 m, re-routing`, `[route] re-routed: N new points`.
+
 ### When route requests fail
 
 `fetchRoute` throws a `RouteError` with a `kind`, and `HomeScreen` shows a matching alert. Only temporary problems offer **Retry**.

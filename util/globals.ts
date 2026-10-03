@@ -23,6 +23,20 @@ export const GlobalStore = {
   // and has already gone past it towards the next one (GPS drift can keep
   // someone just outside CHECKPOINT_THRESHOLD while walking by).
   CHECKPOINT_PASS_RADIUS: 12, //meters
+  // Cutting a corner: jump to a checkpoint further along (one of the next
+  // `lookahead`, or the final one) once the user is within `radius` metres of it
+  CHECKPOINT_SKIP: {
+    lookahead: 5,
+    radius: 15, //meters
+  },
+  // Leaving the route: after being more than `distance` metres from the line
+  // for `seconds`, ask for a new route from where the user is. At most one
+  // new route per `cooldownSeconds`.
+  OFF_ROUTE: {
+    distance: 30, //meters
+    seconds: 5,
+    cooldownSeconds: 15,
+  },
   // How a dense route from the server is reduced to checkpoints (metres)
   CHECKPOINTS: {
     simplifyTolerance: 8,

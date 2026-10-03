@@ -11,11 +11,15 @@ import { API_ENDPOINTS, USE_SELF_HOSTED_TILES } from '../util/config';
 import { GlobalStore } from '../util/globals';
 import { distanceMeters, alongTrackMeters } from '../util/geo';
 import { generateCheckpoints } from '../util/checkpoints';
+import { distanceToRoute, findSkipTarget } from '../util/progress';
 
 interface MapProps {
   route: { latitude: number; longitude: number }[] | null;
   // Where the user wants to go. Shown as a pin until a route is drawn.
   destination?: { latitude: number; longitude: number } | null;
+  // Called when the user has been off the route for a while (while navigating).
+  // The parent should fetch a new route from this position. Omit to disable.
+  onOffRoute?: (location: { latitude: number; longitude: number }) => void;
   // Long-press on the map picks a destination. Omit to disable picking.
   onDestinationSelect?: (coordinate: {
     latitude: number;
@@ -48,6 +52,7 @@ interface MapProps {
 export default function Map({
   route,
   destination = null,
+  onOffRoute,
   onDestinationSelect,
   centerOnUserTrigger,
   onUserLocationUpdate,
@@ -56,6 +61,9 @@ export default function Map({
   mockUserLocation = null,
 }: MapProps) {
   const mapRef = useRef<MapView>(null);
+  const hasRouteRef = useRef(false); // is a route already on screen?
+  const offRouteSinceRef = useRef<number | null>(null);
+  const lastRerouteRef = useRef(0);
   const lastLocationRef = useRef<{
     latitude: number;
     longitude: number;
@@ -87,14 +95,18 @@ export default function Map({
       setCurrentTotalCheckpoint(checkpoints.length);
       setCurrentCheckpointIndex(0);
 
-      // Fit bounds
-      if (mapRef.current) {
+      // Fit bounds, but not when a new route replaces the one being followed
+      // (re-routing while navigating shouldn't make the map jump)
+      if (mapRef.current && !hasRouteRef.current) {
         mapRef.current.fitToCoordinates(route, {
           edgePadding: { top: 50, right: 50, bottom: 50, left: 50 },
           animated: true,
         });
       }
+      hasRouteRef.current = true;
     } else {
+      hasRouteRef.current = false;
+      offRouteSinceRef.current = null;
       setRouteCoordinates([]);
       setRouteCheckpoints([]);
       setCurrentTotalCheckpoint(0);
@@ -127,6 +139,22 @@ export default function Map({
 
     const currentTarget = routeCheckpoints[currentCheckpointIndex];
     if (!currentTarget) return;
+
+    // Cut a corner or took another way? Jump to a checkpoint further along
+    // that the user is already close to, instead of pointing back at one
+    // they will never walk to.
+    const skipTo = findSkipTarget(
+      userLocation,
+      routeCheckpoints,
+      currentCheckpointIndex
+    );
+    if (skipTo !== null) {
+      console.log(
+        `[nav] skipped ahead from checkpoint ${currentCheckpointIndex} to ${skipTo}`
+      );
+      setCurrentCheckpointIndex(skipTo);
+      return;
+    }
 
     const dist = distanceMeters(userLocation, currentTarget);
 
@@ -169,6 +197,32 @@ export default function Map({
       );
     }
   }, [userLocation, routeCheckpoints, currentCheckpointIndex]);
+
+  // Off route for a while? Ask the parent for a new route from here.
+  useEffect(() => {
+    if (!onOffRoute || !userLocation || routeCoordinates.length < 2) {
+      offRouteSinceRef.current = null;
+      return;
+    }
+
+    const { distance, seconds, cooldownSeconds } = GlobalStore.OFF_ROUTE;
+    if (distanceToRoute(userLocation, routeCoordinates) <= distance) {
+      offRouteSinceRef.current = null;
+      return;
+    }
+
+    const now = Date.now();
+    if (offRouteSinceRef.current === null) offRouteSinceRef.current = now;
+
+    const offLongEnough = now - offRouteSinceRef.current >= seconds * 1000;
+    const cooledDown = now - lastRerouteRef.current >= cooldownSeconds * 1000;
+    if (offLongEnough && cooledDown) {
+      lastRerouteRef.current = now;
+      offRouteSinceRef.current = null;
+      console.log(`[route] off route by more than ${distance} m, re-routing`);
+      onOffRoute(userLocation);
+    }
+  }, [userLocation, routeCoordinates]);
 
   // Initial Location & Permissions
   useEffect(() => {
