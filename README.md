@@ -214,6 +214,7 @@ Copy or adapt this when asking someone to take part in a walk. Adjust it to the 
 1. Settings → Walk recording → **Share short summary** or **Share full data (.csv file)** and send it to the team.
 2. **Do this before deleting or reinstalling the app. Reinstalling deletes the recordings.**
 3. Tell the team what you felt: could you feel the buzz through your clothing, did the phone move around, and was anything confusing?
+4. Note the **battery percentage and the time at the start and at the end** of the walk (and roughly how cold it was). The screen is kept on during a journey, so this tells us what a journey costs.
 
 **Privacy.** A recording contains your location trace and stays on your phone until you share it. Only share it with people who should see it.
 
@@ -224,6 +225,25 @@ Copy or adapt this when asking someone to take part in a walk. Adjust it to the 
 - There is no background mode (only "audio" is declared). The app relies on keeping the screen on; whether the buzz, GPS and recording survive a locked screen has not been tested. Adding background location would change this and needs its own design and permission review.
 - The Apple ID signing used for development expires after 7 days. Giving the app to other people's phones needs TestFlight or similar.
 - Android is not supported yet.
+
+## Open question: running in the background
+
+For now the app keeps the **screen on** during a journey (`expo-keep-awake`), because it has no background mode and a locked screen suspends it. That is a stopgap for research walks, not the intended design: a screen that stays on costs battery (more in the cold), can be touched by accident in a pocket, and contradicts the screen-free idea.
+
+What running in the background would need, and what is **not yet known** (nothing here has been tested):
+
+| Part | Question |
+|---|---|
+| GPS | iOS background location mode: needs a permission justification and shows a location indicator. GPS itself also uses battery, so how much is saved is unknown. |
+| Compass / GPS direction | Do updates continue in the background? GPS direction of travel (option A above) likely does; the compass is unclear. |
+| App code (JavaScript) | Does it keep running while the screen is off? Believed yes with a background location mode, unverified. |
+| **Haptics** | As far as we know, iPhone haptics (Core Haptics) do **not** play while the app is in the background. If true, a screen-off haptic-only iPhone app has a platform limit. Audio can run in the background (the "audio" mode), and a watch or other wearable could play haptics. Needs checking. |
+| Android | May allow background vibration through a foreground service. Unverified; Android also needs a lot of other work. |
+| Privacy | Continuous background location tracking needs a clear justification and consent. |
+
+Ideas to compare: background mode with audio cues; a black "journey in progress" screen (an OLED screen showing black uses little power; not measured); a wearable for the haptics.
+
+Suggested next step: a small **feasibility test** before any design decision. Run a journey with the screen locked and check (1) whether GPS and the app keep running, (2) whether the buzz plays, and (3) the battery use compared with keeping the screen on.
 
 ## Tests
 
