@@ -165,7 +165,7 @@ Settings → **Walk recording** records sensor data during a journey so we can a
 
 **Getting it off the phone.** Settings → Walk recording has two buttons, both open the iPhone share sheet (Mail, AirDrop, Notes, Save to Files):
 - **Share short summary (paste-able):** a few lines per recording (how the phone's heading compares with the direction of travel, GPS accuracy, and so on). Small enough to paste into a chat or an email.
-- **Share full data (file):** every sample as CSV, with a short header per recording. A 30-minute walk is about 3,600 lines (roughly 250 KB), too long to paste into most chats, so send it as a file (for example Save to Files, then AirDrop or email it).
+- **Share full data (.csv file):** every sample as CSV, with a short header per recording, sent as a real file called `haptic-blast-<date>.csv` (AirDrop, Mail, Messages, Save to Files). A 30-minute walk is about 3,600 lines (roughly 250 KB), too long to paste into most chats, so send it as a file. This uses the native modules `expo-file-system` and `expo-sharing`, so it only works in a build made after they were added (`npx expo run:ios --device`, or the Release build). In an older build the button falls back to sharing the same CSV as plain text, so nothing breaks.
 
 **Analysing it** on a computer:
 
@@ -184,6 +184,43 @@ It reports, for the walking samples (speed of at least 1 m/s): how far the phone
 5. Share the recordings before deleting or reinstalling the app.
 
 The recorder logic and the analysis are tested (`tests/recorder.test.ts`). The recorder was tried on a phone in **debug mode**, where positions are fake, speed is 0 and the "direction of travel" is just the phone's heading, so a debug recording says nothing about real walking. A recording made while really walking has not been tried yet.
+
+## Instructions for people doing a walk test
+
+Copy or adapt this when asking someone to take part in a walk. Adjust it to the final setup.
+
+**What the app does.** It guides you along a walking route with vibration (and optionally beeps) instead of the screen. It does not tell you where you are on the map. It tells you whether the direction you are facing or moving is right, and how far off you are.
+
+**Before you go**
+1. Charge the phone. Cold weather drains the battery quickly, and recording uses GPS the whole time.
+2. Make sure the phone has mobile data. Route requests need it.
+3. Open the app, tap the tag at the top of the map to open **Settings**, and switch on **Haptic Feedback** (and **Audio Feedback** if you want beeps). These switches reset when the app restarts, so check them every time.
+4. If you are helping with the research, switch on **Walk recording** and choose where the phone will be carried.
+5. Turn the volume up if you use beeps. Turn on Do Not Disturb so calls do not interrupt.
+6. Allow location access when asked, and choose "While using the app" or "Always". Keep the screen on, or the phone awake, while walking.
+
+**During the walk**
+1. Long-press the map to choose a destination, tap **Preview Route**, then **Start**. Read the short tip.
+2. At the start, hold the phone flat in front of you, screen up, top edge pointing forward. Turn slowly until the buzz stops. You are now facing the way to walk.
+3. Walk that way. If the buzz starts, you have drifted off the direction. At a turn it will start again. Turn until it stops.
+4. The stronger and faster the buzz or beeping, the further off you are.
+5. If you leave the route, the app plans a new one from where you are after a few seconds.
+6. This is a prototype: watch where you are walking. It does not know about traffic, kerbs, steps, ice or closed paths, and the route may use a path that is not passable. Do not rely on it for safety.
+7. You can stop at any time with the red × button.
+
+**After the walk** (if recording)
+1. Settings → Walk recording → **Share short summary** or **Share full data (.csv file)** and send it to the team.
+2. **Do this before deleting or reinstalling the app. Reinstalling deletes the recordings.**
+3. Tell the team what you felt: could you feel the buzz through your clothing, did the phone move around, and was anything confusing?
+
+**Privacy.** A recording contains your location trace and stays on your phone until you share it. Only share it with people who should see it.
+
+**For the team, current limits** (details in the sections above):
+- The routing server currently runs on one team member's laptop and is reached through ngrok, so it must be on, online and awake while anyone walks. The ngrok address changes whenever ngrok restarts.
+- Routes use OpenStreetMap data, which can be wrong or out of date. Walk each route yourself first.
+- The guidance has only been tried at a desk (with a fake position) and not yet on real outdoor walks.
+- The Apple ID signing used for development expires after 7 days. Giving the app to other people's phones needs TestFlight or similar.
+- Android is not supported yet.
 
 ## Tests
 

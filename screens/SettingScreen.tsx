@@ -32,6 +32,7 @@ import {
   loadRecordings,
   recordingsAsText,
   recordingsSummaryText,
+  shareRecordingsAsFile,
   saveRecordingPrefs,
 } from '../util/recordingStorage';
 
@@ -83,6 +84,9 @@ export default function SettingScreen() {
       Alert.alert('Nothing to share', 'No journey has been recorded yet.');
       return;
     }
+    // Preferred: a real .csv file. Falls back to plain text if the file
+    // sharing modules are not in this build.
+    if (await shareRecordingsAsFile()) return;
     try {
       await Share.share({ message: text, title: 'Haptic Blast recordings' });
     } catch (e: any) {
@@ -312,7 +316,7 @@ export default function SettingScreen() {
             <Text style={styles.saveButtonText}>Share short summary (paste-able)</Text>
           </TouchableOpacity>
           <TouchableOpacity style={styles.saveButton} onPress={shareRecordings}>
-            <Text style={styles.saveButtonText}>Share full data (file)</Text>
+            <Text style={styles.saveButtonText}>Share full data (.csv file)</Text>
           </TouchableOpacity>
           <TouchableOpacity onPress={confirmClearRecordings}>
             <Text style={styles.linkText}>Delete recordings</Text>

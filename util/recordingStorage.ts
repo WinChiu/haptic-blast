@@ -81,3 +81,30 @@ export async function recordingsSummaryText(): Promise<string> {
   const all = await loadRecordings();
   return all.map((r, i) => formatSummary(r, i)).join('\n\n');
 }
+
+// Share every recording as one real .csv file (attachment) through the share
+// sheet. Needs the native modules expo-file-system and expo-sharing, which only
+// exist in a build made after they were added, so they are loaded lazily and
+// this returns false when they are missing (the caller then shares plain text).
+export async function shareRecordingsAsFile(): Promise<boolean> {
+  const text = await recordingsAsText();
+  if (!text) return false;
+  try {
+    const { File, Paths } = require('expo-file-system');
+    const Sharing = require('expo-sharing');
+    if (!(await Sharing.isAvailableAsync())) return false;
+
+    const stamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+    const file = new File(Paths.cache, `haptic-blast-${stamp}.csv`);
+    file.create({ overwrite: true });
+    file.write(text);
+    await Sharing.shareAsync(file.uri, {
+      mimeType: 'text/csv',
+      UTI: 'public.comma-separated-values-text',
+      dialogTitle: 'Haptic Blast recordings',
+    });
+    return true;
+  } catch {
+    return false; // native modules missing, or the file could not be written
+  }
+}
