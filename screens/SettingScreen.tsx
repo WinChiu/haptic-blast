@@ -234,7 +234,8 @@ export default function SettingScreen() {
           <Text style={styles.cardTitle}>Map data</Text>
           <Text style={styles.cardText}>
             Routes are calculated with GraphHopper using map data © OpenStreetMap
-            contributors. The map you see is Apple Maps.
+            contributors, available under the Open Database License. The map
+            you see is Apple Maps.
           </Text>
           <TouchableOpacity
             onPress={() =>
