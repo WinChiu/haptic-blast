@@ -25,6 +25,8 @@ import {
   recordJourneyFinished,
 } from '../util/guidancePrefs';
 import { chooseTipMode, TipMode } from '../util/tipMode';
+import { Recording, Sample } from '../util/recorder';
+import { loadRecordingPrefs, saveRecording } from '../util/recordingStorage';
 
 import { useCompass } from '../hooks/useCompass';
 import { useGuidance, HAPTIC_STYLE } from '../hooks/useGuidance';
@@ -121,6 +123,79 @@ export default function HomeScreen() {
 
   const heading = useCompass();
 
+  // Journey recording (Settings -> Walk recording). The refs hold the latest
+  // values so the location callback can read them without re-rendering.
+  const headingRef = useRef(0);
+  headingRef.current = heading;
+  const checkpointIndexRef = useRef<number | null>(null);
+  const recordingRef = useRef<{
+    recording: Recording;
+    startedAtMs: number;
+    lastSavedMs: number;
+  } | null>(null);
+  const SAVE_EVERY_MS = 60_000; // so little is lost if the app is killed mid-walk
+
+  const startRecording = async (tipShown: TipMode) => {
+    const prefs = await loadRecordingPrefs();
+    if (!prefs.enabled) return;
+    const now = Date.now();
+    recordingRef.current = {
+      startedAtMs: now,
+      lastSavedMs: now,
+      recording: {
+        meta: {
+          started: new Date(now).toISOString(),
+          phone_position: prefs.phonePosition,
+          haptic: String(hapticEnabled),
+          sound: String(soundEnabled),
+          haptic_style: HAPTIC_STYLE,
+          tip: tipShown,
+          debug_mode: String(isDebugMode),
+          dev_build: String(__DEV__),
+        },
+        samples: [],
+      },
+    };
+    console.log(`[rec] started (phone position: ${prefs.phonePosition})`);
+  };
+
+  const stopRecording = (reason: 'finished' | 'cancelled') => {
+    const active = recordingRef.current;
+    if (!active) return;
+    recordingRef.current = null;
+    active.recording.meta.ended = reason;
+    saveRecording(active.recording);
+    console.log(`[rec] saved (${reason}, ${active.recording.samples.length} samples)`);
+  };
+
+  const recordSample = (loc: {
+    latitude: number;
+    longitude: number;
+    heading: number | null;
+    speed: number | null;
+    accuracy?: number | null;
+  }) => {
+    const active = recordingRef.current;
+    if (!active) return;
+    const now = Date.now();
+    const sample: Sample = {
+      t: now - active.startedAtMs,
+      lat: loc.latitude,
+      lng: loc.longitude,
+      accuracy: loc.accuracy ?? null,
+      speed: loc.speed !== null && loc.speed >= 0 ? loc.speed : null,
+      course: loc.heading !== null && loc.heading >= 0 ? loc.heading : null, // iOS gives -1 when unknown
+      phoneHeading: headingRef.current,
+      targetBearing: targetBearingRef.current,
+      checkpoint: checkpointIndexRef.current,
+    };
+    active.recording.samples.push(sample);
+    if (now - active.lastSavedMs >= SAVE_EVERY_MS) {
+      active.lastSavedMs = now;
+      saveRecording(active.recording);
+    }
+  };
+
   const targetBearing = useMemo(() => {
     if (!userLocation) return 0;
 
@@ -145,6 +220,9 @@ export default function HomeScreen() {
     return (bearing + 360) % 360;
   }, [userLocation, nextCheckpoint]);
 
+  const targetBearingRef = useRef<number | null>(null);
+  targetBearingRef.current = nextCheckpoint ? targetBearing : null;
+
   // ✅ Unified Guidance Hook
   useGuidance(
     heading,
@@ -155,8 +233,10 @@ export default function HomeScreen() {
   );
 
   const handleCheckpointUpdate = (
-    checkpoint: { latitude: number; longitude: number } | null
+    checkpoint: { latitude: number; longitude: number } | null,
+    index?: number
   ) => {
+    checkpointIndexRef.current = index ?? null;
     setNextCheckpoint(checkpoint);
     if (checkpoint === null && isNavigating) {
       // Reached destination
@@ -185,6 +265,7 @@ export default function HomeScreen() {
       console.log('[nav] finished: destination reached, showing completion');
       hideReminder();
       recordJourneyFinished();
+      stopRecording('finished');
       endingPlayer.seekTo(0);
       endingPlayer.play();
       setShowCompletionModal(true);
@@ -329,6 +410,7 @@ export default function HomeScreen() {
     console.log(
       `[nav] started (haptic=${hapticEnabled}, sound=${soundEnabled}, logged in=${!!userUid}, tip=${tipShown})`
     );
+    startRecording(tipShown);
     setIsNavigating(true);
     setCenterTrigger((c) => c + 1);
   };
@@ -336,6 +418,7 @@ export default function HomeScreen() {
   const handleCloseOverlay = () => {
     console.log(`[nav] cancelled (was navigating=${isNavigating})`);
     hideReminder();
+    stopRecording('cancelled');
     // Update stop time if user is logged in and navigating
     if (userUid && isNavigating) {
       const stopTime = Date.now();
@@ -424,6 +507,7 @@ export default function HomeScreen() {
           });
 
           setGpsHeading((prev) => (prev !== loc.heading ? loc.heading : prev));
+          recordSample(loc);
         }}
         heading={heading}
         onNextCheckpointUpdate={handleCheckpointUpdate}

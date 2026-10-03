@@ -8,7 +8,8 @@
     "ios": "expo run:ios",
     "test": "npx expo start --tunnel",
     "test:go": "npx expo start --go --tunnel",
-    "test:logic": "tsx --test tests/*.test.ts"
+    "test:logic": "tsx --test tests/*.test.ts",
+    "analyse-recording": "tsx tools/analyse-recording.ts"
   },
   "dependencies": {
     "@expo/vector-icons": "^15.0.3",

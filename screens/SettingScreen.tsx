@@ -9,6 +9,7 @@ import {
   TextInput,
   Alert,
   Linking,
+  Share,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
@@ -22,6 +23,16 @@ import {
   saveReminderPreference,
 } from '../util/guidancePrefs';
 import { ReminderPreference } from '../util/tipMode';
+import {
+  PHONE_POSITIONS,
+  PhonePosition,
+  RecordingPrefs,
+  clearRecordings,
+  loadRecordingPrefs,
+  loadRecordings,
+  recordingsAsText,
+  saveRecordingPrefs,
+} from '../util/recordingStorage';
 
 export default function SettingScreen() {
   const navigation = useNavigation();
@@ -44,6 +55,56 @@ export default function SettingScreen() {
   useEffect(() => {
     loadGuidancePrefs().then((prefs) => setReminder(prefs.reminder));
   }, []);
+  // Walk recording: sensor data for working out hands-free guidance
+  const [recPrefs, setRecPrefs] = useState<RecordingPrefs>({
+    enabled: false,
+    phonePosition: 'pocket',
+  });
+  const [recCount, setRecCount] = useState(0);
+  const [recSamples, setRecSamples] = useState(0);
+  const refreshRecordings = async () => {
+    const all = await loadRecordings();
+    setRecCount(all.length);
+    setRecSamples(all.reduce((n, r) => n + r.samples.length, 0));
+  };
+  useEffect(() => {
+    loadRecordingPrefs().then(setRecPrefs);
+    refreshRecordings();
+  }, []);
+  const updateRecPrefs = (change: Partial<RecordingPrefs>) => {
+    const next = { ...recPrefs, ...change };
+    setRecPrefs(next);
+    saveRecordingPrefs(next);
+  };
+  const shareRecordings = async () => {
+    const text = await recordingsAsText();
+    if (!text) {
+      Alert.alert('Nothing to share', 'No journey has been recorded yet.');
+      return;
+    }
+    try {
+      await Share.share({ message: text, title: 'Haptic Blast recordings' });
+    } catch (e: any) {
+      Alert.alert('Could not share', e?.message ?? 'Unknown error');
+    }
+  };
+  const confirmClearRecordings = () => {
+    Alert.alert(
+      'Delete recordings?',
+      'This deletes the recordings stored on this phone. Share them first if you need them.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            await clearRecordings();
+            refreshRecordings();
+          },
+        },
+      ]
+    );
+  };
   const chooseReminder = (value: ReminderPreference) => {
     setReminder(value);
     saveReminderPreference(value);
@@ -184,6 +245,63 @@ export default function SettingScreen() {
             </View>
           </View>
         ))}
+
+        <View style={styles.card}>
+          <Text style={styles.cardTitle}>Walk recording (research)</Text>
+          <Text style={styles.cardText}>
+            Records time, position, GPS direction, speed and the phone's heading
+            about twice a second during a journey. It stays on this phone until
+            you share it, and it contains your location trace. Deleting the app
+            deletes it.
+          </Text>
+          <View style={styles.toggleContainer}>
+            <Switch
+              trackColor={{ false: '#404040', true: '#22c55e' }}
+              thumbColor="#fff"
+              ios_backgroundColor="#404040"
+              onValueChange={(value) => updateRecPrefs({ enabled: value })}
+              value={recPrefs.enabled}
+            />
+            <Text style={styles.toggleLabel}>
+              {recPrefs.enabled ? 'ON' : 'OFF'}
+            </Text>
+          </View>
+          <Text style={styles.cardText}>Where is the phone carried?</Text>
+          <View style={[styles.optionRow, { flexWrap: 'wrap' }]}>
+            {PHONE_POSITIONS.map(({ value, label }) => (
+              <TouchableOpacity
+                key={value}
+                style={[
+                  styles.optionChip,
+                  { flexGrow: 1, flexBasis: '30%' },
+                  recPrefs.phonePosition === value && styles.optionChipActive,
+                ]}
+                onPress={() =>
+                  updateRecPrefs({ phonePosition: value as PhonePosition })
+                }
+              >
+                <Text
+                  style={[
+                    styles.optionText,
+                    recPrefs.phonePosition === value && styles.optionTextActive,
+                  ]}
+                >
+                  {label}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+          <Text style={styles.cardText}>
+            Saved on this phone: {recCount} recording{recCount === 1 ? '' : 's'},{' '}
+            {recSamples} samples (the last 5 are kept).
+          </Text>
+          <TouchableOpacity style={styles.saveButton} onPress={shareRecordings}>
+            <Text style={styles.saveButtonText}>Share recordings</Text>
+          </TouchableOpacity>
+          <TouchableOpacity onPress={confirmClearRecordings}>
+            <Text style={styles.linkText}>Delete recordings</Text>
+          </TouchableOpacity>
+        </View>
 
         <View style={styles.card}>
           <Text style={styles.cardTitle}>Journey reminder</Text>

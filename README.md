@@ -121,6 +121,68 @@ If you leave the route for more than a few seconds, the app plans a new route fr
 
 **Testing at a desk with Debug Mode:** only your position is fake (moved with the joystick). The compass is the real phone, so you still have to point it. The joystick lets you walk through buildings and fences, which real people cannot. This causes odd beeping and odd re-routes that do not happen outdoors. Test re-routing outdoors on real paths.
 
+## Hands-free and eyes-free use (open design question)
+
+**The gap.** The app is meant for low-attention, hands-free navigation: blind and low-vision users, and anyone who does not want to hold a phone out (for example at -13 °C in winter). The guidance today assumes the phone is *held* and *pointed*: it compares the direction the phone points with the direction of the next target. The "hold it flat, top edge forward" tip is a way to learn and test the guidance. It is not how the product is meant to be used.
+
+**Why the current design does not work with the phone in a pocket or bag**
+1. The phone's orientation has no fixed relationship to the way the person faces.
+2. The cue says "you are off" and how much, but **not which way to turn**. Sighted testers find the right direction by sweeping the phone, which a hands-free user cannot do.
+3. Silence means "on course", but it also looks the same as "the app stopped".
+4. Practical issues we have not tested: vibration is weaker through thick clothing, cold drains the battery, and metal in a pocket disturbs the compass.
+
+**Ways to know which way the person faces**
+
+| Option | How | Strengths | Problems |
+|---|---|---|---|
+| A. Direction of travel from GPS | Use the direction the person is actually moving | Works with the phone anywhere; no phone orientation needed | Lags by seconds, noisy at slow speed, useless when standing still |
+| B. Calibrate phone against body | Walk straight for a few metres; learn the offset between the phone's heading and the walking direction | Uses the compass with the phone in a pocket | More complex; the offset shifts if the phone moves |
+| C. Head tracking | Headphones with motion sensors report where the head points | Real facing direction, even when standing | Needs specific hardware; not researched |
+| D. Wearable at a fixed place | Chest strap, belt or watch | Stable orientation | Extra hardware |
+
+A reasonable first prototype is **A as the baseline, with the phone-pointing mode kept for standing at the start**. Microsoft's Soundscape project (discontinued) is, as far as we remember, related prior art. This needs checking before relying on it.
+
+**Ways to give the signal**
+- *Signed cues*: one pattern for "turn left", another for "turn right", with intensity for how far. Needs learning.
+- *A heartbeat*: a gentle periodic tick while on course, so silence never means "broken".
+- *Spoken or audio cues*: blind users often need their ears free for traffic (bone-conduction headphones may help). This is a user-research question.
+
+**Questions for the team**
+- Which carry positions matter: pocket, bag, hand, or all?
+- Are audio cues allowed, and are wearables in scope?
+- Is the study with blind and low-vision users, or with sighted users simulating it (for example blindfolded)? That changes what can be claimed.
+- Nobody on the project has asked blind and low-vision users yet. They should be involved early, because they will know things we cannot guess. Safety also needs thought: a foot route may not suit them (crossings, kerbs, hazards), and the guidance should support their own skills, not replace them.
+
+**First step: measure instead of guessing** (see "Walk recording" below). Walk with the phone in a pocket and compare the phone's heading with the GPS direction of travel. That says whether option A or B is good enough.
+
+## Walk recording
+
+Settings → **Walk recording** records sensor data during a journey so we can answer the questions above. It is **off by default**.
+
+**What is recorded** (about twice a second, from Start until the finish or cancel): time, latitude and longitude, GPS accuracy, speed, GPS direction of travel, the phone's heading (the value the app uses), the direction the guidance is steering towards, the current checkpoint, plus the phone position you chose, haptic and sound settings and the reminder shown. The username is not recorded.
+
+**Where it is kept.** Only on the phone, in the app's private storage (`util/recordingStorage.ts`, the last 5 recordings, saved about once a minute while walking and again at the end). It is **not** sent to Firebase and is not in the repo. It contains a location trace, so share it only with people who should see it. **Deleting or reinstalling the app deletes the recordings, so share them first.**
+
+**Getting it off the phone.** Settings → **Share recordings** opens the iPhone share sheet (Mail, AirDrop, Notes, Save to Files). The text is a CSV with a short header per recording.
+
+**Analysing it** on a computer:
+
+```bash
+npm run analyse-recording -- path/to/recording.txt
+pbpaste | npm run analyse-recording     # macOS, with the shared text copied
+```
+
+It reports, for the walking samples (speed of at least 1 m/s): how far the phone's heading is from the direction of travel (average and spread), and how often each was within 25° of the guidance target. A small, steady spread suggests the phone's heading can be corrected with a fixed offset; a large spread suggests the phone's orientation is not usable on its own.
+
+**Suggested protocol** (Release build, outdoors, haptics on):
+1. Settings → switch recording on, choose where the phone is carried.
+2. Walk a route of at least a few hundred metres at a normal pace, in a mostly steady direction for at least 20 seconds at a time.
+3. Do one walk per carry position (hand flat, pocket, bag), changing the setting between walks.
+4. Note by hand: could you feel the buzz through your clothing? Did the phone move around?
+5. Share the recordings before deleting or reinstalling the app.
+
+The recorder logic and the analysis are tested (`tests/recorder.test.ts`). The capture and the share button run only on a phone and have not been tried on one yet.
+
 ## Tests
 
 The route logic is plain TypeScript with no React or phone dependencies, so it is tested on your computer with Node's built-in test runner (run through [`tsx`](https://tsx.is), a dev dependency):

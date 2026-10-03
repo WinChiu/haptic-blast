@@ -36,6 +36,7 @@ interface MapProps {
     longitude: number;
     heading: number | null;
     speed: number | null;
+    accuracy?: number | null; // GPS accuracy in metres (absent for mock locations)
   }) => void;
 
   heading?: number;
@@ -346,6 +347,7 @@ export default function Map({
                 longitude,
                 heading,
                 speed,
+                accuracy: location.coords.accuracy,
               });
             }
           }
