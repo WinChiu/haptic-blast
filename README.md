@@ -105,7 +105,17 @@ Haptic Blast guides you by **which way the phone points**, not by where you stan
 6. The stronger and faster the buzz, the further off the direction you are. Within about 25° of the target (`COMPASS_ANGLE_TOLERANCE`) it is silent.
 7. The radar button on the bottom bar opens a Compass screen showing the target direction and where the phone is pointing, which helps when learning.
 
-A short reminder of these steps appears before every journey, when you tap **Start**, and is listed at the bottom of Settings (`components/GuidanceTip.tsx`).
+When you tap **Start**, the app reminds you how to follow the guidance. How it does that depends on **Settings → Journey reminder** (default **Adaptive**):
+
+| Setting | What happens at Start |
+|---|---|
+| **Adaptive** (default) | The full tip (`components/GuidanceTip.tsx`) until you have **finished 2 journeys**, then a small reminder pill ("Phone flat, top edge forward") for 5 seconds that does not block anything. Its **Steps** link opens the full tip. |
+| **Always** | The full tip before every journey. Use this for studies where every participant must get identical instructions. |
+| **Off** | Nothing. The full tip also has a "Don't remind me again" link that switches this on. |
+
+The two numbers are `GUIDANCE_TIP.fullUntilFinished` and `compactSeconds` in `util/globals.ts`. The preference and the count of finished journeys are stored on the phone only (`util/guidancePrefs.ts`), so they reset if the app is deleted. The steps are also listed at the bottom of Settings.
+
+**For user testing:** each round saved to Firebase has a `guidanceTip` field (`full`, `compact` or `none`) recording which reminder was shown when it started, so you can compare journeys by reminder. Rounds recorded before this existed do not have the field. The adaptive threshold (2 journeys) is a guess, so revisit it with real data.
 
 If you leave the route for more than a few seconds, the app plans a new route from where you are.
 

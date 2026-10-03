@@ -17,6 +17,9 @@ const initialState = {
         // Absent on rounds recorded before haptic styles existed (= 'tap');
         // 'pulse' only on rounds from when it was selectable
         hapticStyle?: 'tap' | 'pulse' | 'continuous';
+        // Which reminder was shown when this journey started. Absent on
+        // rounds recorded before the adaptive reminder existed.
+        guidanceTip?: 'full' | 'compact' | 'none';
       };
       mistake: Array<{
         start: number;

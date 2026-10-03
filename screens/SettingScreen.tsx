@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   StyleSheet,
   Text,
@@ -16,6 +16,11 @@ import { useSelector, useDispatch } from 'react-redux';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { updateUserProfile, logout, setDebugMode } from '../util/store';
 import { GUIDANCE_STEPS } from '../components/GuidanceTip';
+import {
+  loadGuidancePrefs,
+  saveReminderPreference,
+} from '../util/guidancePrefs';
+import { ReminderPreference } from '../util/tipMode';
 
 export default function SettingScreen() {
   const navigation = useNavigation();
@@ -32,6 +37,16 @@ export default function SettingScreen() {
   );
 
   const [username, setUsername] = useState('');
+
+  // How the how-to reminder behaves when a journey starts
+  const [reminder, setReminder] = useState<ReminderPreference>('adaptive');
+  useEffect(() => {
+    loadGuidancePrefs().then((prefs) => setReminder(prefs.reminder));
+  }, []);
+  const chooseReminder = (value: ReminderPreference) => {
+    setReminder(value);
+    saveReminderPreference(value);
+  };
 
   const handleSaveUsername = async () => {
     if (!username.trim()) {
@@ -170,6 +185,42 @@ export default function SettingScreen() {
         ))}
 
         <View style={styles.card}>
+          <Text style={styles.cardTitle}>Journey reminder</Text>
+          <Text style={styles.cardText}>
+            Adaptive shows the full tip for your first journeys, then a small
+            reminder. Always shows the full tip every time (use this for
+            studies). Off shows nothing.
+          </Text>
+          <View style={styles.optionRow}>
+            {(
+              [
+                ['adaptive', 'Adaptive'],
+                ['always', 'Always'],
+                ['off', 'Off'],
+              ] as [ReminderPreference, string][]
+            ).map(([value, label]) => (
+              <TouchableOpacity
+                key={value}
+                style={[
+                  styles.optionChip,
+                  reminder === value && styles.optionChipActive,
+                ]}
+                onPress={() => chooseReminder(value)}
+              >
+                <Text
+                  style={[
+                    styles.optionText,
+                    reminder === value && styles.optionTextActive,
+                  ]}
+                >
+                  {label}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        </View>
+
+        <View style={styles.card}>
           <Text style={styles.cardTitle}>How to follow the guidance</Text>
           {GUIDANCE_STEPS.map((step, i) => (
             <Text key={i} style={styles.cardText}>
@@ -214,6 +265,19 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   toggleLabel: { color: '#fff', fontWeight: '600', fontSize: 14 },
+  optionRow: { flexDirection: 'row', gap: 10 },
+  optionChip: {
+    flex: 1,
+    paddingVertical: 10,
+    borderRadius: 10,
+    alignItems: 'center',
+    backgroundColor: '#262626',
+    borderWidth: 1,
+    borderColor: '#404040',
+  },
+  optionChipActive: { backgroundColor: '#0ea5e9', borderColor: '#0ea5e9' },
+  optionText: { color: '#a3a3a3', fontWeight: '600', fontSize: 14 },
+  optionTextActive: { color: '#fff' },
   saveButton: {
     backgroundColor: '#0ea5e9', // sky-500
     paddingVertical: 12,

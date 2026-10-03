@@ -23,6 +23,13 @@ export const GlobalStore = {
   // and has already gone past it towards the next one (GPS drift can keep
   // someone just outside CHECKPOINT_THRESHOLD while walking by).
   CHECKPOINT_PASS_RADIUS: 12, //meters
+  // The how-to reminder shown when a journey starts. In 'adaptive' mode the
+  // full tip appears until the user has finished `fullUntilFinished` journeys,
+  // then only a small reminder for `compactSeconds` seconds.
+  GUIDANCE_TIP: {
+    fullUntilFinished: 2,
+    compactSeconds: 5,
+  },
   // Steer towards a point this far ahead along the path instead of straight at
   // the next checkpoint, so curves don't make the guidance swing (0 = off)
   AIM_LOOKAHEAD: 15, //meters

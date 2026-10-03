@@ -14,9 +14,19 @@ export const GUIDANCE_STEPS = [
 type Props = {
   visible: boolean;
   onClose: () => void;
+  // Label of the main button, e.g. "Got it, start" before a journey or
+  // "Close" when opened from the small reminder
+  primaryLabel?: string;
+  // When given, a "Don't remind me again" link is shown
+  onOptOut?: () => void;
 };
 
-export default function GuidanceTip({ visible, onClose }: Props) {
+export default function GuidanceTip({
+  visible,
+  onClose,
+  primaryLabel = 'Got it, start',
+  onOptOut,
+}: Props) {
   return (
     <Modal
       visible={visible}
@@ -40,8 +50,13 @@ export default function GuidanceTip({ visible, onClose }: Props) {
             </View>
           ))}
           <TouchableOpacity style={styles.button} onPress={onClose}>
-            <Text style={styles.buttonText}>Got it, start</Text>
+            <Text style={styles.buttonText}>{primaryLabel}</Text>
           </TouchableOpacity>
+          {onOptOut && (
+            <TouchableOpacity style={styles.optOut} onPress={onOptOut}>
+              <Text style={styles.optOutText}>Don't remind me again</Text>
+            </TouchableOpacity>
+          )}
         </View>
       </View>
     </Modal>
@@ -92,4 +107,6 @@ const styles = StyleSheet.create({
     marginTop: 8,
   },
   buttonText: { color: '#fff', fontSize: 17, fontWeight: '700' },
+  optOut: { alignItems: 'center', paddingVertical: 10 },
+  optOutText: { color: '#a3a3a3', fontSize: 14 },
 });

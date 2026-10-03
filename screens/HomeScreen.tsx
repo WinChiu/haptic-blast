@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useRef } from 'react';
+import React, { useState, useMemo, useRef, useEffect } from 'react';
 import {
   StyleSheet,
   View,
@@ -18,6 +18,13 @@ import Map from '../components/Map';
 import HapticCompass from '../components/HapticCompass';
 import Joystick from '../components/Joystick';
 import GuidanceTip from '../components/GuidanceTip';
+import GuidanceReminder from '../components/GuidanceReminder';
+import {
+  loadGuidancePrefs,
+  saveReminderPreference,
+  recordJourneyFinished,
+} from '../util/guidancePrefs';
+import { chooseTipMode, TipMode } from '../util/tipMode';
 
 import { useCompass } from '../hooks/useCompass';
 import { useGuidance, HAPTIC_STYLE } from '../hooks/useGuidance';
@@ -52,8 +59,20 @@ export default function HomeScreen() {
   const [isLoadingRoute, setIsLoadingRoute] = useState(false);
   const [showCompletionModal, setShowCompletionModal] = useState(false);
 
-  // "How to follow the guidance" is shown before every journey
+  // "How to follow the guidance": a full tip before the journey, or a small
+  // reminder during its first seconds (see chooseTipMode)
   const [showTip, setShowTip] = useState(false);
+  // 'start' = the tip gates the journey; 'info' = opened from the small reminder
+  const [tipPurpose, setTipPurpose] = useState<'start' | 'info'>('start');
+  const [showReminder, setShowReminder] = useState(false);
+  const reminderTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => () => {
+    if (reminderTimerRef.current) clearTimeout(reminderTimerRef.current);
+  }, []);
+  const hideReminder = () => {
+    if (reminderTimerRef.current) clearTimeout(reminderTimerRef.current);
+    setShowReminder(false);
+  };
 
   const [centerTrigger, setCenterTrigger] = useState(0);
   const [nextCheckpoint, setNextCheckpoint] = useState<{
@@ -164,6 +183,8 @@ export default function HomeScreen() {
       }
 
       console.log('[nav] finished: destination reached, showing completion');
+      hideReminder();
+      recordJourneyFinished();
       endingPlayer.seekTo(0);
       endingPlayer.play();
       setShowCompletionModal(true);
@@ -246,18 +267,45 @@ export default function HomeScreen() {
     }
   };
 
-  const handleStartNavigation = () => {
-    if (!isPreviewMode) return;
-    console.log('[nav] showing the guidance tip before starting');
-    setShowTip(true);
+  const startingRef = useRef(false);
+  const handleStartNavigation = async () => {
+    if (!isPreviewMode || isNavigating || startingRef.current) return;
+    startingRef.current = true; // ignore a second tap while preferences load
+    const prefs = await loadGuidancePrefs();
+    startingRef.current = false;
+    const mode = chooseTipMode(prefs.reminder, prefs.journeysFinished);
+    console.log(
+      `[tip] mode=${mode} (reminder=${prefs.reminder}, journeys finished=${prefs.journeysFinished})`
+    );
+
+    if (mode === 'full') {
+      setTipPurpose('start');
+      setShowTip(true); // the journey begins when the tip is dismissed
+      return;
+    }
+
+    beginNavigation(mode);
+    if (mode === 'compact') {
+      setShowReminder(true);
+      reminderTimerRef.current = setTimeout(
+        () => setShowReminder(false),
+        GlobalStore.GUIDANCE_TIP.compactSeconds * 1000
+      );
+    }
   };
 
   const handleTipDismissed = () => {
     setShowTip(false);
-    beginNavigation();
+    if (tipPurpose === 'start') beginNavigation('full');
   };
 
-  const beginNavigation = () => {
+  const handleTipOptOut = () => {
+    console.log('[tip] user chose not to be reminded again');
+    saveReminderPreference('off');
+    handleTipDismissed();
+  };
+
+  const beginNavigation = (tipShown: TipMode) => {
     // Only track rounds if user is logged in
     if (userUid) {
       const startTime = Date.now();
@@ -271,6 +319,7 @@ export default function HomeScreen() {
             hapticEnabled,
             soundEnabled,
             hapticStyle: HAPTIC_STYLE,
+            guidanceTip: tipShown,
           },
           mistake: [],
         })
@@ -278,7 +327,7 @@ export default function HomeScreen() {
     }
 
     console.log(
-      `[nav] started (haptic=${hapticEnabled}, sound=${soundEnabled}, logged in=${!!userUid})`
+      `[nav] started (haptic=${hapticEnabled}, sound=${soundEnabled}, logged in=${!!userUid}, tip=${tipShown})`
     );
     setIsNavigating(true);
     setCenterTrigger((c) => c + 1);
@@ -286,6 +335,7 @@ export default function HomeScreen() {
 
   const handleCloseOverlay = () => {
     console.log(`[nav] cancelled (was navigating=${isNavigating})`);
+    hideReminder();
     // Update stop time if user is logged in and navigating
     if (userUid && isNavigating) {
       const stopTime = Date.now();
@@ -544,7 +594,21 @@ export default function HomeScreen() {
       {/* Search Modal Removed */}
 
       {/* Completion Modal */}
-      <GuidanceTip visible={showTip} onClose={handleTipDismissed} />
+      <GuidanceTip
+        visible={showTip}
+        onClose={handleTipDismissed}
+        primaryLabel={tipPurpose === 'start' ? 'Got it, start' : 'Close'}
+        onOptOut={tipPurpose === 'start' ? handleTipOptOut : undefined}
+      />
+      {showReminder && (
+        <GuidanceReminder
+          onShowSteps={() => {
+            hideReminder();
+            setTipPurpose('info');
+            setShowTip(true);
+          }}
+        />
+      )}
 
       <Modal
         visible={showCompletionModal}
