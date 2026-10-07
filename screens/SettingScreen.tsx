@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   StyleSheet,
   Text,
@@ -23,6 +23,19 @@ import {
   saveReminderPreference,
 } from '../util/guidancePrefs';
 import { ReminderPreference } from '../util/tipMode';
+import { useBuzz, BUZZ_BACKEND } from '../hooks/useBuzz';
+import {
+  HAPTIC_LIMITS,
+  HAPTIC_SHAPE,
+  HapticMode,
+  exponentialIntensity,
+  planPulse,
+} from '../util/haptics';
+import {
+  resetHapticSettings,
+  updateHapticSettings,
+  useHapticSettings,
+} from '../util/hapticSettings';
 import {
   PHONE_POSITIONS,
   PhonePosition,
@@ -123,6 +136,85 @@ export default function SettingScreen() {
       ]
     );
   };
+  // Haptic tuning: how the phone vibrates (util/haptics.ts, from the team's guide)
+  const haptics = useHapticSettings();
+  const { pulse: pulseBuzz, start: startBuzz, stop: stopBuzz } = useBuzz();
+  const demoTimers = useRef<ReturnType<typeof setTimeout>[]>([]);
+  const [demoRunning, setDemoRunning] = useState(false);
+  const stopDemo = () => {
+    demoTimers.current.forEach(clearTimeout);
+    demoTimers.current = [];
+    stopBuzz();
+    setDemoRunning(false);
+  };
+  useEffect(() => () => stopDemo(), []);
+  // Plays what the current settings feel like: three levels of "far off", from
+  // slightly to a lot, and then (pulsed mode) the click for lining up.
+  const playDemo = () => {
+    stopDemo();
+    setDemoRunning(true);
+    const at = (ms: number, fn: () => void) =>
+      demoTimers.current.push(setTimeout(fn, ms));
+    let t = 0;
+    for (const error of [25, 50, 90]) {
+      if (haptics.mode === 'pulsed') {
+        const plan = planPulse(error, haptics)!;
+        at(t, () => pulseBuzz(plan.amplitude, plan.pulseMs));
+        t += plan.pulseMs + plan.pauseMs;
+      } else {
+        at(t, () => startBuzz(exponentialIntensity(error, haptics.deadband)));
+        t += 900;
+      }
+    }
+    if (haptics.mode === 'pulsed') {
+      at(t, () => pulseBuzz(HAPTIC_SHAPE.confirmIntensity, haptics.confirmMs));
+      t += haptics.confirmMs + 100;
+    } else {
+      at(t, stopBuzz);
+    }
+    at(t + 100, () => setDemoRunning(false));
+  };
+  const Stepper = ({
+    label,
+    value,
+    unit,
+    min,
+    max,
+    step,
+    onChange,
+  }: {
+    label: string;
+    value: number;
+    unit: string;
+    min: number;
+    max: number;
+    step: number;
+    onChange: (v: number) => void;
+  }) => (
+    <View style={styles.stepperRow}>
+      <Text style={styles.stepperLabel}>{label}</Text>
+      <View style={styles.stepperControls}>
+        <TouchableOpacity
+          style={[styles.stepperButton, value <= min && { opacity: 0.4 }]}
+          onPress={() => onChange(Math.max(min, value - step))}
+          disabled={value <= min}
+        >
+          <Text style={styles.stepperButtonText}>−</Text>
+        </TouchableOpacity>
+        <Text style={styles.stepperValue}>
+          {value}
+          {unit}
+        </Text>
+        <TouchableOpacity
+          style={[styles.stepperButton, value >= max && { opacity: 0.4 }]}
+          onPress={() => onChange(Math.min(max, value + step))}
+          disabled={value >= max}
+        >
+          <Text style={styles.stepperButtonText}>+</Text>
+        </TouchableOpacity>
+      </View>
+    </View>
+  );
   const chooseReminder = (value: ReminderPreference) => {
     setReminder(value);
     saveReminderPreference(value);
@@ -337,6 +429,96 @@ export default function SettingScreen() {
         </View>
 
         <View style={styles.card}>
+          <Text style={styles.cardTitle}>Haptic tuning</Text>
+          <Text style={styles.cardText}>
+            How the phone vibrates when you point away from the target. The
+            ranges come from the team's Vibration Design Guide; try the values to
+            feel which suit you best. They are saved with every recording.
+          </Text>
+          {BUZZ_BACKEND === 'none' && (
+            <Text style={[styles.cardText, { color: '#eab308' }]}>
+              This build cannot vibrate (Expo Go on iPhone), so these only change
+              the compass and the timing of taps.
+            </Text>
+          )}
+          <View style={styles.optionRow}>
+            {(
+              [
+                ['pulsed', 'Pulsed'],
+                ['continuous', 'Continuous'],
+              ] as [HapticMode, string][]
+            ).map(([value, label]) => (
+              <TouchableOpacity
+                key={value}
+                style={[
+                  styles.optionChip,
+                  haptics.mode === value && styles.optionChipActive,
+                ]}
+                onPress={() => updateHapticSettings({ mode: value })}
+              >
+                <Text
+                  style={[
+                    styles.optionText,
+                    haptics.mode === value && styles.optionTextActive,
+                  ]}
+                >
+                  {label}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+          <Stepper
+            label="Silent zone (± degrees)"
+            value={haptics.deadband}
+            unit="°"
+            min={HAPTIC_LIMITS.deadband.min}
+            max={HAPTIC_LIMITS.deadband.max}
+            step={1}
+            onChange={(deadband) => updateHapticSettings({ deadband })}
+          />
+          {haptics.mode === 'pulsed' && (
+            <>
+              <Stepper
+                label="Pulse length"
+                value={haptics.pulseMs}
+                unit=" ms"
+                min={HAPTIC_LIMITS.pulseMs.min}
+                max={HAPTIC_LIMITS.pulseMs.max}
+                step={50}
+                onChange={(pulseMs) => updateHapticSettings({ pulseMs })}
+              />
+              <Stepper
+                label="Lined-up click"
+                value={haptics.confirmMs}
+                unit=" ms"
+                min={HAPTIC_LIMITS.confirmMs.min}
+                max={HAPTIC_LIMITS.confirmMs.max}
+                step={10}
+                onChange={(confirmMs) => updateHapticSettings({ confirmMs })}
+              />
+            </>
+          )}
+          <Text style={styles.cardText}>
+            Silent while you point within the silent zone of the target; outside
+            it the vibration gets stronger the further off you are
+            {haptics.mode === 'pulsed'
+              ? ', with shorter pauses (600 ms down to 200 ms), and a light click tells you when you line up.'
+              : ' (one continuous buzz).'}
+          </Text>
+          <TouchableOpacity
+            style={styles.saveButton}
+            onPress={demoRunning ? stopDemo : playDemo}
+          >
+            <Text style={styles.saveButtonText}>
+              {demoRunning ? 'Stop' : 'Feel it: slightly, more, far off'}
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity onPress={() => { stopDemo(); resetHapticSettings(); }}>
+            <Text style={styles.linkText}>Reset to the guide's defaults</Text>
+          </TouchableOpacity>
+        </View>
+
+        <View style={styles.card}>
           <Text style={styles.cardTitle}>Journey reminder</Text>
           <Text style={styles.cardText}>
             Adaptive shows the full tip for your first journeys, then a small
@@ -447,6 +629,32 @@ const styles = StyleSheet.create({
   optionChipActive: { backgroundColor: '#0ea5e9', borderColor: '#0ea5e9' },
   optionText: { color: '#a3a3a3', fontWeight: '600', fontSize: 14 },
   optionTextActive: { color: '#fff' },
+  stepperRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 12,
+  },
+  stepperLabel: { flex: 1, color: '#e5e5e5', fontSize: 14 },
+  stepperControls: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  stepperButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#262626',
+    borderWidth: 1,
+    borderColor: '#404040',
+  },
+  stepperButtonText: { color: '#fff', fontSize: 22, fontWeight: '600' },
+  stepperValue: {
+    minWidth: 72,
+    textAlign: 'center',
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
+  },
   saveButton: {
     backgroundColor: '#0ea5e9', // sky-500
     paddingVertical: 12,
