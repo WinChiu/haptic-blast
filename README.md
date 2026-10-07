@@ -102,7 +102,7 @@ Haptic Blast guides you by **which way the phone points**, not by where you stan
 3. Hold the phone **flat in front of you with the screen facing up and the top edge pointing forward**. The top edge is what the app reads. (We have not checked how the compass behaves with the phone held upright on iOS.)
 4. **Turn slowly** until the buzz or beeping **stops**. You are now facing the direction to walk. Walk that way, keeping the phone pointing the same way.
 5. At a turn the target changes and the buzz starts again. Turn until it stops again.
-6. The stronger the vibration (and the shorter the pauses), the further off the direction you are. Inside the **silent zone** around the target (default ±10°, **Settings → Haptic tuning**) it is silent, and a very short, light click tells you when you line up.
+6. The stronger the vibration (and the shorter the pauses), the further off the direction you are. Inside the **silent zone** around the target (default ±15°, **Settings → Haptic tuning**) it is silent, and a very short, light click tells you when you line up.
 7. The radar button on the bottom bar opens a Compass screen showing the target direction and where the phone is pointing, which helps when learning.
 
 When you tap **Start**, the app reminds you how to follow the guidance. How it does that depends on **Settings → Journey reminder** (default **Adaptive**):
@@ -299,8 +299,8 @@ Suggested next step: a small **feasibility test** before any design decision. Ru
 ### Changes made after the first walks (not yet tried on a phone)
 
 - **True north.** On iOS the compass now prefers `trueHeading` and falls back to the magnetic heading when it is not available (`pickHeading` in `util/gps.ts`, used in `hooks/useCompass.ts`). **Check:** on a hand-flat walk, the average difference between GPS direction and phone heading should drop from about +8° to about 0°. Recordings now carry `heading_reference=true-north-preferred` in the header; older recordings are magnetic.
-- **Wait for a good GPS fix.** Preview Route and Start are disabled, with the label "Waiting for GPS (±N m)", until the latest fix is accurate to 15 m or better (`GPS.maxStartAccuracy` in `util/globals.ts`). Fixes worse than 20 m (`GPS.maxUsableAccuracy`) are ignored for route progress and off-route detection, but are still recorded. Debug mode (joystick) never waits. **Check:** the first checkpoint should be near you, and standing still should not move the route on.
-- Not changed then: the buzz at the start and the 4 m checkpoint distance. The silent zone has since become adjustable (default ±10°).
+- **Wait for a good GPS fix.** Preview Route and Start are disabled, with the label "Waiting for GPS (±N m)", until the latest fix is accurate to 10 m or better (`GPS.maxStartAccuracy` in `util/globals.ts`). Fixes worse than 20 m (`GPS.maxUsableAccuracy`) are ignored for route progress and off-route detection, but are still recorded. Debug mode (joystick) never waits. **Check:** the first checkpoint should be near you, and standing still should not move the route on.
+- Not changed then: the buzz at the start and the 4 m checkpoint distance. The silent zone has since become adjustable (default ±15°).
 
 ### How to collect meaningful test data before user testing
 
@@ -390,7 +390,7 @@ Known limits: a walker who passes a checkpoint from more than 12 m away (cutting
 
 **Reproduced** with the app's own functions (a 60 m wall, a 90° corner, GPS wobble 0, 3 and 6 m) and **two causes** found:
 1. The "walked past" rule used to be judged along the leg that comes **next**. At a corner that leg points sideways, so for someone still walking up to the corner the sign flipped with a metre or two of GPS wobble: the corner counted as reached **11.4 m early** at 3 m wobble and **8.4 m early** at 6 m. (The real walks showed the same signature: many "walked past" events at 11.9 to 12.0 m.)
-2. The aim-ahead point (`AIM_LOOKAHEAD`, 15 m) aimed round the corner, so even a perfect walker saw the guidance start turning **12 m before the corner** (14° at 12 m, 70° at 4 m).
+2. The aim-ahead point (`AIM_LOOKAHEAD`, then 15 m, now 25 m) aimed round the corner, so even a perfect walker saw the guidance start turning **12 m before the corner** (14° at 12 m, 70° at 4 m).
 
 **Fix:** the walked-past rule now uses the leg being walked (previous to current checkpoint), and the aim-ahead point stops at a checkpoint where the route turns by more than `AIM_MAX_TURN` (60°), so the guidance keeps pointing at the corner until it is reached. Gentle bends still get the smoothing.
 
@@ -421,7 +421,7 @@ How the phone vibrates follows the team's **Vibration Design Guide** (PDF). The 
 | Guide | Built | Default (range) |
 |---|---|---|
 | Intensity grows **exponentially** with the error, weakest at the edge of the dead zone, not at 0° (`S0 · e^(b·y)`, `b` worked out from the weakest and strongest values) | `exponentialIntensity`: 0.2 at the edge of the silent zone, 1.0 at 90° off, equal angle steps give equal ratios | fixed shape |
-| **Silent zone** (deadband) | silent inside ±N° of the target; also draws the cone on the Compass screen | ±10° (5 to 15) |
+| **Silent zone** (deadband) | silent inside ±N° of the target; also draws the cone on the Compass screen | ±15° (5 to 15); widens automatically when GPS is poor, up to ±25° |
 | **Pulse** of about 750 ms | one pulse per cycle while off course | 750 ms (500 to 1000) |
 | **Pause** 200 ms at maximum deviation up to 600 ms near the dead zone | `pauseForDeviation`, linear between the two | 600 ms to 200 ms |
 | **Focus lock confirmation** pulse | one light click when the phone lines up; it also cuts a running pulse short; at most one every 1.5 s so noise at the edge cannot machine-gun it | 50 ms (50 to 100) |
@@ -431,6 +431,8 @@ How the phone vibrates follows the team's **Vibration Design Guide** (PDF). The 
 **Pulsed or continuous.** Pulsed is the default. The earlier continuous buzz (the team's choice in commit `7d11c0b`) is kept as a switch, uses the same exponential strength, and records `hapticStyle` as `continuous` (pulsed is `pulse`) in each round. Sound beeps keep their previous timing but now stop inside the silent zone too.
 
 **Not built:** the guide's **adaptive deadband** (wide while exploring, narrowing when stable, depending on distance to the target). It is described there as rationale and is not in its settings list.
+
+**Accuracy changes (guidance position).** The guidance uses your position snapped onto the planned path when you are within 20 m of it (`GPS.snapLimit`), because GPS error drifts sideways and swings the direction. In a simulation of a perfect walker on the real 3.1 km route, with GPS error that wanders over about 10 s, snapping cut the median direction error from 11 to 12° down to 7° at 6.7 m accuracy, and from 15° to 7° at 12 m. The aim point is 25 m ahead (`AIM_LOOKAHEAD`), the walk will not start until GPS is within 10 m, and the silent zone grows with the GPS error (`effectiveDeadband`, capped at ±25°) so the phone does not buzz at noise. Recordings log the zone used (`zone_deg`) and the snap distance (`snap_m`). These are simulation results; the outing checks them.
 
 **Expect more guidance than before.** The earlier walks used a fixed ±25° zone and the phone was within it about 80% of the time; ±10° is much tighter, so expect more pulses. The guide itself says to feel the values within the ranges, which is what the settings are for. Compare recordings with the table tool, which now judges each walk against the zone it was recorded with.
 

@@ -34,7 +34,7 @@ import { useCompass } from '../hooks/useCompass';
 import { useGuidance } from '../hooks/useGuidance';
 import { BUZZ_BACKEND } from '../hooks/useBuzz';
 import { useHapticSettings } from '../util/hapticSettings';
-import { hapticStyleOf } from '../util/haptics';
+import { effectiveDeadband, hapticStyleOf } from '../util/haptics';
 import { useFeedback } from '../hooks/FeedbackContext';
 import { GlobalStore } from '../util/globals';
 import { addRound, updateRoundTiming } from '../util/store';
@@ -272,6 +272,7 @@ export default function HomeScreen() {
       targetBearing: targetBearingRef.current,
       checkpoint: checkpointIndexRef.current,
       snapM: snapDistanceRef.current,
+      zone: zoneRef.current,
     };
     active.recording.samples.push(sample);
     if (now - active.lastSavedMs >= SAVE_EVERY_MS) {
@@ -310,12 +311,28 @@ export default function HomeScreen() {
   targetBearingRef.current = nextCheckpoint ? targetBearing : null;
 
   // ✅ Unified Guidance Hook
+  // The silent zone widens when GPS is poor, so the phone does not buzz at errors
+  // that are only position noise (see effectiveDeadband in util/haptics.ts).
+  const zoneDegrees = useMemo(() => {
+    if (!userLocation || !nextCheckpoint) return hapticSettings.deadband;
+    const from = guide ? guide.position : { latitude: userLocation[0], longitude: userLocation[1] };
+    return effectiveDeadband(
+      hapticSettings.deadband,
+      gpsAccuracy,
+      !!guide?.snapped,
+      distanceMeters(from, nextCheckpoint)
+    );
+  }, [userLocation, nextCheckpoint, guide, gpsAccuracy, hapticSettings.deadband]);
+  const zoneRef = useRef<number | null>(null);
+  zoneRef.current = zoneDegrees;
+
   useGuidance(
     heading,
     targetBearing,
     isNavigating,
     hapticEnabled,
-    soundEnabled
+    soundEnabled,
+    zoneDegrees
   );
 
   const handleCheckpointUpdate = (

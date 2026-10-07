@@ -6,6 +6,7 @@ import {
   HAPTIC_LIMITS,
   HAPTIC_SHAPE,
   clampSettings,
+  effectiveDeadband,
   exponentialIntensity,
   hapticStyleOf,
   pauseForDeviation,
@@ -17,7 +18,7 @@ const near = (a: number, b: number, eps = 1e-9) => assert.ok(Math.abs(a - b) <= 
 const { minIntensity, maxIntensity, maxDeviation } = HAPTIC_SHAPE;
 
 test('defaults follow the guide: pulsed, 10 deg, 750 ms, 50 ms click', () => {
-  assert.deepEqual(DEFAULT_HAPTIC_SETTINGS, { mode: 'pulsed', deadband: 10, pulseMs: 750, confirmMs: 50 });
+  assert.deepEqual(DEFAULT_HAPTIC_SETTINGS, { mode: 'pulsed', deadband: 15, pulseMs: 750, confirmMs: 50 });
 });
 
 test('exponentialIntensity: silent inside the dead zone', () => {
@@ -110,4 +111,17 @@ test('hapticStyleOf: tap when the phone cannot buzz, otherwise the mode', () => 
   assert.equal(hapticStyleOf(false, 'pulsed'), 'tap');
   assert.equal(hapticStyleOf(true, 'pulsed'), 'pulse');
   assert.equal(hapticStyleOf(true, 'continuous'), 'continuous');
+});
+
+test('effectiveDeadband: never narrower than the chosen zone, widens with GPS error', () => {
+  assert.equal(effectiveDeadband(15, null, false, 25), 15);
+  assert.equal(effectiveDeadband(15, 3, false, 25), 15); // 3 m at 25 m = 7 deg
+  assert.equal(effectiveDeadband(15, 12, false, 25), 25); // 26 deg, capped
+  assert.equal(effectiveDeadband(15, 10, false, 25), 22); // 22 deg
+});
+
+test('effectiveDeadband: snapping to the path needs a narrower zone, and it is capped', () => {
+  assert.ok(effectiveDeadband(10, 12, true, 25) < effectiveDeadband(10, 12, false, 25));
+  assert.equal(effectiveDeadband(10, 500, false, 5), 25);
+  assert.equal(effectiveDeadband(15, 10, false, 0), 15);
 });

@@ -22,7 +22,7 @@ export const HAPTIC_LIMITS = {
 
 export const DEFAULT_HAPTIC_SETTINGS: HapticSettings = {
   mode: 'pulsed',
-  deadband: 10,
+  deadband: 15,
   pulseMs: 750,
   confirmMs: 50,
 };
@@ -37,6 +37,27 @@ export const HAPTIC_SHAPE = {
   confirmIntensity: 0.35, // the click is light
   confirmMinGapMs: 1500, // at most one click this often, so edge noise cannot machine-gun it
 } as const;
+
+// The silent zone the guidance really uses. A GPS error of e metres seen from an
+// aim point d metres away tilts the bearing by about atan(e / d), so the zone
+// is never narrower than that or the phone would buzz at errors that are only
+// GPS noise. Snapped to the path, sideways drift is already removed, so only
+// part of the error counts. Never narrower than the chosen zone, never wider
+// than maxZone.
+export function effectiveDeadband(
+  base: number,
+  accuracyM: number | null,
+  snapped: boolean,
+  aimDistanceM: number,
+  maxZone = 25,
+  snapNoiseFactor = 0.5
+): number {
+  if (accuracyM === null || !Number.isFinite(accuracyM) || accuracyM <= 0) return base;
+  if (!Number.isFinite(aimDistanceM) || aimDistanceM <= 0) return base;
+  const noise = accuracyM * (snapped ? snapNoiseFactor : 1);
+  const tilt = (Math.atan(noise / aimDistanceM) * 180) / Math.PI;
+  return Math.max(base, Math.min(maxZone, Math.round(tilt)));
+}
 
 const clamp = (v: number, min: number, max: number) =>
   Math.min(max, Math.max(min, v));

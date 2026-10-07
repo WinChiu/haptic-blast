@@ -23,7 +23,7 @@ export const GlobalStore = {
   // walk: median 6.7 m, but 12 to 29 m in the first 30 s after standing still.
   GPS: {
     maxUsableAccuracy: 20, // worse fixes are ignored for route progress
-    maxStartAccuracy: 15, // Preview Route and Start wait for a fix this good
+    maxStartAccuracy: 10, // Preview Route and Start wait for a fix this good
     // For working out the direction, the position is pulled onto the planned path
     // when it is within this distance of it (see snapToRoute). The off-route check
     // keeps using the real GPS position.
@@ -38,7 +38,7 @@ export const GlobalStore = {
   },
   // Steer towards a point this far ahead along the path instead of straight at
   // the next checkpoint, so curves don't make the guidance swing (0 = off)
-  AIM_LOOKAHEAD: 15, //meters
+  AIM_LOOKAHEAD: 25, //meters
   // The aim-ahead point stops at a checkpoint where the route turns by more than
   // this many degrees (a corner): the guidance keeps pointing at the corner until
   // it is reached instead of turning early and walking the user into a wall.

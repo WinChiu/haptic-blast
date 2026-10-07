@@ -54,10 +54,13 @@ export function useGuidance(
   targetBearing: number,
   isNavigating: boolean,
   hapticEnabled: boolean,
-  soundEnabled: boolean
+  soundEnabled: boolean,
+  zoneDegrees?: number
 ) {
   const dispatch = useDispatch();
   const haptics = useHapticSettings();
+  // The silent zone in use: the chosen one, or wider when GPS error calls for it
+  const zone = Math.max(haptics.deadband, zoneDegrees ?? 0);
   const hapticStyle: HapticStyleNow =
     BUZZ_BACKEND === 'none' ? 'tap' : haptics.mode;
   const rounds = useSelector((state: any) => state.userData.round);
@@ -76,9 +79,9 @@ export function useGuidance(
     isNavigating,
     hapticEnabled,
     soundEnabled,
-    deadband: haptics.deadband,
+    deadband: zone,
     hapticStyle,
-    settings: haptics,
+    settings: { ...haptics, deadband: zone },
   });
 
   useEffect(() => {
@@ -88,9 +91,9 @@ export function useGuidance(
       isNavigating,
       hapticEnabled,
       soundEnabled,
-      deadband: haptics.deadband,
+      deadband: zone,
       hapticStyle,
-      settings: haptics,
+      settings: { ...haptics, deadband: zone },
     };
   }, [
     currentHeading,
@@ -99,6 +102,7 @@ export function useGuidance(
     hapticEnabled,
     soundEnabled,
     haptics,
+    zone,
     hapticStyle,
   ]);
 
@@ -205,7 +209,7 @@ export function useGuidance(
     }
 
     const angleDiff = Math.abs(shortestDiff(targetBearing, currentHeading));
-    const isAligned = angleDiff <= haptics.deadband;
+    const isAligned = angleDiff <= zone;
 
     // Track alignment changes and log mistakes (only if logged in)
     // Transition from aligned to misaligned (mistake starts)
@@ -254,7 +258,7 @@ export function useGuidance(
     dispatch,
     rounds.length,
     userUid,
-    haptics.deadband,
+    zone,
     hapticStyle,
   ]);
 
@@ -266,10 +270,10 @@ export function useGuidance(
       isNavigating &&
       hapticEnabled &&
       hapticStyle === 'continuous' &&
-      angleDiff > haptics.deadband;
+      angleDiff > zone;
 
     if (shouldBuzz) {
-      startBuzz(exponentialIntensity(angleDiff, haptics.deadband));
+      startBuzz(exponentialIntensity(angleDiff, zone));
       isContinuousBuzzingRef.current = true;
     } else if (isContinuousBuzzingRef.current) {
       stopBuzz();
@@ -281,7 +285,7 @@ export function useGuidance(
     isNavigating,
     hapticEnabled,
     hapticStyle,
-    haptics.deadband,
+    zone,
     startBuzz,
     stopBuzz,
   ]);
