@@ -571,7 +571,10 @@ export default function HomeScreen() {
 
   // The joystick position (debug mode) has no GPS accuracy, so it never waits
   const gpsGood = finalMockLocation ? true : isFixGoodToStart(gpsAccuracy);
-  const gpsWaitLabel = `Waiting for GPS (±${Math.round(gpsAccuracy ?? 0)} m)`;
+  // Plain words for the walker; the accuracy number is only for research mode
+const gpsWaitLabel = isDebugMode
+    ? `Waiting for GPS (±${Math.round(gpsAccuracy ?? 0)} m)`
+    : 'Finding your location…';
 
   const handleMockMove = (direction: 'up' | 'down' | 'left' | 'right') => {
     setMockLocation((prev) => {
@@ -746,31 +749,40 @@ export default function HomeScreen() {
                 </View>
               ) : (
                 <View style={styles.menuBar}>
-                  <TouchableOpacity
-                    style={[
-                      styles.startButton,
-                      { backgroundColor: '#333' }, // Reuse start button style for Preview
-                      (!destination || !gpsGood) && { opacity: 0.6 },
-                    ]}
-                    onPress={handlePreviewRoute}
-                    disabled={isLoadingRoute || !destination || !gpsGood}
-                  >
-                    {isLoadingRoute ? (
-                      <ActivityIndicator color="#fff" />
-                    ) : (
-                      <Text
-                        style={styles.startButtonText}
-                        numberOfLines={1}
-                        adjustsFontSizeToFit
-                      >
-                        {!destination
-                          ? 'Long-press map to set destination'
-                          : gpsGood
-                            ? 'Preview Route'
-                            : gpsWaitLabel}
+                  {!destination ? (
+                    // Step 1: choose where to go. No button yet, just what to do.
+                    <View style={styles.stepPrompt}>
+                      <Text style={styles.stepPromptTitle}>
+                        Where do you want to go?
                       </Text>
-                    )}
-                  </TouchableOpacity>
+                      <Text style={styles.stepPromptText}>
+                        Press and hold on the map to choose a place.
+                      </Text>
+                    </View>
+                  ) : (
+                    // Step 2: a place is chosen; now the route can be previewed.
+                    <TouchableOpacity
+                      style={[
+                        styles.startButton,
+                        { backgroundColor: '#333' },
+                        !gpsGood && { opacity: 0.6 },
+                      ]}
+                      onPress={handlePreviewRoute}
+                      disabled={isLoadingRoute || !gpsGood}
+                    >
+                      {isLoadingRoute ? (
+                        <ActivityIndicator color="#fff" />
+                      ) : (
+                        <Text
+                          style={styles.startButtonText}
+                          numberOfLines={1}
+                          adjustsFontSizeToFit
+                        >
+                          {gpsGood ? 'Preview Route' : gpsWaitLabel}
+                        </Text>
+                      )}
+                    </TouchableOpacity>
+                  )}
 
                   <TouchableOpacity
                     style={styles.locateButton}
@@ -958,6 +970,15 @@ const styles = StyleSheet.create({
     shadowRadius: 4.65,
     elevation: 8,
   },
+  stepPrompt: {
+    flex: 1,
+    backgroundColor: '#262626',
+    paddingVertical: 14,
+    paddingHorizontal: 18,
+    borderRadius: 24,
+  },
+  stepPromptTitle: { color: '#fff', fontSize: 18, fontWeight: 'bold' },
+  stepPromptText: { color: '#d4d4d4', fontSize: 15, marginTop: 2 },
   startButtonText: {
     color: '#fff',
     fontSize: 20,

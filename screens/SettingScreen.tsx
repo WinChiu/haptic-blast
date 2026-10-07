@@ -250,6 +250,7 @@ export default function SettingScreen() {
       },
     ]);
   };
+  const [advancedOpen, setAdvancedOpen] = useState(false);
   const cards = [
     {
       title: 'Haptic Feedback',
@@ -289,15 +290,70 @@ export default function SettingScreen() {
         contentContainerStyle={styles.scrollContent}
       >
         {/* Username Section */}
-        <TouchableOpacity
-          style={[
-            styles.historyButton,
-            { backgroundColor: '#333', marginTop: 12 },
-          ]}
-          onPress={() => (navigation as any).navigate('AllUsersData')}
-        >
-          <Text style={styles.historyButtonText}>All Users Data</Text>
-        </TouchableOpacity>
+        {cards.filter((c) => c.title !== 'Debug Mode').map((card, index) => (
+          <View key={index} style={styles.card}>
+            <Text style={styles.cardTitle}>{card.title}</Text>
+            <Text style={styles.cardText}>{card.description}</Text>
+            <View style={styles.toggleContainer}>
+              <Switch
+                trackColor={{ false: '#404040', true: '#22c55e' }}
+                thumbColor="#fff"
+                ios_backgroundColor="#404040"
+                onValueChange={card.onToggle}
+                value={card.isEnabled}
+              />
+              <Text style={styles.toggleLabel}>
+                {card.isEnabled ? 'ON' : 'OFF'}
+              </Text>
+            </View>
+          </View>
+        ))}
+
+        <View style={styles.card}>
+          <Text style={styles.cardTitle}>How to follow the guidance</Text>
+          {GUIDANCE_STEPS.map((step, i) => (
+            <Text key={i} style={styles.cardText}>
+              {i + 1}. {step}
+            </Text>
+          ))}
+        </View>
+
+        <View style={styles.card}>
+          <Text style={styles.cardTitle}>Journey reminder</Text>
+          <Text style={styles.cardText}>
+            Adaptive shows the full tip for your first journeys, then a small
+            reminder. Always shows the full tip every time (use this for
+            studies). Off shows nothing.
+          </Text>
+          <View style={styles.optionRow}>
+            {(
+              [
+                ['adaptive', 'Adaptive'],
+                ['always', 'Always'],
+                ['off', 'Off'],
+              ] as [ReminderPreference, string][]
+            ).map(([value, label]) => (
+              <TouchableOpacity
+                key={value}
+                style={[
+                  styles.optionChip,
+                  reminder === value && styles.optionChipActive,
+                ]}
+                onPress={() => chooseReminder(value)}
+              >
+                <Text
+                  style={[
+                    styles.optionText,
+                    reminder === value && styles.optionTextActive,
+                  ]}
+                >
+                  {label}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        </View>
+
         <View style={styles.card}>
           <Text style={styles.cardTitle}>Username</Text>
           {currentUid ? (
@@ -338,8 +394,27 @@ export default function SettingScreen() {
           )}
         </View>
 
-        {cards.map((card, index) => (
-          <View key={index} style={styles.card}>
+        <TouchableOpacity
+          style={[styles.historyButton, { backgroundColor: '#333' }]}
+          onPress={() => setAdvancedOpen((v) => !v)}
+        >
+          <Text style={styles.historyButtonText}>
+            {advancedOpen ? 'Hide' : 'Show'} advanced and research settings
+          </Text>
+        </TouchableOpacity>
+        {advancedOpen && (
+          <>
+        <TouchableOpacity
+          style={[
+            styles.historyButton,
+            { backgroundColor: '#333' },
+          ]}
+          onPress={() => (navigation as any).navigate('AllUsersData')}
+        >
+          <Text style={styles.historyButtonText}>All Users Data</Text>
+        </TouchableOpacity>
+        {cards.filter((c) => c.title === 'Debug Mode').map((card) => (
+          <View key={card.title} style={styles.card}>
             <Text style={styles.cardTitle}>{card.title}</Text>
             <Text style={styles.cardText}>{card.description}</Text>
             <View style={styles.toggleContainer}>
@@ -350,9 +425,7 @@ export default function SettingScreen() {
                 onValueChange={card.onToggle}
                 value={card.isEnabled}
               />
-              <Text style={styles.toggleLabel}>
-                {card.isEnabled ? 'ON' : 'OFF'}
-              </Text>
+              <Text style={styles.toggleLabel}>{card.isEnabled ? 'ON' : 'OFF'}</Text>
             </View>
           </View>
         ))}
@@ -532,50 +605,8 @@ export default function SettingScreen() {
           </TouchableOpacity>
         </View>
 
-        <View style={styles.card}>
-          <Text style={styles.cardTitle}>Journey reminder</Text>
-          <Text style={styles.cardText}>
-            Adaptive shows the full tip for your first journeys, then a small
-            reminder. Always shows the full tip every time (use this for
-            studies). Off shows nothing.
-          </Text>
-          <View style={styles.optionRow}>
-            {(
-              [
-                ['adaptive', 'Adaptive'],
-                ['always', 'Always'],
-                ['off', 'Off'],
-              ] as [ReminderPreference, string][]
-            ).map(([value, label]) => (
-              <TouchableOpacity
-                key={value}
-                style={[
-                  styles.optionChip,
-                  reminder === value && styles.optionChipActive,
-                ]}
-                onPress={() => chooseReminder(value)}
-              >
-                <Text
-                  style={[
-                    styles.optionText,
-                    reminder === value && styles.optionTextActive,
-                  ]}
-                >
-                  {label}
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-        </View>
-
-        <View style={styles.card}>
-          <Text style={styles.cardTitle}>How to follow the guidance</Text>
-          {GUIDANCE_STEPS.map((step, i) => (
-            <Text key={i} style={styles.cardText}>
-              {i + 1}. {step}
-            </Text>
-          ))}
-        </View>
+          </>
+        )}
 
         <View style={styles.card}>
           <Text style={styles.cardTitle}>Map data</Text>
