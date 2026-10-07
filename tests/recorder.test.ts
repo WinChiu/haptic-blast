@@ -10,6 +10,7 @@ import {
   formatSummary,
   formatTable,
   groupWalks,
+  motionRow,
   parseCsv,
   walkMetrics,
   summariseHeading,
@@ -207,4 +208,63 @@ test('walkMetrics: judges alignment with the silent zone the walk was recorded w
   assert.equal(narrow.phoneAligned, 0);
   assert.equal(old.tolerance, 25);
   assert.equal(old.phoneAligned, 1);
+});
+
+// ---------- optional motion sensors ----------
+const reading = {
+  acceleration: { x: 0.1, y: -0.2, z: 0.3 },
+  accelerationIncludingGravity: { x: 0.1, y: -0.2, z: -9.5 },
+  rotationRate: { alpha: 1.5, beta: -2.5, gamma: 0.25 },
+};
+
+test('motionRow: gravity is the total minus the user\'s own acceleration', () => {
+  const row = motionRow(1234.4, reading);
+  assert.equal(row[0], 1234);
+  assert.deepEqual(row.slice(1, 4), [0.1, -0.2, 0.3]); // user acceleration
+  near3(row[4]!, 0); near3(row[5]!, 0); near3(row[6]!, -9.8); // gravity
+  assert.deepEqual(row.slice(7, 10), [1.5, -2.5, 0.25]); // rotation rate
+});
+
+test('motionRow: missing sensors become null', () => {
+  const row = motionRow(0, { ...reading, acceleration: null, rotationRate: null });
+  assert.deepEqual(row.slice(1), [null, null, null, null, null, null, null, null, null]);
+});
+
+function near3(a: number, b: number) {
+  assert.ok(Math.abs(a - b) < 1e-9, `${a} vs ${b}`);
+}
+
+test('motion readings survive toCsv then parseCsv, and are not mistaken for GPS samples', () => {
+  const rec: Recording = {
+    meta: { started: 'x', motion_hz: '20' },
+    samples: [sample({ t: 0 }), sample({ t: 1000 })],
+    motion: [motionRow(0, reading), motionRow(50, { ...reading, rotationRate: null })],
+  };
+  const text = toCsv(rec);
+  assert.ok(text.includes('# motion'));
+  assert.ok(text.includes('t_ms,ax,ay,az,gx,gy,gz,wx,wy,wz'));
+  const parsed = parseCsv(text)[0];
+  assert.equal(parsed.samples.length, 2); // the two GPS samples only
+  assert.equal(parsed.motion!.length, 2);
+  assert.equal(parsed.motion![0][3], 0.3);
+  assert.equal(parsed.motion![1][7], null); // blank stayed blank
+  assert.equal(parsed.meta.motion_hz, '20');
+});
+
+test('a recording without motion has no motion section, and several recordings stay separate', () => {
+  const plain: Recording = { meta: { n: '1' }, samples: [sample()] };
+  const withMotion: Recording = { meta: { n: '2' }, samples: [sample()], motion: [motionRow(0, reading)] };
+  assert.ok(!toCsv(plain).includes('# motion'));
+  const parsed = parseCsv(toCsv(withMotion) + '\n\n' + toCsv(plain) + '\n\n' + toCsv(withMotion));
+  assert.equal(parsed.length, 3);
+  assert.equal(parsed[0].motion!.length, 1);
+  assert.equal(parsed[1].motion, undefined);
+  assert.equal(parsed[2].samples.length, 1);
+});
+
+test('formatSummary mentions the motion readings and their rate', () => {
+  const motion = Array.from({ length: 200 }, (_, i) => motionRow(i * 50, reading)); // 10 s at 20 a second
+  const samples = Array.from({ length: 11 }, (_, i) => sample({ t: i * 1000 }));
+  const text = formatSummary({ meta: { started: 'x' }, samples, motion });
+  assert.ok(text.includes('motion sensors: 200 readings (about 20 a second)'));
 });

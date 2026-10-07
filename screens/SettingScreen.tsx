@@ -75,6 +75,7 @@ export default function SettingScreen() {
     enabled: false,
     phonePosition: 'pocket',
     label: '',
+    motion: false,
   });
   const [recCount, setRecCount] = useState(0);
   const [recSamples, setRecSamples] = useState(0);
@@ -400,6 +401,19 @@ export default function SettingScreen() {
                 </Text>
               </TouchableOpacity>
             ))}
+          </View>
+          <View style={styles.toggleContainer}>
+            <Switch
+              trackColor={{ false: '#404040', true: '#22c55e' }}
+              thumbColor="#fff"
+              ios_backgroundColor="#404040"
+              onValueChange={(value) => updateRecPrefs({ motion: value })}
+              value={recPrefs.motion}
+            />
+            <Text style={[styles.toggleLabel, { flex: 1, fontWeight: '400' }]}>
+              Also record the motion sensors (about 20 a second). Makes the file
+              about 2 MB per half hour; share it as a .csv file.
+            </Text>
           </View>
           <Text style={styles.cardText}>
             Label for the next walks (person, route, condition, repeat):

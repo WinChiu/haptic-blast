@@ -25,7 +25,8 @@ import {
   recordJourneyFinished,
 } from '../util/guidancePrefs';
 import { chooseTipMode, TipMode } from '../util/tipMode';
-import { Recording, Sample } from '../util/recorder';
+import { Recording, Sample, motionRow } from '../util/recorder';
+import { DeviceMotion } from 'expo-sensors';
 import { isFixGoodToStart } from '../util/gps';
 import { loadRecordingPrefs, saveRecording } from '../util/recordingStorage';
 
@@ -168,6 +169,31 @@ export default function HomeScreen() {
   const MIN_SAMPLE_GAP_MS = 450; // about 2 samples a second, whatever the update rate
   const lastSampleMsRef = useRef(0);
 
+  // Optional raw motion readings (accelerometer + gyroscope) for the recording
+  const MOTION_INTERVAL_MS = 50; // 20 a second
+  const motionSubRef = useRef<{ remove: () => void } | null>(null);
+  const stopMotionCapture = () => {
+    motionSubRef.current?.remove();
+    motionSubRef.current = null;
+  };
+  const startMotionCapture = async () => {
+    try {
+      if (!(await DeviceMotion.isAvailableAsync())) return;
+      if (!recordingRef.current) return; // the journey ended while we were checking
+      DeviceMotion.setUpdateInterval(MOTION_INTERVAL_MS);
+      motionSubRef.current = DeviceMotion.addListener((reading) => {
+        const active = recordingRef.current;
+        if (!active) return;
+        (active.recording.motion ??= []).push(
+          motionRow(Date.now() - active.startedAtMs, reading)
+        );
+      });
+    } catch {
+      // no motion sensors: the recording simply has none
+    }
+  };
+  useEffect(() => stopMotionCapture, []);
+
   const startRecording = async (tipShown: TipMode) => {
     const prefs = await loadRecordingPrefs();
     if (!prefs.enabled) return;
@@ -195,13 +221,20 @@ export default function HomeScreen() {
         samples: [],
       },
     };
-    console.log(`[rec] started (phone position: ${prefs.phonePosition})`);
+    if (prefs.motion) {
+      recordingRef.current.recording.meta.motion_hz = String(1000 / MOTION_INTERVAL_MS);
+      startMotionCapture();
+    }
+    console.log(
+      `[rec] started (phone position: ${prefs.phonePosition}${prefs.motion ? ', with motion sensors' : ''})`
+    );
   };
 
   const stopRecording = (reason: 'finished' | 'cancelled') => {
     const active = recordingRef.current;
     if (!active) return;
     recordingRef.current = null;
+    stopMotionCapture();
     active.recording.meta.ended = reason;
     saveRecording(active.recording);
     console.log(`[rec] saved (${reason}, ${active.recording.samples.length} samples)`);

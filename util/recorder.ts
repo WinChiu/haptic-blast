@@ -14,18 +14,55 @@ export type Sample = {
   checkpoint: number | null; // index of the current checkpoint
 };
 
+// One reading of the phone's motion sensors, about 20 a second when the optional
+// "record motion sensors" switch is on. Columns, in order (see MOTION_COLUMNS):
+// t_ms, user acceleration x y z (m/s2, gravity removed), gravity x y z (m/s2) and
+// rotation rate x y z (degrees/s). null when the sensor gave no value.
+export type MotionRow = (number | null)[];
+
 export type Recording = {
   meta: Record<string, string>;
   samples: Sample[];
+  motion?: MotionRow[];
 };
 
 export const CSV_COLUMNS =
   't_ms,lat,lng,accuracy_m,speed_mps,course_deg,phone_heading_deg,target_bearing_deg,checkpoint';
 
 const RECORDING_MARKER = '# haptic-blast recording v1';
+const MOTION_MARKER = '# motion';
+export const MOTION_COLUMNS = 't_ms,ax,ay,az,gx,gy,gz,wx,wy,wz';
 
 const num = (v: number | null, digits: number) =>
   v === null || Number.isNaN(v) ? '' : v.toFixed(digits);
+
+
+// The sensor reading in the shape DeviceMotion (expo-sensors) gives it
+export type MotionInput = {
+  acceleration: { x: number; y: number; z: number } | null;
+  accelerationIncludingGravity: { x: number; y: number; z: number };
+  rotationRate: { alpha: number; beta: number; gamma: number } | null;
+};
+
+// One MotionRow from a reading. Gravity is the total acceleration minus the
+// user's own acceleration. Missing sensors give null.
+export function motionRow(tMs: number, m: MotionInput): MotionRow {
+  const total = m.accelerationIncludingGravity;
+  const user = m.acceleration;
+  const r = m.rotationRate;
+  return [
+    Math.round(tMs),
+    user ? user.x : null,
+    user ? user.y : null,
+    user ? user.z : null,
+    user && total ? total.x - user.x : null,
+    user && total ? total.y - user.y : null,
+    user && total ? total.z - user.z : null,
+    r ? r.alpha : null,
+    r ? r.beta : null,
+    r ? r.gamma : null,
+  ];
+}
 
 export function toCsv(recording: Recording): string {
   const lines = [RECORDING_MARKER];
@@ -48,6 +85,16 @@ export function toCsv(recording: Recording): string {
       ].join(',')
     );
   }
+  if (recording.motion && recording.motion.length > 0) {
+    lines.push(MOTION_MARKER, MOTION_COLUMNS);
+    for (const row of recording.motion) {
+      lines.push(
+        row
+          .map((v, i) => (v === null || Number.isNaN(v) ? '' : i === 0 ? String(Math.round(v)) : v.toFixed(3)))
+          .join(',')
+      );
+    }
+  }
   return lines.join('\n');
 }
 
@@ -55,6 +102,7 @@ export function toCsv(recording: Recording): string {
 export function parseCsv(text: string): Recording[] {
   const recordings: Recording[] = [];
   let current: Recording | null = null;
+  let inMotion = false; // after "# motion" the rows are motion readings, not GPS samples
   const orNull = (v: string) => (v === '' ? null : Number(v));
 
   for (const raw of text.split(/\r?\n/)) {
@@ -62,10 +110,17 @@ export function parseCsv(text: string): Recording[] {
     if (line === '') continue;
     if (line === RECORDING_MARKER) {
       current = { meta: {}, samples: [] };
+      inMotion = false;
       recordings.push(current);
+    } else if (line === MOTION_MARKER && current) {
+      inMotion = true;
+      current.motion = [];
     } else if (line.startsWith('#') && current) {
       const eq = line.indexOf('=');
       if (eq > 0) current.meta[line.slice(2, eq)] = line.slice(eq + 1);
+    } else if (current && inMotion) {
+      if (line.startsWith('t_ms')) continue;
+      current.motion!.push(line.split(',').map((v) => (v === '' ? null : Number(v))));
     } else if (current && !line.startsWith('t_ms')) {
       const f = line.split(',');
       if (f.length < 9) continue;
@@ -176,6 +231,7 @@ export function formatSummary(recording: Recording, index = 0): string {
     ? accuracies.reduce((a, b) => a + b, 0) / accuracies.length
     : NaN;
   const m = recording.meta;
+  const motionCount = recording.motion?.length ?? 0;
 
   const lines = [
     `Recording ${index + 1}: started ${m.started}`,
@@ -183,6 +239,9 @@ export function formatSummary(recording: Recording, index = 0): string {
     `  ${s.samples} samples over ${seconds.toFixed(0)} s; mean GPS accuracy ${Number.isNaN(meanAccuracy) ? 'n/a' : meanAccuracy.toFixed(1) + ' m'}`,
     `  walking samples (speed >= 0.5 m/s with a GPS direction): ${s.walking} (${pct(s.walking / Math.max(s.samples, 1))})`,
   ];
+  if (motionCount > 0) {
+    lines.push(`  motion sensors: ${motionCount} readings (about ${(motionCount / Math.max(seconds, 1)).toFixed(0)} a second)`);
+  }
   if (m.debug_mode === 'true') {
     lines.push(
       '  NOTE: debug mode, the positions are fake and the "direction of travel" is just the phone heading. Ignore this recording for any heading analysis.'

@@ -28,11 +28,14 @@ export type RecordingPrefs = {
   // Free text saved in every recording, for example "angel-lappis-pocket-1"
   // (person, route, condition, repeat). Used to tell walks apart in the analysis.
   label: string;
+  // Also record the accelerometer and gyroscope (about 20 readings a second)
+  motion: boolean;
 };
 const DEFAULT_PREFS: RecordingPrefs = {
   enabled: false,
   phonePosition: 'pocket',
   label: '',
+  motion: false,
 };
 
 export async function loadRecordingPrefs(): Promise<RecordingPrefs> {
