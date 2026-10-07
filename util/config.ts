@@ -2,7 +2,11 @@ export const CONFIG = {
   // REPLACE with your computer's local IP address if running on a physical device.
   // Use 'http://10.0.2.2' for Android Emulator.
   // Use 'http://localhost' for iOS Simulator.
-  MAP_SERVER_URL: 'https://gullible-bulldozer-retype.ngrok-free.dev',
+  // EXPO_PUBLIC_MAP_SERVER_URL (set in the gitignored .env.local) overrides this
+  // at build time; without it the app uses the laptop's tunnel below.
+  MAP_SERVER_URL:
+    process.env.EXPO_PUBLIC_MAP_SERVER_URL ??
+    'https://gullible-bulldozer-retype.ngrok-free.dev',
 };
 
 export const API_ENDPOINTS = {
