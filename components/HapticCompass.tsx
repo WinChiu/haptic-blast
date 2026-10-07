@@ -21,6 +21,7 @@ import {
   nextIsUpright,
 } from '../hooks/useCompass';
 import { addOrientationListener } from '../modules/fused-orientation';
+import { useHapticSettings } from '../util/hapticSettings';
 import { getVibratorCapabilities } from '../modules/vibrator-info';
 import { BUZZ_BACKEND } from '../hooks/useBuzz';
 
@@ -79,7 +80,8 @@ export default function HapticCompass({
   const topY = 10;
 
   // Angle Spans (Degrees)
-  const coneWidth = GlobalStore.COMPASS_ANGLE_TOLERANCE * 2;
+  const { deadband } = useHapticSettings();
+  const coneWidth = deadband * 2;
   const arcWidth = 0; // 🟢 Smaller arc length (was 60 to match cone)
 
   const half = (coneWidth / 2) * (Math.PI / 180);
@@ -173,7 +175,7 @@ export default function HapticCompass({
     return () => clearInterval(timer);
   }, []);
 
-  const isAligned = Math.abs(shortestDiff(targetAngle, heading)) <= 25;
+  const isAligned = Math.abs(shortestDiff(targetAngle, heading)) <= deadband;
 
   // Colors
   // Colors

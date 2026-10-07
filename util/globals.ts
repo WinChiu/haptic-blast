@@ -1,5 +1,4 @@
 export const GlobalStore = {
-  COMPASS_ANGLE_TOLERANCE: 25,
   FEEDBACK: {
     MAX_INTERVAL: 1000,
     MIN_INTERVAL: 300,
@@ -8,10 +7,7 @@ export const GlobalStore = {
     MIN_DIFF: 15,
   },
   BUZZ: {
-    // Pulsar amplitude/frequency are 0..1. Strength (0..1) maps to amplitude
-    // linearly between MIN_AMPLITUDE and MAX_AMPLITUDE.
-    MIN_AMPLITUDE: 0.2,
-    MAX_AMPLITUDE: 1,
+    // Pulsar frequency is 0..1. The amplitude comes from util/haptics.ts.
     FREQUENCY: 0.5,
   },
   DEBUG_MODE: {

@@ -30,7 +30,10 @@ import { isFixGoodToStart } from '../util/gps';
 import { loadRecordingPrefs, saveRecording } from '../util/recordingStorage';
 
 import { useCompass } from '../hooks/useCompass';
-import { useGuidance, HAPTIC_STYLE } from '../hooks/useGuidance';
+import { useGuidance } from '../hooks/useGuidance';
+import { BUZZ_BACKEND } from '../hooks/useBuzz';
+import { useHapticSettings } from '../util/hapticSettings';
+import { hapticStyleOf } from '../util/haptics';
 import { useFeedback } from '../hooks/FeedbackContext';
 import { GlobalStore } from '../util/globals';
 import { addRound, updateRoundTiming } from '../util/store';
@@ -49,6 +52,9 @@ export default function HomeScreen() {
   const navigation = useNavigation();
   const endingPlayer = useAudioPlayer(ENDING_SOURCE);
   const { hapticEnabled, soundEnabled } = useFeedback();
+  // How the phone vibrates now (Settings -> Haptic tuning); recorded with every round
+  const hapticSettings = useHapticSettings();
+  const hapticStyle = hapticStyleOf(BUZZ_BACKEND !== 'none', hapticSettings.mode);
   const feedbackText = useMemo(() => {
     if (hapticEnabled && soundEnabled) return 'Hybrid Mode';
     if (hapticEnabled) return 'Haptic Mode';
@@ -176,7 +182,11 @@ export default function HomeScreen() {
           label: prefs.label.replace(/[\r\n=]/g, ' ').trim() || 'unlabelled',
           haptic: String(hapticEnabled),
           sound: String(soundEnabled),
-          haptic_style: HAPTIC_STYLE,
+          haptic_style: hapticStyle,
+          haptic_mode: hapticSettings.mode,
+          deadband_deg: String(hapticSettings.deadband),
+          pulse_ms: String(hapticSettings.pulseMs),
+          confirm_ms: String(hapticSettings.confirmMs),
           tip: tipShown,
           debug_mode: String(isDebugMode),
           dev_build: String(__DEV__),
@@ -287,7 +297,7 @@ export default function HomeScreen() {
               duration: duration,
               hapticEnabled,
               soundEnabled,
-              hapticStyle: HAPTIC_STYLE,
+              hapticStyle,
             })
           );
         }
@@ -435,7 +445,7 @@ export default function HomeScreen() {
             stop: 0,
             hapticEnabled,
             soundEnabled,
-            hapticStyle: HAPTIC_STYLE,
+            hapticStyle,
             guidanceTip: tipShown,
           },
           mistake: [],
@@ -471,7 +481,7 @@ export default function HomeScreen() {
             duration: duration,
             hapticEnabled,
             soundEnabled,
-            hapticStyle: HAPTIC_STYLE,
+            hapticStyle,
           })
         );
       }

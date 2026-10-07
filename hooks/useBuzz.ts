@@ -21,32 +21,21 @@ export const BUZZ_BACKEND: BuzzBackend = PULSAR_AVAILABLE
 // Long enough to outlast any gap between start() refreshes.
 const ANDROID_HOLD_MS = 60_000;
 
-const toAmplitude = (strength: number) => {
-  const { MIN_AMPLITUDE, MAX_AMPLITUDE } = GlobalStore.BUZZ;
-  const s = Math.max(0, Math.min(1, strength));
-  return MIN_AMPLITUDE + s * (MAX_AMPLITUDE - MIN_AMPLITUDE);
-};
-
 export function useBuzz() {
   // BUZZ_BACKEND is fixed for the app's lifetime, so this conditional hook
   // call always takes the same branch.
   const realtime = PULSAR_AVAILABLE ? Pulsar.useRealtimeComposer() : null;
   const isBuzzingRef = useRef(false);
+  const pulseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Start buzzing, or update the strength of an ongoing buzz.
-  const start = useCallback(
-    (strength: number) => {
-      if (realtime) {
-        realtime.set(toAmplitude(strength), GlobalStore.BUZZ.FREQUENCY);
-      } else if (BUZZ_BACKEND === 'android-vibration' && !isBuzzingRef.current) {
-        Vibration.vibrate(ANDROID_HOLD_MS);
-      }
-      isBuzzingRef.current = true;
-    },
-    [realtime]
-  );
+  const clamp01 = (v: number) => Math.max(0, Math.min(1, v));
 
+  // Stop whatever is vibrating, including a pulse still waiting to end.
   const stop = useCallback(() => {
+    if (pulseTimerRef.current) {
+      clearTimeout(pulseTimerRef.current);
+      pulseTimerRef.current = null;
+    }
     if (!isBuzzingRef.current) return;
     if (realtime) {
       realtime.stop();
@@ -56,7 +45,36 @@ export function useBuzz() {
     isBuzzingRef.current = false;
   }, [realtime]);
 
+  // Start buzzing, or update the amplitude (0..1) of an ongoing buzz.
+  const start = useCallback(
+    (amplitude: number) => {
+      if (realtime) {
+        realtime.set(clamp01(amplitude), GlobalStore.BUZZ.FREQUENCY);
+      } else if (BUZZ_BACKEND === 'android-vibration' && !isBuzzingRef.current) {
+        Vibration.vibrate(ANDROID_HOLD_MS);
+      }
+      isBuzzingRef.current = true;
+    },
+    [realtime]
+  );
+
+  // One vibration of `durationMs` at `amplitude` (0..1), then silence. On
+  // Android without Pulsar the strength cannot be set, only the length.
+  const pulse = useCallback(
+    (amplitude: number, durationMs: number) => {
+      if (pulseTimerRef.current) clearTimeout(pulseTimerRef.current);
+      if (realtime) {
+        realtime.set(clamp01(amplitude), GlobalStore.BUZZ.FREQUENCY);
+      } else if (BUZZ_BACKEND === 'android-vibration') {
+        Vibration.vibrate(durationMs);
+      }
+      isBuzzingRef.current = true;
+      pulseTimerRef.current = setTimeout(stop, durationMs);
+    },
+    [realtime, stop]
+  );
+
   useEffect(() => stop, [stop]);
 
-  return { start, stop };
+  return { start, stop, pulse };
 }

@@ -5,6 +5,13 @@ import { useAudioPlayer } from 'expo-audio';
 import { GlobalStore } from '../util/globals';
 import { addMistakeToRound } from '../util/store';
 import { useBuzz, BUZZ_BACKEND } from './useBuzz';
+import { useHapticSettings } from '../util/hapticSettings';
+import {
+  HAPTIC_SHAPE,
+  exponentialIntensity,
+  planPulse,
+  shouldConfirm,
+} from '../util/haptics';
 
 const BEEP_SOURCE = require('../assets/beep.mp3');
 
@@ -29,16 +36,18 @@ const strengthOf = (angleDiff: number) => {
   return Math.max(0, Math.min(1, (angleDiff - MIN_DIFF) / (MAX_DIFF - MIN_DIFF)));
 };
 
-// Haptics buzz continuously while off course, stronger the further off.
-// Expo Go on iOS has no way to buzz, so it falls back to timed taps there.
-export type HapticStyle = 'tap' | 'continuous';
-export const HAPTIC_STYLE: HapticStyle =
-  BUZZ_BACKEND === 'none' ? 'tap' : 'continuous';
+// Haptics vibrate while off course, stronger the further off (see util/haptics.ts):
+// in short pulses (default) or one continuous buzz. Expo Go on iOS has no way to
+// buzz, so it falls back to timed taps there.
+type HapticStyleNow = 'tap' | 'pulsed' | 'continuous';
 
 // Whether the timed loop has work: sound beeps, or the tap fallback.
-// Continuous buzz is driven directly by heading changes instead.
-const loopNeeded = (s: { hapticEnabled: boolean; soundEnabled: boolean }) =>
-  s.soundEnabled || (s.hapticEnabled && HAPTIC_STYLE === 'tap');
+// Pulses and the continuous buzz run on their own, see below.
+const loopNeeded = (s: {
+  hapticEnabled: boolean;
+  soundEnabled: boolean;
+  hapticStyle: HapticStyleNow;
+}) => s.soundEnabled || (s.hapticEnabled && s.hapticStyle === 'tap');
 
 export function useGuidance(
   currentHeading: number,
@@ -48,6 +57,9 @@ export function useGuidance(
   soundEnabled: boolean
 ) {
   const dispatch = useDispatch();
+  const haptics = useHapticSettings();
+  const hapticStyle: HapticStyleNow =
+    BUZZ_BACKEND === 'none' ? 'tap' : haptics.mode;
   const rounds = useSelector((state: any) => state.userData.round);
   const userUid = useSelector((state: any) => state.userData.userProfile.Uid);
   
@@ -64,6 +76,9 @@ export function useGuidance(
     isNavigating,
     hapticEnabled,
     soundEnabled,
+    deadband: haptics.deadband,
+    hapticStyle,
+    settings: haptics,
   });
 
   useEffect(() => {
@@ -73,6 +88,9 @@ export function useGuidance(
       isNavigating,
       hapticEnabled,
       soundEnabled,
+      deadband: haptics.deadband,
+      hapticStyle,
+      settings: haptics,
     };
   }, [
     currentHeading,
@@ -80,31 +98,40 @@ export function useGuidance(
     isNavigating,
     hapticEnabled,
     soundEnabled,
+    haptics,
+    hapticStyle,
   ]);
 
   // Audio setup
   const player = useAudioPlayer(BEEP_SOURCE);
-  const { start: startBuzz, stop: stopBuzz } = useBuzz();
+  const { start: startBuzz, stop: stopBuzz, pulse: pulseBuzz } = useBuzz();
 
   // Constants
   const { MAX_INTERVAL, MIN_INTERVAL, STEP } = GlobalStore.FEEDBACK;
 
   const playFeedback = useCallback(async () => {
-    const { heading, target, isNavigating, hapticEnabled, soundEnabled } =
-      stateRef.current;
+    const {
+      heading,
+      target,
+      isNavigating,
+      hapticEnabled,
+      soundEnabled,
+      deadband,
+      hapticStyle,
+    } = stateRef.current;
 
     // Check if we should be giving feedback
     if (!isNavigating) return;
 
     const angleDiff = Math.abs(shortestDiff(target, heading));
-    const isAligned = angleDiff <= GlobalStore.COMPASS_ANGLE_TOLERANCE;
+    const isAligned = angleDiff <= deadband;
 
     if (isAligned) return;
 
     const strength = strengthOf(angleDiff);
 
-    // HAPTIC ACTION: tap fallback only (continuous buzz has its own effect)
-    if (hapticEnabled && HAPTIC_STYLE === 'tap') {
+    // HAPTIC ACTION: tap fallback only (pulses and the continuous buzz have their own effects)
+    if (hapticEnabled && hapticStyle === 'tap') {
       let hapticType = Haptics.ImpactFeedbackStyle.Light;
       if (strength > 0.3) {
         hapticType = Haptics.ImpactFeedbackStyle.Heavy;
@@ -127,7 +154,7 @@ export function useGuidance(
 
   // The Loop
   const loop = useCallback(() => {
-    const { heading, target, isNavigating } = stateRef.current;
+    const { heading, target, isNavigating, deadband } = stateRef.current;
 
     // Stop conditions
     if (!isNavigating || !loopNeeded(stateRef.current)) {
@@ -136,7 +163,7 @@ export function useGuidance(
     }
 
     const angleDiff = Math.abs(shortestDiff(target, heading));
-    const isAligned = angleDiff <= GlobalStore.COMPASS_ANGLE_TOLERANCE;
+    const isAligned = angleDiff <= deadband;
 
     if (isAligned) {
       // If aligned, we don't stop the loop immediately, but we might wait a bit or check again?
@@ -178,7 +205,7 @@ export function useGuidance(
     }
 
     const angleDiff = Math.abs(shortestDiff(targetBearing, currentHeading));
-    const isAligned = angleDiff <= GlobalStore.COMPASS_ANGLE_TOLERANCE;
+    const isAligned = angleDiff <= haptics.deadband;
 
     // Track alignment changes and log mistakes (only if logged in)
     // Transition from aligned to misaligned (mistake starts)
@@ -227,19 +254,22 @@ export function useGuidance(
     dispatch,
     rounds.length,
     userUid,
+    haptics.deadband,
+    hapticStyle,
   ]);
 
-  // Continuous buzz: follows every heading update instead of the timed loop
+  // Continuous buzz: follows every heading update instead of the timed loop.
+  // Its strength follows the same exponential curve as the pulses.
   useEffect(() => {
     const angleDiff = Math.abs(shortestDiff(targetBearing, currentHeading));
     const shouldBuzz =
       isNavigating &&
       hapticEnabled &&
-      HAPTIC_STYLE === 'continuous' &&
-      angleDiff > GlobalStore.COMPASS_ANGLE_TOLERANCE;
+      hapticStyle === 'continuous' &&
+      angleDiff > haptics.deadband;
 
     if (shouldBuzz) {
-      startBuzz(strengthOf(angleDiff));
+      startBuzz(exponentialIntensity(angleDiff, haptics.deadband));
       isContinuousBuzzingRef.current = true;
     } else if (isContinuousBuzzingRef.current) {
       stopBuzz();
@@ -250,9 +280,67 @@ export function useGuidance(
     targetBearing,
     isNavigating,
     hapticEnabled,
+    hapticStyle,
+    haptics.deadband,
     startBuzz,
     stopBuzz,
   ]);
+
+  // Pulsed vibration (the default): while off course, one pulse, then a pause
+  // that is shorter the further off the phone points; silent on course. A very
+  // short, light click confirms the moment the phone lines up. The angle is
+  // checked every 50 ms, so lining up cuts a running pulse short and the click
+  // comes at once, and the rhythm follows the user as they turn.
+  // The loop reads these through refs so that it restarts only when navigation,
+  // the haptic switch or the mode changes, never because a function was recreated.
+  const pulseRef = useRef(pulseBuzz);
+  pulseRef.current = pulseBuzz;
+  const stopRef = useRef(stopBuzz);
+  stopRef.current = stopBuzz;
+
+  useEffect(() => {
+    if (!(isNavigating && hapticEnabled && hapticStyle === 'pulsed')) return;
+
+    let cancelled = false;
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    let wasOutside = false;
+    let nextPulseAt = 0; // when the next pulse may start (after the pause)
+    let lastConfirmAt = -Infinity;
+
+    const tick = () => {
+      if (cancelled) return;
+      const now = Date.now();
+      const { heading, target, settings } = stateRef.current;
+      const error = Math.abs(shortestDiff(target, heading));
+      const plan = planPulse(error, settings);
+
+      if (plan) {
+        wasOutside = true;
+        if (now >= nextPulseAt) {
+          pulseRef.current(plan.amplitude, plan.pulseMs);
+          nextPulseAt = now + plan.pulseMs + plan.pauseMs;
+        }
+      } else {
+        // on course: click once when lining up, otherwise just go quiet
+        if (shouldConfirm(wasOutside, error, settings.deadband, now - lastConfirmAt)) {
+          pulseRef.current(HAPTIC_SHAPE.confirmIntensity, settings.confirmMs);
+          lastConfirmAt = now;
+        } else if (wasOutside) {
+          stopRef.current();
+        }
+        wasOutside = false;
+        nextPulseAt = 0;
+      }
+      timer = setTimeout(tick, 50);
+    };
+
+    tick();
+    return () => {
+      cancelled = true;
+      if (timer) clearTimeout(timer);
+      stopRef.current();
+    };
+  }, [isNavigating, hapticEnabled, hapticStyle]);
 
   // Cleanup
   useEffect(() => {
