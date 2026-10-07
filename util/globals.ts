@@ -24,6 +24,10 @@ export const GlobalStore = {
   GPS: {
     maxUsableAccuracy: 20, // worse fixes are ignored for route progress
     maxStartAccuracy: 15, // Preview Route and Start wait for a fix this good
+    // For working out the direction, the position is pulled onto the planned path
+    // when it is within this distance of it (see snapToRoute). The off-route check
+    // keeps using the real GPS position.
+    snapLimit: 20,
   },
   // The how-to reminder shown when a journey starts. In 'adaptive' mode the
   // full tip appears until the user has finished `fullUntilFinished` journeys,

@@ -12,6 +12,8 @@ export type Sample = {
   phoneHeading: number; // where the phone points (what the app uses today)
   targetBearing: number | null; // direction the guidance is steering towards
   checkpoint: number | null; // index of the current checkpoint
+  zone?: number | null; // the silent zone in force, degrees (wider when GPS is poor)
+  snapM?: number | null; // metres the GPS position was pulled onto the planned path (blank = not snapped)
 };
 
 // One reading of the phone's motion sensors, about 20 a second when the optional
@@ -27,7 +29,7 @@ export type Recording = {
 };
 
 export const CSV_COLUMNS =
-  't_ms,lat,lng,accuracy_m,speed_mps,course_deg,phone_heading_deg,target_bearing_deg,checkpoint';
+  't_ms,lat,lng,accuracy_m,speed_mps,course_deg,phone_heading_deg,target_bearing_deg,checkpoint,zone_deg,snap_m';
 
 const RECORDING_MARKER = '# haptic-blast recording v1';
 const MOTION_MARKER = '# motion';
@@ -82,6 +84,8 @@ export function toCsv(recording: Recording): string {
         num(s.phoneHeading, 1),
         num(s.targetBearing, 1),
         s.checkpoint === null ? '' : s.checkpoint,
+        num(s.zone ?? null, 0),
+        num(s.snapM ?? null, 1),
       ].join(',')
     );
   }
@@ -134,6 +138,8 @@ export function parseCsv(text: string): Recording[] {
         phoneHeading: Number(f[6]),
         targetBearing: orNull(f[7]),
         checkpoint: orNull(f[8]),
+        zone: f.length > 9 ? orNull(f[9]) : null,
+        snapM: f.length > 10 ? orNull(f[10]) : null,
       });
     }
   }

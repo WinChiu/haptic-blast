@@ -12,7 +12,12 @@ import { GlobalStore } from '../util/globals';
 import { distanceMeters } from '../util/geo';
 import { generateCheckpoints } from '../util/checkpoints';
 import { isFixUsable } from '../util/gps';
-import { distanceToRoute, aimPoint, checkpointStep } from '../util/progress';
+import {
+  distanceToRoute,
+  aimPoint,
+  checkpointStep,
+  snapToRoute,
+} from '../util/progress';
 
 interface MapProps {
   route: { latitude: number; longitude: number }[] | null;
@@ -45,7 +50,14 @@ interface MapProps {
       longitude: number;
     } | null,
     index?: number,
-    total?: number
+    total?: number,
+    // Where the guidance should measure from: the GPS position pulled onto the
+    // planned path when the user is near it (snapped), otherwise the GPS position
+    guide?: {
+      position: { latitude: number; longitude: number };
+      snapped: boolean;
+      snapDistance: number | null;
+    }
   ) => void;
   mockUserLocation?: {
     latitude: number;
@@ -67,6 +79,7 @@ export default function Map({
 }: MapProps) {
   const mapRef = useRef<MapView>(null);
   const hasRouteRef = useRef(false); // is a route already on screen?
+  const snapHintRef = useRef(0); // route segment where the user was last snapped
   const offRouteSinceRef = useRef<number | null>(null);
   const lastRerouteRef = useRef(0);
   const lastLocationRef = useRef<{
@@ -120,6 +133,7 @@ export default function Map({
         });
       }
       hasRouteRef.current = true;
+      snapHintRef.current = 0; // a new route starts again from its first segment
     } else {
       hasRouteRef.current = false;
       offRouteSinceRef.current = null;
@@ -159,11 +173,19 @@ export default function Map({
     // Cut a corner or took another way? Jump to a checkpoint further along that
     // the user is already close to. Otherwise check whether the current one is
     // reached (see isCheckpointReached for how corners are judged).
-    const step = checkpointStep(
-      userLocation,
-      routeCheckpoints,
-      currentCheckpointIndex
-    );
+    // GPS drifts sideways; the user is meant to be on the planned path, so
+    // measure from the closest point on it (when near it). The off-route check
+    // below still uses the real GPS position.
+    const snap = snapToRoute(userLocation, routeCoordinates, undefined, snapHintRef.current);
+    if (snap) snapHintRef.current = snap.segment;
+    const here = snap ? snap.point : userLocation;
+    const guide = {
+      position: here,
+      snapped: snap !== null,
+      snapDistance: snap ? snap.distance : null,
+    };
+
+    const step = checkpointStep(here, routeCheckpoints, currentCheckpointIndex);
     if (step?.reason === 'skip') {
       console.log(
         `[nav] skipped ahead from checkpoint ${currentCheckpointIndex} to ${step.index}`
@@ -172,7 +194,7 @@ export default function Map({
       return;
     }
 
-    const dist = distanceMeters(userLocation, currentTarget);
+    const dist = distanceMeters(here, currentTarget);
 
     if (step?.reason === 'reached') {
       // Reached! Move to next.
@@ -189,23 +211,25 @@ export default function Map({
       // If there is a next point, update target immediately
       if (nextIndex < routeCheckpoints.length) {
         onNextCheckpointUpdate(
-          aimPoint(userLocation, routeCheckpoints, nextIndex),
+          aimPoint(here, routeCheckpoints, nextIndex),
           nextIndex,
-          routeCheckpoints.length
+          routeCheckpoints.length,
+          guide
         );
       } else {
         // No more checkpoints, target final destination (handled by HomeScreen fallback)
-        onNextCheckpointUpdate(null as any, nextIndex, routeCheckpoints.length);
+        onNextCheckpointUpdate(null as any, nextIndex, routeCheckpoints.length, guide);
       }
     } else {
       // Not reached yet, keep targeting this one
       onNextCheckpointUpdate(
-        aimPoint(userLocation, routeCheckpoints, currentCheckpointIndex),
+        aimPoint(here, routeCheckpoints, currentCheckpointIndex),
         currentCheckpointIndex,
-        routeCheckpoints.length
+        routeCheckpoints.length,
+        guide
       );
     }
-  }, [userLocation, routeCheckpoints, currentCheckpointIndex]);
+  }, [userLocation, routeCheckpoints, routeCoordinates, currentCheckpointIndex]);
 
   // Off route for a while? Ask the parent for a new route from here.
   useEffect(() => {

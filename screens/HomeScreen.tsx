@@ -85,6 +85,13 @@ export default function HomeScreen() {
   };
 
   const [centerTrigger, setCenterTrigger] = useState(0);
+  // Where the guidance measures from: the GPS position pulled onto the planned
+  // path when the user is near it (see snapToRoute), reported by the map
+  const [guide, setGuide] = useState<{
+    position: Coord;
+    snapped: boolean;
+    snapDistance: number | null;
+  } | null>(null);
   const [nextCheckpoint, setNextCheckpoint] = useState<{
     latitude: number;
     longitude: number;
@@ -160,6 +167,8 @@ export default function HomeScreen() {
   const headingRef = useRef(0);
   headingRef.current = heading;
   const checkpointIndexRef = useRef<number | null>(null);
+  const snapDistanceRef = useRef<number | null>(null);
+  snapDistanceRef.current = guide?.snapDistance ?? null;
   const recordingRef = useRef<{
     recording: Recording;
     startedAtMs: number;
@@ -262,6 +271,7 @@ export default function HomeScreen() {
       phoneHeading: headingRef.current,
       targetBearing: targetBearingRef.current,
       checkpoint: checkpointIndexRef.current,
+      snapM: snapDistanceRef.current,
     };
     active.recording.samples.push(sample);
     if (now - active.lastSavedMs >= SAVE_EVERY_MS) {
@@ -281,9 +291,11 @@ export default function HomeScreen() {
       lng: nextCheckpoint.longitude,
     };
 
-    const lat1 = (userLocation[0] * Math.PI) / 180;
+    const fromLat = guide ? guide.position.latitude : userLocation[0];
+    const fromLng = guide ? guide.position.longitude : userLocation[1];
+    const lat1 = (fromLat * Math.PI) / 180;
     const lat2 = (target.lat * Math.PI) / 180;
-    const dLon = ((target.lng - userLocation[1]) * Math.PI) / 180;
+    const dLon = ((target.lng - fromLng) * Math.PI) / 180;
 
     const y = Math.sin(dLon) * Math.cos(lat2);
     const x =
@@ -292,7 +304,7 @@ export default function HomeScreen() {
     const bearing = (Math.atan2(y, x) * 180) / Math.PI;
 
     return (bearing + 360) % 360;
-  }, [userLocation, nextCheckpoint]);
+  }, [userLocation, nextCheckpoint, guide]);
 
   const targetBearingRef = useRef<number | null>(null);
   targetBearingRef.current = nextCheckpoint ? targetBearing : null;
@@ -308,10 +320,17 @@ export default function HomeScreen() {
 
   const handleCheckpointUpdate = (
     checkpoint: { latitude: number; longitude: number } | null,
-    index?: number
+    index?: number,
+    _total?: number,
+    guideInfo?: {
+      position: Coord;
+      snapped: boolean;
+      snapDistance: number | null;
+    }
   ) => {
     checkpointIndexRef.current = index ?? null;
     setNextCheckpoint(checkpoint);
+    if (guideInfo) setGuide(guideInfo);
     if (checkpoint === null && isNavigating) {
       // Reached destination
 
@@ -496,6 +515,7 @@ export default function HomeScreen() {
 
   const handleCloseOverlay = () => {
     console.log(`[nav] cancelled (was navigating=${isNavigating})`);
+    setGuide(null);
     hideReminder();
     stopRecording('cancelled');
     // Update stop time if user is logged in and navigating

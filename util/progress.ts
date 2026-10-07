@@ -3,6 +3,7 @@ import {
   alongTrackMeters,
   bearingDegrees,
   bearingDifference,
+  closestPointOnSegment,
   distanceMeters,
   distanceToSegmentMeters,
   interpolate,
@@ -148,4 +149,33 @@ function isSharpTurn(
   else return false; // standing on the first checkpoint: no direction to compare
   const outgoing = bearingDegrees(checkpoints[i], checkpoints[i + 1]);
   return bearingDifference(incoming, outgoing) > GlobalStore.AIM_MAX_TURN;
+}
+
+export type RouteSnap = { point: Coord; distance: number; segment: number };
+
+// GPS drifts sideways by several metres, which turns into a wrong direction to
+// the next point. We know the path the user is meant to be on, so this pulls the
+// position onto it: the closest point on the route line, if it is within
+// `limitMeters`. Beyond that the user is clearly not on the path and null is
+// returned (the caller keeps the real position).
+//
+// Only segments around `hintSegment` (where the user was last snapped) are
+// searched, so a route that comes back near itself cannot make the position
+// jump to a far part of the route.
+export function snapToRoute(
+  user: Coord,
+  route: Coord[],
+  limitMeters: number = GlobalStore.GPS.snapLimit,
+  hintSegment = 0
+): RouteSnap | null {
+  if (route.length < 2) return null;
+  const first = Math.max(0, hintSegment - 5);
+  const last = Math.min(route.length - 2, hintSegment + 40);
+  let best: RouteSnap | null = null;
+  for (let i = first; i <= last; i++) {
+    const point = closestPointOnSegment(user, route[i], route[i + 1]);
+    const distance = distanceMeters(user, point);
+    if (!best || distance < best.distance) best = { point, distance, segment: i };
+  }
+  return best && best.distance <= limitMeters ? best : null;
 }

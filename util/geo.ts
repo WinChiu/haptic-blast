@@ -76,3 +76,22 @@ export function bearingDifference(a: number, b: number): number {
   const d = Math.abs(a - b) % 360;
   return d > 180 ? 360 - d : d;
 }
+
+// The point on the segment a-b closest to p (same flat local projection as
+// distanceToSegmentMeters, accurate over short distances).
+export function closestPointOnSegment(p: Coord, a: Coord, b: Coord): Coord {
+  const cosLat = Math.cos(toRad(a.latitude));
+  const ax = a.longitude * cosLat;
+  const ay = a.latitude;
+  const dx = b.longitude * cosLat - ax;
+  const dy = b.latitude - ay;
+  const len2 = dx * dx + dy * dy;
+  const t =
+    len2 === 0
+      ? 0
+      : Math.max(
+          0,
+          Math.min(1, ((p.longitude * cosLat - ax) * dx + (p.latitude - ay) * dy) / len2)
+        );
+  return interpolate(a, b, t);
+}
