@@ -104,3 +104,20 @@ test('an unknown server message is bad-response and retryable', async () => {
   assert.equal(e.kind, 'bad-response');
   assert.equal(e.retryable, true);
 });
+
+test('the service reaching its daily limit is rate-limited, with no retry', async () => {
+  mockFetch(() => json({ message: 'The route service has reached its daily limit' }, 429));
+  const e = await failure();
+  assert.equal(e.kind, 'rate-limited');
+  assert.equal(e.retryable, false);
+});
+
+test('too many requests in a minute is rate-limited too', async () => {
+  mockFetch(() => json({ message: 'Too many route requests, wait a minute' }, 429));
+  assert.equal((await failure()).kind, 'rate-limited');
+});
+
+test('a bare 429 with no message is rate-limited', async () => {
+  mockFetch(() => new Response('', { status: 429 }));
+  assert.equal((await failure()).kind, 'rate-limited');
+});

@@ -13,6 +13,7 @@ export type RouteErrorKind =
   | 'no-route' // both points are fine but no walkable connection exists
   | 'server-unreachable' // network down, tunnel offline or server not running
   | 'timeout'
+  | 'rate-limited' // the route service has reached its limit (or is being asked too fast)
   | 'bad-response';
 
 export class RouteError extends Error {
@@ -31,6 +32,12 @@ export class RouteError extends Error {
 
 // Turn a GraphHopper error message into one of our error kinds.
 function fromServerMessage(message: string): RouteError {
+  if (/daily limit|limit reached|too many route requests/i.test(message)) {
+    return new RouteError(
+      'rate-limited',
+      'The route service has reached its limit for now. Try again later.'
+    );
+  }
   if (/out of bounds/i.test(message)) {
     return new RouteError(
       'out-of-area',
@@ -97,6 +104,7 @@ export async function fetchRoute(from: Coord, to: Coord): Promise<Coord[]> {
 
   if (!res.ok) {
     if (typeof json?.message === 'string') throw fromServerMessage(json.message);
+    if (res.status === 429) throw fromServerMessage('limit reached');
     if (res.status === 404 || res.status >= 502) {
       throw new RouteError(
         'server-unreachable',
