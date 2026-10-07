@@ -193,3 +193,18 @@ test('formatTable: three repeats are no longer flagged as anecdotal', () => {
   const text = formatTable([1, 2, 3].map((n) => recording({ label: 'r' + n }, walkSamples())));
   assert.ok(text.includes('(3 walks)'));
 });
+
+test('walkMetrics: judges alignment with the silent zone the walk was recorded with', () => {
+  // the phone is always 15 degrees off the target
+  const samples = Array.from({ length: 11 }, (_, i) =>
+    sample({ t: i * 1000, course: 100, phoneHeading: 100, targetBearing: 115 })
+  );
+  const wide = walkMetrics(recording({ deadband_deg: '20' }, samples));
+  const narrow = walkMetrics(recording({ deadband_deg: '10' }, samples));
+  const old = walkMetrics(recording({}, samples)); // no deadband in the header: 25 degrees
+  assert.equal(wide.tolerance, 20);
+  assert.equal(wide.phoneAligned, 1);
+  assert.equal(narrow.phoneAligned, 0);
+  assert.equal(old.tolerance, 25);
+  assert.equal(old.phoneAligned, 1);
+});

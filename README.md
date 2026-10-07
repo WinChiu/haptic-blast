@@ -102,7 +102,7 @@ Haptic Blast guides you by **which way the phone points**, not by where you stan
 3. Hold the phone **flat in front of you with the screen facing up and the top edge pointing forward**. The top edge is what the app reads. (We have not checked how the compass behaves with the phone held upright on iOS.)
 4. **Turn slowly** until the buzz or beeping **stops**. You are now facing the direction to walk. Walk that way, keeping the phone pointing the same way.
 5. At a turn the target changes and the buzz starts again. Turn until it stops again.
-6. The stronger and faster the buzz, the further off the direction you are. Within about 25° of the target (`COMPASS_ANGLE_TOLERANCE`) it is silent.
+6. The stronger the vibration (and the shorter the pauses), the further off the direction you are. Inside the **silent zone** around the target (default ±10°, **Settings → Haptic tuning**) it is silent, and a very short, light click tells you when you line up.
 7. The radar button on the bottom bar opens a Compass screen showing the target direction and where the phone is pointing, which helps when learning.
 
 When you tap **Start**, the app reminds you how to follow the guidance. How it does that depends on **Settings → Journey reminder** (default **Adaptive**):
@@ -260,6 +260,8 @@ Suggested next step: a small **feasibility test** before any design decision. Ru
 
 ## First real-walk results (2026-10-03)
 
+**Note:** these walks were made when the silent zone was a fixed ±25° and the buzz was continuous. Both are now adjustable (see "Vibration" above), so later walks are not directly comparable unless the settings match. The recordings now carry the settings used.
+
 **What was done.** One person, an iPhone 14 with the Release build (mobile data, laptop routing server), two real outdoor walks of about 3 minutes each in Stockholm (house to ICA Lappis and back), phone **held flat in the hand** both times, haptics and sound on, recording on. A third recording was a debug-mode mistake and is ignored. **This is two walks by one person in one position.** It shows what the data looks like and what to fix. It proves nothing statistically, and **pocket, bag and upright-in-hand positions have not been tried yet.**
 
 **Reported by the walker:** the vibration and beeping worked well, got stronger the more they deviated, and worked well in corners. **At the start the phone began buzzing and beeping straight away, before the walker had done anything, which was confusing and annoying.** That is how the guidance works today (it compares the phone's heading with the target at once, and the person has not turned yet), made worse by the poor start fix described below. Whether it needs a calmer start (a short silent period, or ramping up) is a design decision for the team.
@@ -295,7 +297,7 @@ Suggested next step: a small **feasibility test** before any design decision. Ru
 
 - **True north.** On iOS the compass now prefers `trueHeading` and falls back to the magnetic heading when it is not available (`pickHeading` in `util/gps.ts`, used in `hooks/useCompass.ts`). **Check:** on a hand-flat walk, the average difference between GPS direction and phone heading should drop from about +8° to about 0°. Recordings now carry `heading_reference=true-north-preferred` in the header; older recordings are magnetic.
 - **Wait for a good GPS fix.** Preview Route and Start are disabled, with the label "Waiting for GPS (±N m)", until the latest fix is accurate to 15 m or better (`GPS.maxStartAccuracy` in `util/globals.ts`). Fixes worse than 20 m (`GPS.maxUsableAccuracy`) are ignored for route progress and off-route detection, but are still recorded. Debug mode (joystick) never waits. **Check:** the first checkpoint should be near you, and standing still should not move the route on.
-- Not changed: the buzz at the start, the 4 m checkpoint distance, and the 25° tolerance. These need more data or a team decision.
+- Not changed then: the buzz at the start and the 4 m checkpoint distance. The silent zone has since become adjustable (default ±10°).
 
 ### How to collect meaningful test data before user testing
 
@@ -408,6 +410,26 @@ Known limits: a walker who passes a checkpoint from more than 12 m away (cutting
 | 30° | 56 |
 
 It is a setting in `util/globals.ts`: lower protects more corners and gives more episodes. What no setting can fix: with about 6 m of GPS error the app cannot know where the wall is. It only avoids adding error of its own. Tests: `tests/corner.test.ts` (the sketch, a U-turn, a gentle bend, a real overshoot) and the updated `tests/progress.test.ts`.
+
+### Vibration (Haptic tuning)
+
+How the phone vibrates follows the team's **Vibration Design Guide** (PDF). The shape lives in `util/haptics.ts` (pure functions with tests in `tests/haptics.test.ts`), the loop in `hooks/useGuidance.ts` and the driver in `hooks/useBuzz.ts`. Everything adjustable is in **Settings → Haptic tuning**, saved on the phone, kept inside the guide's ranges, and written into each recording's header (`haptic_mode`, `deadband_deg`, `pulse_ms`, `confirm_ms`), so walks can be compared by setting. **Not yet felt on a phone**: timing and feel can only be judged on a device.
+
+| Guide | Built | Default (range) |
+|---|---|---|
+| Intensity grows **exponentially** with the error, weakest at the edge of the dead zone, not at 0° (`S0 · e^(b·y)`, `b` worked out from the weakest and strongest values) | `exponentialIntensity`: 0.2 at the edge of the silent zone, 1.0 at 90° off, equal angle steps give equal ratios | fixed shape |
+| **Silent zone** (deadband) | silent inside ±N° of the target; also draws the cone on the Compass screen | ±10° (5 to 15) |
+| **Pulse** of about 750 ms | one pulse per cycle while off course | 750 ms (500 to 1000) |
+| **Pause** 200 ms at maximum deviation up to 600 ms near the dead zone | `pauseForDeviation`, linear between the two | 600 ms to 200 ms |
+| **Focus lock confirmation** pulse | one light click when the phone lines up; it also cuts a running pulse short; at most one every 1.5 s so noise at the edge cannot machine-gun it | 50 ms (50 to 100) |
+| **Off-course mode** (silent when on course) | already how the app works | always |
+| Adjustable in the UI | steppers, a "Feel it" demo (slightly / more / far off, then the click) and "Reset to the guide's defaults" | |
+
+**Pulsed or continuous.** Pulsed is the default. The earlier continuous buzz (the team's choice in commit `7d11c0b`) is kept as a switch, uses the same exponential strength, and records `hapticStyle` as `continuous` (pulsed is `pulse`) in each round. Sound beeps keep their previous timing but now stop inside the silent zone too.
+
+**Not built:** the guide's **adaptive deadband** (wide while exploring, narrowing when stable, depending on distance to the target). It is described there as rationale and is not in its settings list.
+
+**Expect more guidance than before.** The earlier walks used a fixed ±25° zone and the phone was within it about 80% of the time; ±10° is much tighter, so expect more pulses. The guide itself says to feel the values within the ranges, which is what the settings are for. Compare recordings with the table tool, which now judges each walk against the zone it was recorded with.
 
 ### When the user leaves the route
 

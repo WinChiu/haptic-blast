@@ -209,6 +209,7 @@ export function formatSummary(recording: Recording, index = 0): string {
 export type WalkMetrics = {
   label: string;
   condition: string;
+  tolerance: number; // degrees: the silent zone used to judge alignment
   minutes: number;
   samples: number;
   walking: number;
@@ -233,9 +234,11 @@ export function conditionOf(meta: Record<string, string>): string {
   return `${meta.phone_position ?? '?'} | ${feedback}`;
 }
 
+// The tolerance used to judge "aligned" is the silent zone the walk was recorded
+// with (deadband_deg in the header), or 25 degrees for older recordings.
 export function walkMetrics(
   rec: Recording,
-  tolerance = 25
+  tolerance = Number(rec.meta.deadband_deg) || 25
 ): WalkMetrics {
   const s = rec.samples;
   const heading = summariseHeading(s, { tolerance });
@@ -254,6 +257,7 @@ export function walkMetrics(
   return {
     label: rec.meta.label ?? 'unlabelled',
     condition: conditionOf(rec.meta),
+    tolerance,
     minutes,
     samples: s.length,
     walking: heading.walking,
@@ -305,24 +309,25 @@ export function formatTable(recordings: Recording[]): string {
   lines.push(`Walks: ${real.length}${skipped ? ` (${skipped} debug-mode recording${skipped === 1 ? '' : 's'} left out: positions are fake)` : ''}`);
   lines.push('');
   lines.push(
-    ['label'.padEnd(26), 'condition'.padEnd(28), 'min'.padStart(5), 'walk'.padStart(5), 'offset'.padStart(7), 'spread'.padStart(7), 'phone<=25'.padStart(10), 'gps<=25'.padStart(8), 'ep/min'.padStart(7), 'acc m'.padStart(6)].join(' ')
+    ['label'.padEnd(26), 'condition'.padEnd(28), 'min'.padStart(5), 'walk'.padStart(5), 'offset'.padStart(7), 'spread'.padStart(7), 'zone'.padStart(5), 'phone ok'.padStart(9), 'gps ok'.padStart(7), 'ep/min'.padStart(7), 'acc m'.padStart(6)].join(' ')
   );
   for (const w of real) {
     lines.push(
-      [w.label.slice(0, 26).padEnd(26), w.condition.padEnd(28), f(w.minutes, 1).padStart(5), String(w.walking).padStart(5), (f(w.offsetMean) + '°').padStart(7), (f(w.offsetStdDev) + '°').padStart(7), p(w.phoneAligned).padStart(10), p(w.courseAligned).padStart(8), f(w.episodesPerMin, 1).padStart(7), f(w.meanAccuracy, 1).padStart(6)].join(' ')
+      [w.label.slice(0, 26).padEnd(26), w.condition.padEnd(28), f(w.minutes, 1).padStart(5), String(w.walking).padStart(5), (f(w.offsetMean) + '°').padStart(7), (f(w.offsetStdDev) + '°').padStart(7), ('±' + f(w.tolerance) + '°').padStart(5), p(w.phoneAligned).padStart(9), p(w.courseAligned).padStart(7), f(w.episodesPerMin, 1).padStart(7), f(w.meanAccuracy, 1).padStart(6)].join(' ')
     );
   }
 
   lines.push('');
   lines.push('By condition: median across walks, [min..max] when there is more than one walk');
   lines.push('  offset = GPS direction minus phone heading; spread = how much it varies;');
-  lines.push('  phone<=25 / gps<=25 = share of time within 25 deg of the guidance target; ep/min = separate stretches of guidance firing');
+  lines.push('  zone = the silent zone the walk used (older recordings: 25 deg); phone ok / gps ok = share of time within that zone of the guidance target;');
+  lines.push('  ep/min = separate stretches of guidance firing. Compare walks with the same zone, or read the zone column.');
   for (const g of groupWalks(all)) {
     const w = g.walks;
     lines.push('');
     lines.push(`${g.condition}  (${w.length} walk${w.length === 1 ? '' : 's'}${w.length < 3 ? ', fewer than 3: treat as anecdotal' : ''})`);
     lines.push(`  offset ${f(exactMedian(w.map((x) => x.offsetMean)))}°${range(w.map((x) => x.offsetMean), (n) => f(n) + '°')}   spread ${f(exactMedian(w.map((x) => x.offsetStdDev)))}°${range(w.map((x) => x.offsetStdDev), (n) => f(n) + '°')}`);
-    lines.push(`  phone<=25 ${p(exactMedian(w.map((x) => x.phoneAligned)))}${range(w.map((x) => x.phoneAligned), p)}   gps<=25 ${p(exactMedian(w.map((x) => x.courseAligned)))}${range(w.map((x) => x.courseAligned), p)}`);
+    lines.push(`  phone ok ${p(exactMedian(w.map((x) => x.phoneAligned)))}${range(w.map((x) => x.phoneAligned), p)}   gps ok ${p(exactMedian(w.map((x) => x.courseAligned)))}${range(w.map((x) => x.courseAligned), p)}   zone ±${f(exactMedian(w.map((x) => x.tolerance)))}°`);
     lines.push(`  episodes/min ${f(exactMedian(w.map((x) => x.episodesPerMin)), 1)}${range(w.map((x) => x.episodesPerMin), (n) => f(n, 1))}   GPS accuracy ${f(exactMedian(w.map((x) => x.meanAccuracy)), 1)} m`);
   }
   return lines.join('\n');
