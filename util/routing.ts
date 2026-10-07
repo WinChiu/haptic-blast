@@ -14,6 +14,7 @@ export type RouteErrorKind =
   | 'server-unreachable' // network down, tunnel offline or server not running
   | 'timeout'
   | 'rate-limited' // the route service has reached its limit (or is being asked too fast)
+  | 'too-far' // the destination is further than one route may be
   | 'bad-response';
 
 export class RouteError extends Error {
@@ -32,6 +33,12 @@ export class RouteError extends Error {
 
 // Turn a GraphHopper error message into one of our error kinds.
 function fromServerMessage(message: string): RouteError {
+  if (/too long|too far|distance limit/i.test(message)) {
+    return new RouteError(
+      'too-far',
+      'That destination is too far for one route. Choose a closer spot.'
+    );
+  }
   if (/daily limit|limit reached|too many route requests/i.test(message)) {
     return new RouteError(
       'rate-limited',

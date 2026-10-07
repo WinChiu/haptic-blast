@@ -121,3 +121,11 @@ test('a bare 429 with no message is rate-limited', async () => {
   mockFetch(() => new Response('', { status: 429 }));
   assert.equal((await failure()).kind, 'rate-limited');
 });
+
+test('a route that is too long is too-far, with a clear message and no retry', async () => {
+  mockFetch(() => json({ message: 'Route is too long (more than 15 km)' }, 400));
+  const e = await failure();
+  assert.equal(e.kind, 'too-far');
+  assert.equal(e.retryable, false);
+  assert.match(e.message, /too far/);
+});
