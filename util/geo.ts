@@ -69,3 +69,10 @@ export function interpolate(a: Coord, b: Coord, t: number): Coord {
     longitude: a.longitude + (b.longitude - a.longitude) * t,
   };
 }
+
+// How different two bearings are, in degrees from 0 (same direction) to 180
+// (opposite), whichever way round the circle is shorter.
+export function bearingDifference(a: number, b: number): number {
+  const d = Math.abs(a - b) % 360;
+  return d > 180 ? 360 - d : d;
+}

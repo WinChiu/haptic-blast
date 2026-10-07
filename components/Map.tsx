@@ -12,12 +12,7 @@ import { GlobalStore } from '../util/globals';
 import { distanceMeters } from '../util/geo';
 import { generateCheckpoints } from '../util/checkpoints';
 import { isFixUsable } from '../util/gps';
-import {
-  distanceToRoute,
-  findSkipTarget,
-  aimPoint,
-  isCheckpointReached,
-} from '../util/progress';
+import { distanceToRoute, aimPoint, checkpointStep } from '../util/progress';
 
 interface MapProps {
   route: { latitude: number; longitude: number }[] | null;
@@ -161,31 +156,25 @@ export default function Map({
     const currentTarget = routeCheckpoints[currentCheckpointIndex];
     if (!currentTarget) return;
 
-    // Cut a corner or took another way? Jump to a checkpoint further along
-    // that the user is already close to, instead of pointing back at one
-    // they will never walk to.
-    const skipTo = findSkipTarget(
+    // Cut a corner or took another way? Jump to a checkpoint further along that
+    // the user is already close to. Otherwise check whether the current one is
+    // reached (see isCheckpointReached for how corners are judged).
+    const step = checkpointStep(
       userLocation,
       routeCheckpoints,
       currentCheckpointIndex
     );
-    if (skipTo !== null) {
+    if (step?.reason === 'skip') {
       console.log(
-        `[nav] skipped ahead from checkpoint ${currentCheckpointIndex} to ${skipTo}`
+        `[nav] skipped ahead from checkpoint ${currentCheckpointIndex} to ${step.index}`
       );
-      setCurrentCheckpointIndex(skipTo);
+      setCurrentCheckpointIndex(step.index);
       return;
     }
 
     const dist = distanceMeters(userLocation, currentTarget);
 
-    if (
-      isCheckpointReached(
-        userLocation,
-        currentTarget,
-        routeCheckpoints[currentCheckpointIndex + 1]
-      )
-    ) {
+    if (step?.reason === 'reached') {
       // Reached! Move to next.
       console.log(
         'Reached checkpoint',

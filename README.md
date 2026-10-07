@@ -373,27 +373,41 @@ The full route is still drawn as the blue line; only the checkpoints are used fo
 A checkpoint is reached when either:
 
 1. the user is within `CHECKPOINT_THRESHOLD` (4 m) of it, or
-2. the user is within `CHECKPOINT_PASS_RADIUS` (12 m) of it **and has already gone past it** towards the next checkpoint (`alongTrackMeters` in `util/geo.ts` is positive).
+2. the user is within `CHECKPOINT_PASS_RADIUS` (12 m) of it **and has already gone past it along the leg they were walking** (from the previous checkpoint to this one; `isCheckpointReached` in `util/progress.ts`). The first checkpoint has no previous one, so only rule 1 applies to it.
 
-Rule 2 exists because of GPS drift: walking past a checkpoint 6 m to the side never enters the 4 m circle, so the buzz would keep pointing back at it. The logic is in the "Calculate Next Checkpoint" effect in `components/Map.tsx`.
+Rule 2 exists because of GPS drift: walking past a checkpoint 6 m to the side never enters the 4 m circle, so the buzz would keep pointing back at it. The logic is in `checkpointStep` (`util/progress.ts`), called from the "Calculate Next Checkpoint" effect in `components/Map.tsx`.
 
-Known limit: if the user is more than 12 m away when passing (for example cutting a corner), the checkpoint is not skipped and the guidance points back at it until they get within 12 m.
+Known limits: a walker who passes a checkpoint from more than 12 m away (cutting a corner) is not counted as past it until the skip-ahead rule below finds a nearer checkpoint, and a **round-trip route whose destination is next to its start** makes the skip-ahead rule treat the destination as reached at once.
 
-On a real 3.1 km route this gives 134 server points → 78 checkpoints. The count is mainly set by `maxSpacing` (3100 m ÷ 50 m is at least 62), so use a larger value for fewer checkpoints:
+### Corners (teammate feedback)
 
-| `maxSpacing` | Checkpoints (3.1 km route) |
+**Report:** at a sharp corner the checkpoint disappeared and the compass told the walker to turn before the corner, which could walk them into the wall (sketch: a wall on the right, the next leg turning right along the building).
+
+**Reproduced** with the app's own functions (a 60 m wall, a 90° corner, GPS wobble 0, 3 and 6 m) and **two causes** found:
+1. The "walked past" rule used to be judged along the leg that comes **next**. At a corner that leg points sideways, so for someone still walking up to the corner the sign flipped with a metre or two of GPS wobble: the corner counted as reached **11.4 m early** at 3 m wobble and **8.4 m early** at 6 m. (The real walks showed the same signature: many "walked past" events at 11.9 to 12.0 m.)
+2. The aim-ahead point (`AIM_LOOKAHEAD`, 15 m) aimed round the corner, so even a perfect walker saw the guidance start turning **12 m before the corner** (14° at 12 m, 70° at 4 m).
+
+**Fix:** the walked-past rule now uses the leg being walked (previous to current checkpoint), and the aim-ahead point stops at a checkpoint where the route turns by more than `AIM_MAX_TURN` (60°), so the guidance keeps pointing at the corner until it is reached. Gentle bends still get the smoothing.
+
+| Sketch (90° corner) | Before | After |
+|---|---|---|
+| Counted as reached, 0 m wobble | 4.0 m before | 4.0 m before |
+| 3 m wobble | 11.4 m before | 3.0 m before |
+| 6 m wobble | 8.4 m before | 2.5 m before |
+| Guidance direction 12 / 8 / 4 m before (0° is straight on) | 14° / 41° / 70° | 0° / 0° / 0° |
+
+**Cost, measured on the real 3.1 km route** with a simulated perfect walker (not a field test): the share of time the phone is more than 25° off barely changes (about 9% to 10%), but the number of separate guidance episodes rises because the direction now changes at the corner instead of gradually before it:
+
+| `AIM_MAX_TURN` | Episodes over 3.1 km |
 |---|---|
-| 25 m | 152 |
-| 50 m | 78 |
-| 100 m | 47 |
+| 180° (old behaviour, never stop) | 41 |
+| 90° | 41 (misses the 90° corners) |
+| **60° (chosen)** | **47** |
+| 50° | 50 |
+| 40° | 53 |
+| 30° | 56 |
 
-### Which direction the buzz points
-
-The buzz and beeps compare the phone's heading with the bearing to a **target point**. The target is not the next checkpoint itself but a point `AIM_LOOKAHEAD` (15 m, `util/globals.ts`) ahead of the user along the path (`aimPoint` in `util/progress.ts`). Aiming straight at the next checkpoint made the direction swing on curves and just before each checkpoint, which caused beeping while the user was following the route. Set `AIM_LOOKAHEAD` to 0 to aim straight at the checkpoint again.
-
-Measured by replaying a real 3.1 km route with a walker who follows it exactly and holds the phone along the path (a Mac-side simulation, not a field test): with the 25° tolerance (`COMPASS_ANGLE_TOLERANCE`), 58 separate beeping episodes became 41 with the look-ahead. A wider tolerance reduces it further (35°: 26 episodes) but makes the guidance less sensitive, which is a study design decision and has not been changed.
-
-The first checkpoint of a route is dropped when the user is already standing on it (within `CHECKPOINT_PASS_RADIUS`), so numbering starts at the first point to walk to, including after re-routing.
+It is a setting in `util/globals.ts`: lower protects more corners and gives more episodes. What no setting can fix: with about 6 m of GPS error the app cannot know where the wall is. It only avoids adding error of its own. Tests: `tests/corner.test.ts` (the sketch, a U-turn, a gentle bend, a real overshoot) and the updated `tests/progress.test.ts`.
 
 ### When the user leaves the route
 

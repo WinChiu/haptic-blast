@@ -39,6 +39,10 @@ export const GlobalStore = {
   // Steer towards a point this far ahead along the path instead of straight at
   // the next checkpoint, so curves don't make the guidance swing (0 = off)
   AIM_LOOKAHEAD: 15, //meters
+  // The aim-ahead point stops at a checkpoint where the route turns by more than
+  // this many degrees (a corner): the guidance keeps pointing at the corner until
+  // it is reached instead of turning early and walking the user into a wall.
+  AIM_MAX_TURN: 60, //degrees
   // Cutting a corner: jump to a checkpoint further along (one of the next
   // `lookahead`, or the final one) once the user is within `radius` metres of it
   CHECKPOINT_SKIP: {

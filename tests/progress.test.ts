@@ -19,30 +19,41 @@ const A = { latitude: 59.35, longitude: 18.07 };
 const B = offset(A, 50, 0); // the next checkpoint, 50 m north of A
 
 // --- isCheckpointReached -------------------------------------------------
+// P is the previous checkpoint, 50 m south of A, so the user walks north into A
+
+const P = offset(A, -50, 0);
 
 test('reached: on the checkpoint and inside the threshold', () => {
-  assert.equal(isCheckpointReached(A, A, B), true);
-  assert.equal(isCheckpointReached(offset(A, 2, 2), A, B), true);
+  assert.equal(isCheckpointReached(A, A, P), true);
+  assert.equal(isCheckpointReached(offset(A, 2, 2), A, P), true);
 });
 
 test('not reached: still approaching, even close by', () => {
-  assert.equal(isCheckpointReached(offset(A, -8, 0), A, B), false);
-  assert.equal(isCheckpointReached(offset(A, -8, 6), A, B), false);
+  assert.equal(isCheckpointReached(offset(A, -8, 0), A, P), false);
+  assert.equal(isCheckpointReached(offset(A, -8, 6), A, P), false);
+  assert.equal(isCheckpointReached(offset(A, -11, 4), A, P), false);
 });
 
-test('reached: drifted past it, within the pass radius', () => {
-  assert.equal(isCheckpointReached(offset(A, 3, 6), A, B), true);
-  assert.equal(isCheckpointReached(offset(A, 8, 5), A, B), true);
+test('reached: drifted past it (beyond it along the way walked), within the pass radius', () => {
+  assert.equal(isCheckpointReached(offset(A, 3, 6), A, P), true);
+  assert.equal(isCheckpointReached(offset(A, 8, 5), A, P), true);
 });
 
 test('not reached: beyond the pass radius, or alongside far away', () => {
-  assert.equal(isCheckpointReached(offset(A, 30, 0), A, B), false);
-  assert.equal(isCheckpointReached(offset(A, 1, 20), A, B), false);
+  assert.equal(isCheckpointReached(offset(A, 30, 0), A, P), false);
+  assert.equal(isCheckpointReached(offset(A, 1, 20), A, P), false);
 });
 
-test('the last checkpoint (no next) only counts inside the threshold', () => {
+test('the first checkpoint (no previous one) only counts inside the threshold', () => {
   assert.equal(isCheckpointReached(offset(A, 3, 0), A), true);
   assert.equal(isCheckpointReached(offset(A, 8, 5), A), false);
+});
+
+test('the walked-past rule ignores the leg that comes next (the corner bug)', () => {
+  // the route turns east at A; someone 10 m before the corner with 6 m of GPS
+  // wobble towards the east is NOT past it, however the next leg points
+  assert.equal(isCheckpointReached(offset(A, -10, 6), A, P), false);
+  assert.equal(isCheckpointReached(offset(A, -10, -6), A, P), false);
 });
 
 // --- findSkipTarget ------------------------------------------------------
@@ -95,12 +106,20 @@ test('aim: the point is `lookahead` metres ahead along the path', () => {
   assert.ok(Math.abs(distanceMeters(A, aim) - 15) < 0.3);
 });
 
-test('aim: carries on past a close checkpoint onto the next leg', () => {
-  // checkpoint 5 m ahead, then a leg heading east: aiming 15 m ahead lands 10 m along that leg
+test('aim: carries on past a close checkpoint onto the next leg on a gentle bend', () => {
+  // checkpoint 5 m ahead, then a leg bending 25 degrees east: aiming 15 m ahead
+  // lands 10 m along that leg
+  const bend = offset(A, 5, 0);
+  const next = offset(bend, 100 * Math.cos((25 * Math.PI) / 180), 100 * Math.sin((25 * Math.PI) / 180));
+  const aim = aimPoint(A, [bend, next], 0, 15);
+  assert.ok(Math.abs(distanceMeters(bend, aim) - 10) < 0.3);
+});
+
+test('aim: stops at a sharp corner instead of turning early', () => {
+  // checkpoint 5 m ahead, then a 90 degree turn east: keep pointing at the corner
   const corner = offset(A, 5, 0);
   const path = [corner, offset(corner, 0, 100)];
-  const aim = aimPoint(A, path, 0, 15);
-  assert.ok(Math.abs(distanceMeters(corner, aim) - 10) < 0.3);
+  assert.deepEqual(aimPoint(A, path, 0, 15), corner);
 });
 
 test('aim: never overshoots the final checkpoint', () => {
