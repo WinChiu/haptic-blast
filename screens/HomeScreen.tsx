@@ -57,10 +57,10 @@ export default function HomeScreen() {
   const hapticSettings = useHapticSettings();
   const hapticStyle = hapticStyleOf(BUZZ_BACKEND !== 'none', hapticSettings.mode);
   const feedbackText = useMemo(() => {
-    if (hapticEnabled && soundEnabled) return 'Hybrid Mode';
-    if (hapticEnabled) return 'Haptic Mode';
-    if (soundEnabled) return 'Audio Mode';
-    return 'No Feedback';
+    if (hapticEnabled && soundEnabled) return 'Vibration and sound';
+    if (hapticEnabled) return 'Vibration';
+    if (soundEnabled) return 'Sound';
+    return 'Guidance off';
   }, [hapticEnabled, soundEnabled]);
 
   const [isPreviewMode, setIsPreviewMode] = useState(false);
@@ -667,8 +667,15 @@ const gpsWaitLabel = isDebugMode
               style={{ marginRight: 8 }}
             />
           )}
+          <Ionicons
+            name="settings-outline"
+            size={18}
+            color="white"
+            style={{ marginRight: 8 }}
+          />
           <Text style={styles.feedbackText}>
-            {userUid ? userUid : 'Not login'} • {feedbackText}
+            {feedbackText}
+            {userUid ? ` • ${userUid}` : ''}
           </Text>
         </View>
       </TouchableOpacity>
@@ -697,10 +704,13 @@ const gpsWaitLabel = isDebugMode
               style={styles.toggleButton}
             >
               <Ionicons
-                name={showCompassContent ? 'eye' : 'eye-off'}
-                size={24}
+                name={showCompassContent ? 'eye-off' : 'eye'}
+                size={22}
                 color="#d4d4d4"
               />
+              <Text style={styles.toggleButtonLabel}>
+                {showCompassContent ? 'Hide' : 'Show'}
+              </Text>
             </TouchableOpacity>
           </View>
           {showCompassContent ? (
@@ -708,7 +718,7 @@ const gpsWaitLabel = isDebugMode
           ) : (
             <View style={styles.hiddenCompassContainer}>
               <Text style={styles.hiddenCompassText}>
-                Compass is hidden. Click the eye icon to reveal.
+                The compass is hidden. Vibration still guides you. Tap Show to see it again.
               </Text>
             </View>
           )}
@@ -1087,10 +1097,14 @@ const styles = StyleSheet.create({
   },
 
   toggleButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
     padding: 8,
     borderRadius: 20,
     marginLeft: 'auto', // Pushes it to the right
   },
+  toggleButtonLabel: { color: '#d4d4d4', fontSize: 16, fontWeight: '500' },
   hiddenCompassContainer: {
     flex: 1,
     justifyContent: 'center',
