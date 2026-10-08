@@ -16,7 +16,7 @@ const initialState = {
         soundEnabled: boolean;
         // Absent on rounds recorded before haptic styles existed (= 'tap');
         // 'pulse' only on rounds from when it was selectable
-        hapticStyle?: 'tap' | 'pulse' | 'continuous';
+        hapticStyle?: 'tap' | 'pulse' | 'steady-pulse' | 'continuous';
         // Which reminder was shown when this journey started. Absent on
         // rounds recorded before the adaptive reminder existed.
         guidanceTip?: 'full' | 'compact' | 'none';

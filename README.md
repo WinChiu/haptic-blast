@@ -448,7 +448,7 @@ How the phone vibrates follows the team's **Vibration Design Guide** (PDF). The 
 | **Off-course mode** (silent when on course) | already how the app works | always |
 | Adjustable in the UI | steppers, a "Feel it" demo (slightly / more / far off, then the click) and "Reset to the guide's defaults" | |
 
-**Pulsed or continuous.** Pulsed is the default. The earlier continuous buzz (the team's choice in commit `7d11c0b`) is kept as a switch, uses the same exponential strength, and records `hapticStyle` as `continuous` (pulsed is `pulse`) in each round. Sound beeps keep their previous timing but now stop inside the silent zone too.
+**Pulsed, steady pulse or continuous.** Pulsed is the default. **Steady pulse** uses the same three settings (silent zone, pulse length, lined-up click) but every pulse and every pause is the same length (pause fixed at 400 ms, `pauseSteadyMs`); only the strength grows with the angle error, and there is no extra pattern. It records `hapticStyle` as `steady-pulse` and `haptic_mode=steady` in the recording header. The earlier continuous buzz (the team's choice in commit `7d11c0b`) is kept as a switch, uses the same exponential strength, and records `hapticStyle` as `continuous` (pulsed is `pulse`) in each round. Sound beeps keep their previous timing but now stop inside the silent zone too.
 
 **Not built:** the guide's **adaptive deadband** (wide while exploring, narrowing when stable, depending on distance to the target). It is described there as rationale and is not in its settings list.
 

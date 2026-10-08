@@ -4,7 +4,9 @@
 // pulsed with a pause that shrinks as the error grows, a very short "click"
 // confirms entering the dead zone, and nothing vibrates while on course.
 
-export type HapticMode = 'pulsed' | 'continuous';
+// pulsed: pauses shrink as the error grows. steady: every pulse and every pause
+// is the same length, only the strength changes. continuous: one buzz.
+export type HapticMode = 'pulsed' | 'steady' | 'continuous';
 
 export type HapticSettings = {
   mode: HapticMode;
@@ -34,6 +36,7 @@ export const HAPTIC_SHAPE = {
   maxDeviation: 90, // degrees of error at which the signal is strongest and fastest
   pauseNearMs: 600, // silence between pulses just outside the dead zone
   pauseFarMs: 200, // silence between pulses at maximum deviation
+  pauseSteadyMs: 400, // silence between pulses in steady mode, whatever the error
   confirmIntensity: 0.35, // the click is light
   confirmMinGapMs: 1500, // at most one click this often, so edge noise cannot machine-gun it
 } as const;
@@ -68,7 +71,7 @@ export function clampSettings(raw: Partial<HapticSettings> | null | undefined): 
   const num = (v: unknown, fallback: number) =>
     typeof v === 'number' && Number.isFinite(v) ? v : fallback;
   return {
-    mode: raw?.mode === 'continuous' ? 'continuous' : 'pulsed',
+    mode: raw?.mode === 'continuous' || raw?.mode === 'steady' ? raw.mode : 'pulsed',
     deadband: Math.round(clamp(num(raw?.deadband, d.deadband), HAPTIC_LIMITS.deadband.min, HAPTIC_LIMITS.deadband.max)),
     pulseMs: Math.round(clamp(num(raw?.pulseMs, d.pulseMs), HAPTIC_LIMITS.pulseMs.min, HAPTIC_LIMITS.pulseMs.max)),
     confirmMs: Math.round(clamp(num(raw?.confirmMs, d.confirmMs), HAPTIC_LIMITS.confirmMs.min, HAPTIC_LIMITS.confirmMs.max)),
@@ -117,7 +120,10 @@ export function planPulse(errorDeg: number, settings: HapticSettings): PulsePlan
   return {
     amplitude: exponentialIntensity(error, settings.deadband),
     pulseMs: settings.pulseMs,
-    pauseMs: pauseForDeviation(error, settings.deadband),
+    pauseMs:
+      settings.mode === 'steady'
+        ? HAPTIC_SHAPE.pauseSteadyMs
+        : pauseForDeviation(error, settings.deadband),
   };
 }
 
@@ -142,7 +148,8 @@ export function shouldConfirm(
 export function hapticStyleOf(
   backendCanBuzz: boolean,
   mode: HapticMode
-): 'tap' | 'pulse' | 'continuous' {
+): 'tap' | 'pulse' | 'steady-pulse' | 'continuous' {
   if (!backendCanBuzz) return 'tap';
+  if (mode === 'steady') return 'steady-pulse';
   return mode === 'pulsed' ? 'pulse' : 'continuous';
 }

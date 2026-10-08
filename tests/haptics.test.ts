@@ -104,6 +104,7 @@ test('clampSettings: missing, wrong or corrupt saved data gives the defaults', (
   assert.deepEqual(clampSettings(undefined), DEFAULT_HAPTIC_SETTINGS);
   assert.deepEqual(clampSettings({ deadband: 'x' as any, pulseMs: NaN, mode: 'weird' as any }), DEFAULT_HAPTIC_SETTINGS);
   assert.equal(clampSettings({ mode: 'continuous' }).mode, 'continuous');
+  assert.equal(clampSettings({ mode: 'steady' }).mode, 'steady');
   assert.equal(clampSettings({ deadband: 7.6 }).deadband, 8); // whole degrees
 });
 
@@ -111,6 +112,8 @@ test('hapticStyleOf: tap when the phone cannot buzz, otherwise the mode', () => 
   assert.equal(hapticStyleOf(false, 'pulsed'), 'tap');
   assert.equal(hapticStyleOf(true, 'pulsed'), 'pulse');
   assert.equal(hapticStyleOf(true, 'continuous'), 'continuous');
+  assert.equal(hapticStyleOf(true, 'steady'), 'steady-pulse');
+  assert.equal(hapticStyleOf(false, 'steady'), 'tap');
 });
 
 test('effectiveDeadband: never narrower than the chosen zone, widens with GPS error', () => {
@@ -124,4 +127,24 @@ test('effectiveDeadband: snapping to the path needs a narrower zone, and it is c
   assert.ok(effectiveDeadband(10, 12, true, 25) < effectiveDeadband(10, 12, false, 25));
   assert.equal(effectiveDeadband(10, 500, false, 5), 25);
   assert.equal(effectiveDeadband(15, 10, false, 0), 15);
+});
+
+test('steady mode: same pulse and pause at every error, only the strength grows', () => {
+  const steady = { ...DEFAULT_HAPTIC_SETTINGS, mode: 'steady' as const };
+  const near = planPulse(25, steady)!;
+  const mid = planPulse(50, steady)!;
+  const far = planPulse(90, steady)!;
+  assert.equal(near.pulseMs, steady.pulseMs);
+  assert.equal(far.pulseMs, steady.pulseMs);
+  assert.equal(near.pauseMs, HAPTIC_SHAPE.pauseSteadyMs);
+  assert.equal(mid.pauseMs, HAPTIC_SHAPE.pauseSteadyMs);
+  assert.equal(far.pauseMs, HAPTIC_SHAPE.pauseSteadyMs);
+  assert.ok(near.amplitude < mid.amplitude && mid.amplitude < far.amplitude);
+  assert.equal(planPulse(10, steady), null); // silent inside the zone
+});
+
+test('pulsed mode still shortens its pauses (unchanged)', () => {
+  const a = planPulse(25, DEFAULT_HAPTIC_SETTINGS)!;
+  const b = planPulse(90, DEFAULT_HAPTIC_SETTINGS)!;
+  assert.ok(b.pauseMs < a.pauseMs);
 });

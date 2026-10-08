@@ -39,7 +39,7 @@ const strengthOf = (angleDiff: number) => {
 // Haptics vibrate while off course, stronger the further off (see util/haptics.ts):
 // in short pulses (default) or one continuous buzz. Expo Go on iOS has no way to
 // buzz, so it falls back to timed taps there.
-type HapticStyleNow = 'tap' | 'pulsed' | 'continuous';
+type HapticStyleNow = 'tap' | 'pulsed' | 'steady' | 'continuous';
 
 // Whether the timed loop has work: sound beeps, or the tap fallback.
 // Pulses and the continuous buzz run on their own, see below.
@@ -303,7 +303,7 @@ export function useGuidance(
   stopRef.current = stopBuzz;
 
   useEffect(() => {
-    if (!(isNavigating && hapticEnabled && hapticStyle === 'pulsed')) return;
+    if (!(isNavigating && hapticEnabled && (hapticStyle === 'pulsed' || hapticStyle === 'steady'))) return;
 
     let cancelled = false;
     let timer: ReturnType<typeof setTimeout> | null = null;

@@ -158,7 +158,7 @@ export default function SettingScreen() {
       demoTimers.current.push(setTimeout(fn, ms));
     let t = 0;
     for (const error of [25, 50, 90]) {
-      if (haptics.mode === 'pulsed') {
+      if (haptics.mode !== 'continuous') {
         const plan = planPulse(error, haptics)!;
         at(t, () => pulseBuzz(plan.amplitude, plan.pulseMs));
         t += plan.pulseMs + plan.pauseMs;
@@ -167,7 +167,7 @@ export default function SettingScreen() {
         t += 900;
       }
     }
-    if (haptics.mode === 'pulsed') {
+    if (haptics.mode !== 'continuous') {
       at(t, () => pulseBuzz(HAPTIC_SHAPE.confirmIntensity, haptics.confirmMs));
       t += haptics.confirmMs + 100;
     } else {
@@ -532,6 +532,7 @@ export default function SettingScreen() {
             {(
               [
                 ['pulsed', 'Pulsed'],
+                ['steady', 'Steady pulse'],
                 ['continuous', 'Continuous'],
               ] as [HapticMode, string][]
             ).map(([value, label]) => (
@@ -563,7 +564,7 @@ export default function SettingScreen() {
             step={1}
             onChange={(deadband) => updateHapticSettings({ deadband })}
           />
-          {haptics.mode === 'pulsed' && (
+          {haptics.mode !== 'continuous' && (
             <>
               <Stepper
                 label="Pulse length"
@@ -590,7 +591,9 @@ export default function SettingScreen() {
             it the vibration gets stronger the further off you are
             {haptics.mode === 'pulsed'
               ? ', with shorter pauses (600 ms down to 200 ms), and a light click tells you when you line up.'
-              : ' (one continuous buzz).'}
+              : haptics.mode === 'steady'
+                ? ', with every pulse and every pause the same length (only the strength changes), and a light click tells you when you line up.'
+                : ' (one continuous buzz).'}
           </Text>
           <TouchableOpacity
             style={styles.saveButton}
