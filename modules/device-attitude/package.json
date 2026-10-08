@@ -1,0 +1,7 @@
+{
+  "name": "device-attitude",
+  "version": "0.1.0",
+  "description": "Core Motion device attitude for iOS",
+  "main": "index.ts",
+  "private": true
+}

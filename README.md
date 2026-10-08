@@ -90,6 +90,7 @@ Native code used by this project:
 |---|---|---|---|
 | Continuous buzz with variable strength | [`react-native-pulsar`](https://docs.swmansion.com/pulsar/sdk/react-native/) | Core Haptics | `VibrationEffect` |
 | Compass heading | [`modules/fused-orientation`](modules/fused-orientation) (local Expo module) | — (uses CoreLocation via `expo-location`) | Google Play services Fused Orientation Provider |
+| Device attitude for pocket mode | [`modules/device-attitude`](modules/device-attitude) (local Expo module) | Core Motion, true north when available | — (uses `fused-orientation`) |
 
 To write a new native module, see [Expo Modules API](https://docs.expo.dev/modules/overview/) (`npx create-expo-module --local` creates one under `modules/`).
 
@@ -155,6 +156,24 @@ A reasonable first prototype is **A as the baseline, with the phone-pointing mod
 - Nobody on the project has asked blind and low-vision users yet. They should be involved early, because they will know things we cannot guess. Safety also needs thought: a foot route may not suit them (crossings, kerbs, hazards), and the guidance should support their own skills, not replace them.
 
 **First step: measure instead of guessing** (see "Walk recording" below). Walk with the phone in a pocket and compare the phone's heading with the GPS direction of travel. That says whether option A or B is good enough.
+
+## Pocket mode (calibration)
+
+Lets the phone ride in a pocket or bag while the buzz still works like a compass. During a journey, tap the phone button next to the compass button.
+
+| Step | User | App |
+|---|---|---|
+| 1 | Stands still facing the walking direction, holds the phone pointing forward (flat or upright), taps **Calibrate** | Averages the heading for 0.5 s (h0). Fails if the phone moves. |
+| 2 | Puts the phone away without turning their body (short buzz = go) | Waits at least 2 s, then for 1 s of stillness (10 s timeout) |
+| 3 | — | Picks the more level phone axis (top edge or back camera), locks it, and stores `offset = h0 − h1`. Success or error buzz. |
+
+After calibration, `heading = locked axis heading + offset` with heavier smoothing (no flat/upright switching). If the locked axis tips close to vertical, the heading holds its last value. Guidance is silent while calibrating. Calibration ends with the journey. Settings are in `GlobalStore.CALIBRATION`; the logic is in [`util/calibration.ts`](util/calibration.ts) and tested in `tests/calibration.test.ts`. Walk recordings note `calibration_axis`, `calibration_offset_deg` and `calibrated_at_s`.
+
+Needs a build with the native module: iOS uses `modules/device-attitude` (rebuild after pulling). Android uses the existing sensors. The button is hidden when no source is available (Expo Go on iOS).
+
+**Check on a new iOS build (not yet run on a device):** open the Compass overlay with pocket mode off and the phone flat. **Core Motion top edge** in the debug box should match **Heading** within a few degrees. If it is mirrored or off by 90°, pocket mode is wrong on iOS.
+
+Limits: the person must not turn while putting the phone away; the offset goes stale if the phone shifts in the pocket (recalibrate); a bag that swings or turns on its own will not work well.
 
 ## Walk recording
 

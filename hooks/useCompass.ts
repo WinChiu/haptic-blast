@@ -7,6 +7,12 @@ import {
   addOrientationListener,
   isFusedOrientationAvailable,
 } from '../modules/fused-orientation';
+import {
+  addAttitudeListener,
+  isDeviceAttitudeAvailable,
+} from '../modules/device-attitude';
+import { Calibration, calibratedHeading } from '../util/calibration';
+import { GlobalStore } from '../util/globals';
 
 // Where the heading comes from:
 // - fused-orientation: Android dev build with Google Play services. Google's
@@ -122,9 +128,55 @@ export const headingFromAxes = (axes: DeviceAxes, upright: boolean) => {
   return ((Math.atan2(east, north) * 180) / Math.PI + 360) % 360;
 };
 
+// Where device axes come from on this platform, for pocket calibration. Null
+// when there is none (iOS in Expo Go, or an iOS build made before the
+// DeviceAttitude module existed).
+export const AXES_SOURCE:
+  | 'fused-orientation'
+  | 'rotation-vector'
+  | 'core-motion'
+  | null =
+  Platform.OS === 'android'
+    ? isFusedOrientationAvailable
+      ? 'fused-orientation'
+      : 'rotation-vector'
+    : isDeviceAttitudeAvailable
+      ? 'core-motion'
+      : null;
+
+// Streams device axes from AXES_SOURCE (about 50 per second). Returns the
+// function that stops it.
+export function addAxesListener(
+  listener: (axes: DeviceAxes) => void
+): () => void {
+  if (AXES_SOURCE === 'fused-orientation') {
+    const sub = addOrientationListener(({ qx, qy, qz, qw }) =>
+      listener(axesFromQuaternion(qx, qy, qz, qw))
+    );
+    return () => sub?.remove();
+  }
+  if (AXES_SOURCE === 'core-motion') {
+    const sub = addAttitudeListener(({ qx, qy, qz, qw }) =>
+      listener(axesFromQuaternion(qx, qy, qz, qw))
+    );
+    return () => sub?.remove();
+  }
+  if (AXES_SOURCE === 'rotation-vector') {
+    DeviceMotion.setUpdateInterval(ANDROID_UPDATE_INTERVAL_MS);
+    const sub = DeviceMotion.addListener(({ rotation }) => {
+      if (rotation) {
+        listener(axesFromEuler(rotation.alpha, rotation.beta, rotation.gamma));
+      }
+    });
+    return () => sub.remove();
+  }
+  return () => {};
+}
+
 // Heading is always where the phone points (users turn the phone to find the
-// direction), never the GPS course of movement.
-export function useCompass() {
+// direction), never the GPS course of movement. With a pocket calibration it
+// is where the body faces: the locked axis plus the calibrated offset.
+export function useCompass(calibration: Calibration | null = null) {
   const [heading, setHeading] = useState(0);
 
   useEffect(() => {
@@ -138,6 +190,23 @@ export function useCompass() {
         if (Math.abs(step) < minChange) return prev;
         return (prev + step + 360) % 360;
       });
+
+    if (calibration) {
+      let lastUpdate = 0;
+      return addAxesListener((axes) => {
+        const now = Date.now();
+        if (now - lastUpdate < ANDROID_UPDATE_INTERVAL_MS) return;
+        lastUpdate = now;
+        // Null while the phone has turned in the pocket: keep the last heading
+        const body = calibratedHeading(axes, calibration);
+        if (body === null) return;
+        smooth(
+          body,
+          GlobalStore.CALIBRATION.smoothingAlpha,
+          ANDROID_MIN_CHANGE_DEG
+        );
+      });
+    }
 
     let upright = false;
     const onAxes = (axes: DeviceAxes) => {
@@ -190,7 +259,7 @@ export function useCompass() {
       cancelled = true;
       remove?.();
     };
-  }, []);
+  }, [calibration]);
 
   return heading;
 }

@@ -31,6 +31,7 @@ import { isFixGoodToStart } from '../util/gps';
 import { loadRecordingPrefs, saveRecording } from '../util/recordingStorage';
 
 import { useCompass } from '../hooks/useCompass';
+import { useCalibration } from '../hooks/useCalibration';
 import { useGuidance } from '../hooks/useGuidance';
 import { BUZZ_BACKEND } from '../hooks/useBuzz';
 import { useHapticSettings } from '../util/hapticSettings';
@@ -160,7 +161,12 @@ export default function HomeScreen() {
     }
   }, [isDebugMode]);
 
-  const heading = useCompass();
+  // Pocket mode: calibrated heading of the body instead of the phone
+  const pocket = useCalibration();
+  const [showPocketModal, setShowPocketModal] = useState(false);
+  const calibrating =
+    pocket.status === 'capturing' || pocket.status === 'placing';
+  const heading = useCompass(pocket.calibration);
 
   // Journey recording (Settings -> Walk recording). The refs hold the latest
   // values so the location callback can read them without re-rendering.
@@ -310,6 +316,25 @@ export default function HomeScreen() {
   const targetBearingRef = useRef<number | null>(null);
   targetBearingRef.current = nextCheckpoint ? targetBearing : null;
 
+  // Calibration only applies to one journey: the next one starts hand-held
+  useEffect(() => {
+    if (!isNavigating) pocket.clear();
+  }, [isNavigating]);
+
+  useEffect(() => {
+    if (pocket.status === 'done') setShowPocketModal(false);
+  }, [pocket.status]);
+
+  // Note the calibration in the walk recording (it happens after Start)
+  useEffect(() => {
+    const active = recordingRef.current;
+    if (!active || !pocket.calibration) return;
+    const meta = active.recording.meta;
+    meta.calibration_axis = pocket.calibration.axis;
+    meta.calibration_offset_deg = pocket.calibration.offset.toFixed(1);
+    meta.calibrated_at_s = ((Date.now() - active.startedAtMs) / 1000).toFixed(0);
+  }, [pocket.calibration]);
+
   // ✅ Unified Guidance Hook
   // The silent zone widens when GPS is poor, so the phone does not buzz at errors
   // that are only position noise (see effectiveDeadband in util/haptics.ts).
@@ -326,10 +351,11 @@ export default function HomeScreen() {
   const zoneRef = useRef<number | null>(null);
   zoneRef.current = zoneDegrees;
 
+  // (silent while calibrating: the person is not following it then)
   useGuidance(
     heading,
     targetBearing,
-    isNavigating,
+    isNavigating && !calibrating,
     hapticEnabled,
     soundEnabled,
     zoneDegrees
@@ -714,7 +740,11 @@ const gpsWaitLabel = isDebugMode
             </TouchableOpacity>
           </View>
           {showCompassContent ? (
-            <HapticCompass targetAngle={targetBearing} heading={heading} />
+            <HapticCompass
+              targetAngle={targetBearing}
+              heading={heading}
+              calibration={pocket.calibration}
+            />
           ) : (
             <View style={styles.hiddenCompassContainer}>
               <Text style={styles.hiddenCompassText}>
@@ -815,6 +845,21 @@ const gpsWaitLabel = isDebugMode
                   >
                     <Text style={styles.stopButtonText}>Stop</Text>
                   </TouchableOpacity>
+                  {pocket.available && (
+                    <TouchableOpacity
+                      style={[
+                        styles.compassButton,
+                        pocket.calibration && styles.pocketButtonActive,
+                      ]}
+                      onPress={() => setShowPocketModal(true)}
+                    >
+                      <Ionicons
+                        name="phone-portrait-outline"
+                        size={26}
+                        color="white"
+                      />
+                    </TouchableOpacity>
+                  )}
                   <TouchableOpacity
                     style={styles.compassButton}
                     onPress={() => setShowHapticOverlay(true)}
@@ -833,6 +878,84 @@ const gpsWaitLabel = isDebugMode
           )}
         </>
       )}
+
+      {/* Pocket calibration */}
+      <Modal
+        visible={showPocketModal}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setShowPocketModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>Pocket mode</Text>
+            {calibrating ? (
+              <Text style={styles.pocketText}>
+                {pocket.status === 'capturing'
+                  ? 'Keep the phone pointing forward…'
+                  : 'Buzz: put the phone in your pocket or bag now, without turning your body. Then keep it still.'}
+              </Text>
+            ) : (
+              <>
+                <Text style={styles.pocketText}>
+                  {pocket.calibration
+                    ? 'Calibrated: the guidance follows the way your body faces, not the phone. Recalibrate if the phone moved in the pocket.'
+                    : 'Use this to carry the phone in a pocket or bag.'}
+                </Text>
+                <Text style={styles.pocketText}>
+                  1. Stand still, facing the way you will walk.{'\n'}
+                  2. Hold the phone in front of you, top edge pointing forward.{'\n'}
+                  3. Tap Calibrate and keep it pointing forward until it buzzes.{'\n'}
+                  4. Put the phone away without turning your body, then keep it
+                  still. A success buzz means done; an error buzz means try again.
+                </Text>
+                {pocket.failure && (
+                  <Text style={[styles.pocketText, styles.pocketError]}>
+                    {pocket.failure === 'moving'
+                      ? 'The phone moved while measuring forward. Hold it steady and try again.'
+                      : 'The phone did not settle within 10 seconds. Try again and keep it still once it is put away.'}
+                  </Text>
+                )}
+              </>
+            )}
+            <View style={styles.modalButtons}>
+              {calibrating ? (
+                <TouchableOpacity
+                  style={[styles.modalButton, styles.confirmModalButton]}
+                  onPress={pocket.clear}
+                >
+                  <Text style={styles.modalButtonText}>Cancel</Text>
+                </TouchableOpacity>
+              ) : (
+                <>
+                  <TouchableOpacity
+                    style={[styles.modalButton, styles.confirmModalButton]}
+                    onPress={pocket.start}
+                  >
+                    <Text style={styles.modalButtonText}>
+                      {pocket.calibration ? 'Recalibrate' : 'Calibrate'}
+                    </Text>
+                  </TouchableOpacity>
+                  {pocket.calibration && (
+                    <TouchableOpacity
+                      style={[styles.modalButton, styles.pocketOffButton]}
+                      onPress={pocket.clear}
+                    >
+                      <Text style={styles.modalButtonText}>Turn off</Text>
+                    </TouchableOpacity>
+                  )}
+                  <TouchableOpacity
+                    style={[styles.modalButton, styles.pocketOffButton]}
+                    onPress={() => setShowPocketModal(false)}
+                  >
+                    <Text style={styles.modalButtonText}>Close</Text>
+                  </TouchableOpacity>
+                </>
+              )}
+            </View>
+          </View>
+        </View>
+      </Modal>
 
       {/* Search Modal Removed */}
 
@@ -1040,6 +1163,21 @@ const styles = StyleSheet.create({
     color: 'white',
     fontSize: 20,
     fontWeight: 'bold',
+  },
+  pocketButtonActive: {
+    backgroundColor: '#2563eb',
+  },
+  pocketText: {
+    color: '#d4d4d4',
+    fontSize: 15,
+    marginBottom: 12,
+    alignSelf: 'stretch',
+  },
+  pocketError: {
+    color: '#f87171',
+  },
+  pocketOffButton: {
+    backgroundColor: '#444',
   },
   compassButton: {
     backgroundColor: '#333',
