@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { StyleSheet, Text, View, Dimensions } from 'react-native';
+import { StyleSheet, Text, View, Dimensions, Platform } from 'react-native';
 import Animated, {
   Easing,
   SensorType,
@@ -13,7 +13,9 @@ import Svg, { Circle, Path, G } from 'react-native-svg';
 import { GlobalStore } from '../util/globals';
 import {
   ANDROID_UPDATE_INTERVAL_MS,
+  AXES_SOURCE,
   HEADING_SOURCE,
+  addAxesListener,
   angleDiff,
   axesFromEuler,
   axesFromQuaternion,
@@ -23,6 +25,7 @@ import {
 import { addOrientationListener } from '../modules/fused-orientation';
 import { getVibratorCapabilities } from '../modules/vibrator-info';
 import { BUZZ_BACKEND } from '../hooks/useBuzz';
+import { Calibration } from '../util/calibration';
 
 // Normalize angle to [0, 360)
 const normalizeAngle = (angle: number) => {
@@ -66,12 +69,22 @@ const VIBRATOR_TEXT = VIBRATOR
 interface HapticCompassProps {
   targetAngle?: number;
   heading: number;
+  // Pocket calibration in use: the dot then follows the heading prop, which
+  // has the calibration applied, instead of the raw sensor
+  calibration?: Calibration | null;
 }
 
 export default function HapticCompass({
   targetAngle = 0,
   heading = 0,
+  calibration = null,
 }: HapticCompassProps) {
+  const directHeading = DIRECT_HEADING && !calibration;
+  const directSV = useSharedValue(directHeading);
+  useEffect(() => {
+    directSV.value = directHeading;
+  }, [directHeading]);
+
   // Visuals
   const radius = 90;
   const centerX = 100;
@@ -141,17 +154,17 @@ export default function HapticCompass({
   // iOS: unwrapped rotation so 359° -> 1° animates 2°, not -358°
   const propRotationSV = useSharedValue(targetRotation);
   useEffect(() => {
-    if (DIRECT_HEADING) return;
+    if (directHeading) return;
     const next =
       propRotationSV.value + angleDiff(targetRotation, propRotationSV.value);
     propRotationSV.value = withTiming(next, {
       duration: ROTATION_ANIMATION_MS,
       easing: Easing.linear,
     });
-  }, [targetRotation]);
+  }, [targetRotation, directHeading]);
 
   const arcStyle = useAnimatedStyle(() => {
-    const rotation = DIRECT_HEADING
+    const rotation = directSV.value
       ? targetSV.value - uiHeadingSV.value
       : propRotationSV.value;
     return { transform: [{ rotate: `${rotation}deg` }] };
@@ -164,13 +177,30 @@ export default function HapticCompass({
     const timer = setInterval(
       () =>
         setRenderedRotation(
-          DIRECT_HEADING
+          directSV.value
             ? targetSV.value - uiHeadingSV.value
             : propRotationSV.value
         ),
       DEBUG_REFRESH_MS
     );
     return () => clearInterval(timer);
+  }, []);
+
+  // Debug (iOS): top-edge heading from Core Motion beside the system heading.
+  // Held flat and not calibrated, they should agree within a few degrees. If
+  // not, the DeviceAttitude conversion is wrong and so is pocket mode.
+  const [attitudeHeading, setAttitudeHeading] = useState<number | null>(null);
+  useEffect(() => {
+    if (Platform.OS !== 'ios' || AXES_SOURCE !== 'core-motion') return;
+    let latest: number | null = null;
+    const remove = addAxesListener((axes) => {
+      latest = headingFromAxes(axes, false);
+    });
+    const timer = setInterval(() => setAttitudeHeading(latest), DEBUG_REFRESH_MS);
+    return () => {
+      remove();
+      clearInterval(timer);
+    };
   }, []);
 
   const isAligned = Math.abs(shortestDiff(targetAngle, heading)) <= 25;
@@ -269,6 +299,17 @@ export default function HapticCompass({
         <Text style={{ color: 'white' }}>Buzz: {BUZZ_BACKEND}</Text>
         <Text style={{ color: 'white' }}>Vibrator: {VIBRATOR_TEXT}</Text>
         <Text style={{ color: 'white' }}>Heading: {heading.toFixed(0)}°</Text>
+        <Text style={{ color: 'white' }}>
+          Calibration:{' '}
+          {calibration
+            ? `pocket, ${calibration.axis} axis, offset ${calibration.offset.toFixed(0)}°`
+            : 'off (hand-held)'}
+        </Text>
+        {attitudeHeading !== null && (
+          <Text style={{ color: 'white' }}>
+            Core Motion top edge: {attitudeHeading.toFixed(0)}°
+          </Text>
+        )}
         <Text style={{ color: 'white' }}>
           Target bearing: {normalizeAngle(targetAngle).toFixed(0)}°
         </Text>

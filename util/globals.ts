@@ -53,6 +53,21 @@ export const GlobalStore = {
     seconds: 5,
     cooldownSeconds: 15,
   },
+  // Pocket calibration: hold the phone pointing forward, tap, put it away.
+  // The heading measured in the hand becomes "forward" for the pocket pose.
+  CALIBRATION: {
+    captureMs: 500, // forward heading is averaged over this long in the hand
+    maxCaptureSpreadDeg: 10, // more spread than this means the hand moved
+    minPlaceMs: 2000, // time to put the phone away before stillness counts
+    stillMs: 1000, // the phone must then be still this long
+    stillRateDegPerS: 15, // slower rotation than this counts as still
+    timeoutMs: 10000, // give up if the phone is not still by then
+    // The locked heading axis must stay at least this horizontal (0..1,
+    // 0.35 = about 20° from vertical); otherwise the phone has turned in the
+    // pocket and the heading is not updated
+    minHorizontal: 0.35,
+    smoothingAlpha: 0.2, // heavier than hand-held: hides leg swing
+  },
   // How a dense route from the server is reduced to checkpoints (metres)
   CHECKPOINTS: {
     simplifyTolerance: 8,
