@@ -143,6 +143,56 @@ export function shouldConfirm(
   );
 }
 
+// The rhythm of the pulses over time, as one step per 50 ms check. The rhythm
+// belongs to the walker, not to the angle: crossing the edge of the silent zone
+// back and forth must not restart it, so nextPulseAt is never reset by going
+// in and out of the zone. A pulse that is running when you line up is cut
+// short (silence on course), but the next one still waits for its slot.
+export type PulseClock = {
+  nextPulseAt: number; // when the next pulse may start
+  wasOutside: boolean;
+  lastConfirmAt: number;
+};
+export const NEW_PULSE_CLOCK: PulseClock = {
+  nextPulseAt: 0,
+  wasOutside: false,
+  lastConfirmAt: -Infinity,
+};
+export type PulseAction =
+  | { kind: 'pulse'; amplitude: number; durationMs: number }
+  | { kind: 'confirm'; durationMs: number }
+  | { kind: 'stop' }
+  | { kind: 'none' };
+
+export function stepPulse(
+  clock: PulseClock,
+  errorDeg: number,
+  nowMs: number,
+  settings: HapticSettings
+): { clock: PulseClock; action: PulseAction } {
+  const plan = planPulse(errorDeg, settings);
+  if (plan) {
+    if (nowMs >= clock.nextPulseAt) {
+      return {
+        clock: { ...clock, wasOutside: true, nextPulseAt: nowMs + plan.pulseMs + plan.pauseMs },
+        action: { kind: 'pulse', amplitude: plan.amplitude, durationMs: plan.pulseMs },
+      };
+    }
+    return { clock: { ...clock, wasOutside: true }, action: { kind: 'none' } };
+  }
+  // on course
+  if (shouldConfirm(clock.wasOutside, errorDeg, settings.deadband, nowMs - clock.lastConfirmAt)) {
+    return {
+      clock: { ...clock, wasOutside: false, lastConfirmAt: nowMs },
+      action: { kind: 'confirm', durationMs: settings.confirmMs },
+    };
+  }
+  return {
+    clock: { ...clock, wasOutside: false },
+    action: clock.wasOutside ? { kind: 'stop' } : { kind: 'none' },
+  };
+}
+
 // Which style to write into a round's record: 'tap' when the phone cannot
 // vibrate continuously (Expo Go on iOS), otherwise the chosen mode.
 export function hapticStyleOf(

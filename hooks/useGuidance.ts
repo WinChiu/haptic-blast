@@ -9,8 +9,8 @@ import { useHapticSettings } from '../util/hapticSettings';
 import {
   HAPTIC_SHAPE,
   exponentialIntensity,
-  planPulse,
-  shouldConfirm,
+  NEW_PULSE_CLOCK,
+  stepPulse,
 } from '../util/haptics';
 
 const BEEP_SOURCE = require('../assets/beep.mp3');
@@ -307,34 +307,19 @@ export function useGuidance(
 
     let cancelled = false;
     let timer: ReturnType<typeof setTimeout> | null = null;
-    let wasOutside = false;
-    let nextPulseAt = 0; // when the next pulse may start (after the pause)
-    let lastConfirmAt = -Infinity;
+    let clock = NEW_PULSE_CLOCK;
 
     const tick = () => {
       if (cancelled) return;
       const now = Date.now();
       const { heading, target, settings } = stateRef.current;
       const error = Math.abs(shortestDiff(target, heading));
-      const plan = planPulse(error, settings);
-
-      if (plan) {
-        wasOutside = true;
-        if (now >= nextPulseAt) {
-          pulseRef.current(plan.amplitude, plan.pulseMs);
-          nextPulseAt = now + plan.pulseMs + plan.pauseMs;
-        }
-      } else {
-        // on course: click once when lining up, otherwise just go quiet
-        if (shouldConfirm(wasOutside, error, settings.deadband, now - lastConfirmAt)) {
-          pulseRef.current(HAPTIC_SHAPE.confirmIntensity, settings.confirmMs);
-          lastConfirmAt = now;
-        } else if (wasOutside) {
-          stopRef.current();
-        }
-        wasOutside = false;
-        nextPulseAt = 0;
-      }
+      const step = stepPulse(clock, error, now, settings);
+      clock = step.clock;
+      const act = step.action;
+      if (act.kind === 'pulse') pulseRef.current(act.amplitude, act.durationMs);
+      else if (act.kind === 'confirm') pulseRef.current(HAPTIC_SHAPE.confirmIntensity, act.durationMs);
+      else if (act.kind === 'stop') stopRef.current();
       timer = setTimeout(tick, 50);
     };
 

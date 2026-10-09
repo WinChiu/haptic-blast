@@ -10,7 +10,9 @@ import {
   exponentialIntensity,
   hapticStyleOf,
   pauseForDeviation,
+  NEW_PULSE_CLOCK,
   planPulse,
+  stepPulse,
   shouldConfirm,
 } from '../util/haptics';
 
@@ -147,4 +149,43 @@ test('pulsed mode still shortens its pauses (unchanged)', () => {
   const a = planPulse(25, DEFAULT_HAPTIC_SETTINGS)!;
   const b = planPulse(90, DEFAULT_HAPTIC_SETTINGS)!;
   assert.ok(b.pauseMs < a.pauseMs);
+});
+
+// Run the 50 ms loop over a list of angle errors and return when pulses started
+function pulseStarts(settings: any, errorAt: (t: number) => number, totalMs: number) {
+  let clock = NEW_PULSE_CLOCK;
+  const starts: number[] = [];
+  for (let t = 1000; t < 1000 + totalMs; t += 50) {
+    const step = stepPulse(clock, errorAt(t - 1000), t, settings);
+    clock = step.clock;
+    if (step.action.kind === 'pulse') starts.push(t - 1000);
+  }
+  return starts;
+}
+
+test('steady mode: a steady pace while the angle stays outside the zone', () => {
+  const steady = { ...DEFAULT_HAPTIC_SETTINGS, mode: 'steady' as const };
+  const starts = pulseStarts(steady, () => 60, 5000);
+  const gaps = starts.slice(1).map((s, i) => s - starts[i]);
+  assert.ok(gaps.every((g) => g === 1150), `gaps ${gaps}`); // 750 pulse + 400 pause
+});
+
+test('steady mode: briefly touching the zone does not restart the rhythm', () => {
+  const steady = { ...DEFAULT_HAPTIC_SETTINGS, mode: 'steady' as const };
+  // outside, dips inside for 200 ms at 1000-1200 ms (during the first pulse), back outside
+  const err = (t: number) => (t >= 1000 && t < 1200 ? 5 : 60);
+  const starts = pulseStarts(steady, err, 6000);
+  // first pulse at 0, the next may not come before 1150 ms even though we left the zone at 1200
+  assert.equal(starts[0], 0);
+  assert.ok(starts[1] >= 1150, `second pulse came at ${starts[1]}`);
+  const gaps = starts.slice(1).map((s, i) => s - starts[i]);
+  assert.ok(gaps.every((g) => g >= 1150), `gaps ${gaps}`);
+});
+
+test('turning in and out of the zone every second never gives a pulse earlier than its slot', () => {
+  const steady = { ...DEFAULT_HAPTIC_SETTINGS, mode: 'steady' as const };
+  const err = (t: number) => (Math.floor(t / 500) % 2 === 0 ? 40 : 5);
+  const starts = pulseStarts(steady, err, 10000);
+  const gaps = starts.slice(1).map((s, i) => s - starts[i]);
+  assert.ok(gaps.every((g) => g >= 1150), `gaps ${gaps}`);
 });
