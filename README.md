@@ -164,7 +164,7 @@ Lets the phone ride in a pocket or bag while the buzz still works like a compass
 | Step | User | App |
 |---|---|---|
 | 1 | Stands still facing the walking direction, holds the phone pointing forward (flat or upright), taps **Calibrate** | Averages the heading for 0.5 s (h0). Fails if the phone moves. |
-| 2 | Puts the phone away without turning their body (short buzz = go) | Waits at least 2 s, then for 1 s of stillness (10 s timeout) |
+| 2 | Puts the phone away without turning their body (short buzz = go) | Waits at least 2 s, then for 3 s of stillness (10 s timeout) |
 | 3 | — | Picks the more level phone axis (top edge or back camera), locks it, and stores `offset = h0 − h1`. Success or error buzz. |
 
 After calibration, `heading = locked axis heading + offset` with heavier smoothing (no flat/upright switching). If the locked axis tips close to vertical, the heading holds its last value. Guidance is silent while calibrating. Calibration ends with the journey. Settings are in `GlobalStore.CALIBRATION`; the logic is in [`util/calibration.ts`](util/calibration.ts) and tested in `tests/calibration.test.ts`. Walk recordings note `calibration_axis`, `calibration_offset_deg` and `calibrated_at_s`.

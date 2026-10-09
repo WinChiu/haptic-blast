@@ -63,7 +63,7 @@ export const GlobalStore = {
     captureMs: 500, // forward heading is averaged over this long in the hand
     maxCaptureSpreadDeg: 10, // more spread than this means the hand moved
     minPlaceMs: 2000, // time to put the phone away before stillness counts
-    stillMs: 1000, // the phone must then be still this long
+    stillMs: 3000, // the phone must then be still this long (3 s, from team feedback)
     stillRateDegPerS: 15, // slower rotation than this counts as still
     timeoutMs: 10000, // give up if the phone is not still by then
     // The locked heading axis must stay at least this horizontal (0..1,
