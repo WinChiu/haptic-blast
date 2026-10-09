@@ -189,3 +189,45 @@ test('turning in and out of the zone every second never gives a pulse earlier th
   const gaps = starts.slice(1).map((s, i) => s - starts[i]);
   assert.ok(gaps.every((g) => g >= 1150), `gaps ${gaps}`);
 });
+
+// Same loop, but returns every action so strength changes during a pulse can be seen
+function actions(settings: any, errorAt: (t: number) => number, totalMs: number) {
+  let clock = NEW_PULSE_CLOCK;
+  const out: { t: number; kind: string; amplitude?: number }[] = [];
+  for (let t = 1000; t < 1000 + totalMs; t += 50) {
+    const step = stepPulse(clock, errorAt(t - 1000), t, settings);
+    clock = step.clock;
+    const a: any = step.action;
+    if (a.kind !== 'none') out.push({ t: t - 1000, kind: a.kind, amplitude: a.amplitude });
+  }
+  return out;
+}
+
+test('steady mode: strength follows the angle during a pulse, the rhythm does not change', () => {
+  const steady = { ...DEFAULT_HAPTIC_SETTINGS, mode: 'steady' as const };
+  // 80 degrees off, then turning steadily towards 25 degrees over the first pulse
+  const err = (t: number) => Math.max(25, 80 - t * 0.07);
+  const a = actions(steady, err, 1100);
+  const start = a.find((x) => x.kind === 'pulse')!;
+  const levels = a.filter((x) => x.kind === 'level').map((x) => x.amplitude!);
+  assert.ok(levels.length >= 3, 'strength was updated during the pulse');
+  assert.ok(levels[levels.length - 1] < start.amplitude! - 0.1, 'it got weaker as the angle shrank');
+  assert.ok(levels.every((v, i) => i === 0 || v <= levels[i - 1] + 1e-9), 'steadily weaker');
+  const starts = pulseStarts(steady, err, 5000);
+  const gaps = starts.slice(1).map((s, i) => s - starts[i]);
+  assert.ok(gaps.every((g) => g === 1150), `rhythm unchanged, gaps ${gaps}`);
+});
+
+test('steady mode: no strength change when the angle holds steady, none in pulsed mode', () => {
+  const steady = { ...DEFAULT_HAPTIC_SETTINGS, mode: 'steady' as const };
+  assert.equal(actions(steady, () => 60, 3000).filter((x) => x.kind === 'level').length, 0);
+  const err = (t: number) => Math.max(25, 80 - t * 0.07);
+  assert.equal(actions(DEFAULT_HAPTIC_SETTINGS, err, 3000).filter((x) => x.kind === 'level').length, 0);
+});
+
+test('steady mode: no strength updates in the silence between pulses', () => {
+  const steady = { ...DEFAULT_HAPTIC_SETTINGS, mode: 'steady' as const };
+  const err = (t: number) => (t < 800 ? 80 : 30);
+  const a = actions(steady, err, 1150).filter((x) => x.kind === 'level');
+  assert.ok(a.every((x) => x.t < 750), 'only while the pulse is running');
+});

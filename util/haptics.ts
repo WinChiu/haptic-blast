@@ -152,14 +152,25 @@ export type PulseClock = {
   nextPulseAt: number; // when the next pulse may start
   wasOutside: boolean;
   lastConfirmAt: number;
+  pulseEndsAt: number; // when the pulse now running ends (steady mode follows the angle until then)
+  level: number; // smoothed strength of the pulse now running
+  levelSent: number; // the strength last handed to the motor
 };
 export const NEW_PULSE_CLOCK: PulseClock = {
   nextPulseAt: 0,
   wasOutside: false,
   lastConfirmAt: -Infinity,
+  pulseEndsAt: 0,
+  level: 0,
+  levelSent: 0,
 };
+// Steady mode: while a pulse runs its strength follows the angle, smoothed so a
+// jumpy compass does not make it flutter, and only re-sent when it changed enough.
+export const LEVEL_SMOOTHING = 0.3;
+export const LEVEL_MIN_CHANGE = 0.03;
 export type PulseAction =
   | { kind: 'pulse'; amplitude: number; durationMs: number }
+  | { kind: 'level'; amplitude: number }
   | { kind: 'confirm'; durationMs: number }
   | { kind: 'stop' }
   | { kind: 'none' };
@@ -174,9 +185,27 @@ export function stepPulse(
   if (plan) {
     if (nowMs >= clock.nextPulseAt) {
       return {
-        clock: { ...clock, wasOutside: true, nextPulseAt: nowMs + plan.pulseMs + plan.pauseMs },
+        clock: {
+          ...clock,
+          wasOutside: true,
+          nextPulseAt: nowMs + plan.pulseMs + plan.pauseMs,
+          pulseEndsAt: nowMs + plan.pulseMs,
+          level: plan.amplitude,
+          levelSent: plan.amplitude,
+        },
         action: { kind: 'pulse', amplitude: plan.amplitude, durationMs: plan.pulseMs },
       };
+    }
+    // steady mode: the running pulse follows the angle (same length, same gaps)
+    if (settings.mode === 'steady' && nowMs < clock.pulseEndsAt) {
+      const level = clock.level + LEVEL_SMOOTHING * (plan.amplitude - clock.level);
+      if (Math.abs(level - clock.levelSent) >= LEVEL_MIN_CHANGE) {
+        return {
+          clock: { ...clock, wasOutside: true, level, levelSent: level },
+          action: { kind: 'level', amplitude: level },
+        };
+      }
+      return { clock: { ...clock, wasOutside: true, level }, action: { kind: 'none' } };
     }
     return { clock: { ...clock, wasOutside: true }, action: { kind: 'none' } };
   }

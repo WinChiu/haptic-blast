@@ -58,6 +58,17 @@ export function useBuzz() {
     [realtime]
   );
 
+  // Change the strength of a buzz that is already running (a pulse keeps its
+  // length). Does nothing when nothing is buzzing.
+  const level = useCallback(
+    (amplitude: number) => {
+      if (realtime && isBuzzingRef.current) {
+        realtime.set(clamp01(amplitude), GlobalStore.BUZZ.FREQUENCY);
+      }
+    },
+    [realtime]
+  );
+
   // One vibration of `durationMs` at `amplitude` (0..1), then silence. On
   // Android without Pulsar the strength cannot be set, only the length.
   const pulse = useCallback(
@@ -76,5 +87,5 @@ export function useBuzz() {
 
   useEffect(() => stop, [stop]);
 
-  return { start, stop, pulse };
+  return { start, stop, pulse, level };
 }

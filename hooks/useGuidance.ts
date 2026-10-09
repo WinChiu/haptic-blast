@@ -108,7 +108,7 @@ export function useGuidance(
 
   // Audio setup
   const player = useAudioPlayer(BEEP_SOURCE);
-  const { start: startBuzz, stop: stopBuzz, pulse: pulseBuzz } = useBuzz();
+  const { start: startBuzz, stop: stopBuzz, pulse: pulseBuzz, level: levelBuzz } = useBuzz();
 
   // Constants
   const { MAX_INTERVAL, MIN_INTERVAL, STEP } = GlobalStore.FEEDBACK;
@@ -299,6 +299,8 @@ export function useGuidance(
   // the haptic switch or the mode changes, never because a function was recreated.
   const pulseRef = useRef(pulseBuzz);
   pulseRef.current = pulseBuzz;
+  const levelRef = useRef(levelBuzz);
+  levelRef.current = levelBuzz;
   const stopRef = useRef(stopBuzz);
   stopRef.current = stopBuzz;
 
@@ -318,6 +320,7 @@ export function useGuidance(
       clock = step.clock;
       const act = step.action;
       if (act.kind === 'pulse') pulseRef.current(act.amplitude, act.durationMs);
+      else if (act.kind === 'level') levelRef.current(act.amplitude);
       else if (act.kind === 'confirm') pulseRef.current(HAPTIC_SHAPE.confirmIntensity, act.durationMs);
       else if (act.kind === 'stop') stopRef.current();
       timer = setTimeout(tick, 50);
