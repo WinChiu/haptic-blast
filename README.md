@@ -441,7 +441,7 @@ How the phone vibrates follows the team's **Vibration Design Guide** (PDF). The 
 | Guide | Built | Default (range) |
 |---|---|---|
 | Intensity grows **exponentially** with the error, weakest at the edge of the dead zone, not at 0° (`S0 · e^(b·y)`, `b` worked out from the weakest and strongest values) | `exponentialIntensity`: 0.2 at the edge of the silent zone, 1.0 at 90° off, equal angle steps give equal ratios | fixed shape |
-| **Silent zone** (deadband) | silent inside ±N° of the target; also draws the cone on the Compass screen | ±15° (5 to 15); widens automatically when GPS is poor, up to ±25° |
+| **Silent zone** (deadband) | silent inside ±N° of the target; also draws the cone on the Compass screen (the cone shows the zone in force, so it widens with GPS error) | ±15° (5 to 15); widens automatically when GPS is poor, up to ±25° |
 | **Pulse** of about 750 ms | one pulse per cycle while off course | 750 ms (500 to 1000) |
 | **Pause** 200 ms at maximum deviation up to 600 ms near the dead zone | `pauseForDeviation`, linear between the two | 600 ms to 200 ms |
 | **Focus lock confirmation** pulse | one light click when the phone lines up; it also cuts a running pulse short; at most one every 1.5 s so noise at the edge cannot machine-gun it | 50 ms (50 to 100) |

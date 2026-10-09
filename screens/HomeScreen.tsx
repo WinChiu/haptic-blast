@@ -744,6 +744,7 @@ const gpsWaitLabel = isDebugMode
               targetAngle={targetBearing}
               heading={heading}
               calibration={pocket.calibration}
+              zoneDegrees={zoneDegrees}
             />
           ) : (
             <View style={styles.hiddenCompassContainer}>
