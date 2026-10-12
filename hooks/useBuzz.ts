@@ -1,6 +1,7 @@
-import { useCallback, useEffect, useRef } from 'react';
+import { useEffect, useRef } from 'react';
 import { Platform, TurboModuleRegistry, Vibration } from 'react-native';
 import { GlobalStore } from '../util/globals';
+import { Buzzer, RealtimeLike, createBuzzer } from '../util/buzzer';
 
 // Pulsar ships native code, so it only exists in a dev build, not in Expo Go.
 // Requiring it without the native module throws, so check first.
@@ -21,71 +22,35 @@ export const BUZZ_BACKEND: BuzzBackend = PULSAR_AVAILABLE
 // Long enough to outlast any gap between start() refreshes.
 const ANDROID_HOLD_MS = 60_000;
 
-export function useBuzz() {
+export function useBuzz(): Buzzer {
   // BUZZ_BACKEND is fixed for the app's lifetime, so this conditional hook
   // call always takes the same branch.
-  const realtime = PULSAR_AVAILABLE ? Pulsar.useRealtimeComposer() : null;
-  const isBuzzingRef = useRef(false);
-  const pulseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const realtime: RealtimeLike | null = PULSAR_AVAILABLE
+    ? Pulsar.useRealtimeComposer()
+    : null;
+  // useRealtimeComposer() returns a new object on every render. The buzzer is
+  // created once and reads the latest composer through this ref, so start,
+  // stop, pulse and level keep the same identity and nothing stops the buzz
+  // just because the screen re-rendered.
+  const realtimeRef = useRef<RealtimeLike | null>(realtime);
+  realtimeRef.current = realtime;
 
-  const clamp01 = (v: number) => Math.max(0, Math.min(1, v));
+  const buzzerRef = useRef<Buzzer | null>(null);
+  if (buzzerRef.current === null) {
+    buzzerRef.current = createBuzzer({
+      getRealtime: () => realtimeRef.current,
+      androidVibration:
+        !PULSAR_AVAILABLE && BUZZ_BACKEND === 'android-vibration'
+          ? Vibration
+          : null,
+      frequency: () => GlobalStore.BUZZ.FREQUENCY,
+      androidHoldMs: ANDROID_HOLD_MS,
+    });
+  }
+  const buzzer = buzzerRef.current;
 
-  // Stop whatever is vibrating, including a pulse still waiting to end.
-  const stop = useCallback(() => {
-    if (pulseTimerRef.current) {
-      clearTimeout(pulseTimerRef.current);
-      pulseTimerRef.current = null;
-    }
-    if (!isBuzzingRef.current) return;
-    if (realtime) {
-      realtime.stop();
-    } else if (BUZZ_BACKEND === 'android-vibration') {
-      Vibration.cancel();
-    }
-    isBuzzingRef.current = false;
-  }, [realtime]);
+  // Only when the screen goes away
+  useEffect(() => () => buzzer.stop(), [buzzer]);
 
-  // Start buzzing, or update the amplitude (0..1) of an ongoing buzz.
-  const start = useCallback(
-    (amplitude: number) => {
-      if (realtime) {
-        realtime.set(clamp01(amplitude), GlobalStore.BUZZ.FREQUENCY);
-      } else if (BUZZ_BACKEND === 'android-vibration' && !isBuzzingRef.current) {
-        Vibration.vibrate(ANDROID_HOLD_MS);
-      }
-      isBuzzingRef.current = true;
-    },
-    [realtime]
-  );
-
-  // Change the strength of a buzz that is already running (a pulse keeps its
-  // length). Does nothing when nothing is buzzing.
-  const level = useCallback(
-    (amplitude: number) => {
-      if (realtime && isBuzzingRef.current) {
-        realtime.set(clamp01(amplitude), GlobalStore.BUZZ.FREQUENCY);
-      }
-    },
-    [realtime]
-  );
-
-  // One vibration of `durationMs` at `amplitude` (0..1), then silence. On
-  // Android without Pulsar the strength cannot be set, only the length.
-  const pulse = useCallback(
-    (amplitude: number, durationMs: number) => {
-      if (pulseTimerRef.current) clearTimeout(pulseTimerRef.current);
-      if (realtime) {
-        realtime.set(clamp01(amplitude), GlobalStore.BUZZ.FREQUENCY);
-      } else if (BUZZ_BACKEND === 'android-vibration') {
-        Vibration.vibrate(durationMs);
-      }
-      isBuzzingRef.current = true;
-      pulseTimerRef.current = setTimeout(stop, durationMs);
-    },
-    [realtime, stop]
-  );
-
-  useEffect(() => stop, [stop]);
-
-  return { start, stop, pulse, level };
+  return buzzer;
 }
