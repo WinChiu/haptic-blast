@@ -33,6 +33,10 @@ export type CalibrationState =
       placingSince: number;
       prev: CalibrationSample;
       still: CalibrationSample[];
+      // The latest still stretch that was long enough to finish by hand with.
+      // Kept after the phone moves again, so the jolt of tapping Done does
+      // not throw it away.
+      bestStill: CalibrationSample[];
     }
   | { phase: 'done'; calibration: Calibration }
   | { phase: 'failed'; reason: CalibrationFailure };
@@ -123,6 +127,7 @@ export function stepCalibration(
       placingSince: sample.t,
       prev: sample,
       still: [],
+      bestStill: [],
     };
   }
 
@@ -146,8 +151,43 @@ export function stepCalibration(
         calibration: { axis, offset: circularDiff(state.h0, h1) },
       };
     }
-    return { ...state, prev: sample, still };
+    const longEnough =
+      still.length > 0 && sample.t - still[0].t >= c.manualStillMs;
+    return {
+      ...state,
+      prev: sample,
+      still,
+      bestStill: longEnough ? still : state.bestStill,
+    };
   }
 
   return state;
+}
+
+// The user taps Done: finish now with the latest still stretch instead of
+// waiting for the timer. The tap jolts the phone, so readings right before it
+// are left out. Returns null when the phone has not been still long enough
+// yet (the person should hold still for a moment and tap again).
+export function finishCalibrationByHand(
+  state: CalibrationState,
+  nowMs: number
+): CalibrationState | null {
+  if (state.phase !== 'placing') return null;
+  const c = GlobalStore.CALIBRATION;
+  const usable = (run: CalibrationSample[]) => {
+    const kept = run.filter((s) => s.t <= nowMs - c.tapGuardMs);
+    if (kept.length === 0) return null;
+    const last = kept[kept.length - 1];
+    if (nowMs - last.t > c.staleStillMs) return null;
+    if (last.t - kept[0].t < c.manualStillMs) return null;
+    return kept;
+  };
+  const run = usable(state.still) ?? usable(state.bestStill);
+  if (!run) return null;
+  const axis = pickAxis(run[run.length - 1].axes);
+  const h1 = meanHeading(run.map((s) => axisHeading(s.axes, axis).deg));
+  return {
+    phase: 'done',
+    calibration: { axis, offset: circularDiff(state.h0, h1) },
+  };
 }

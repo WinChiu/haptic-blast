@@ -164,10 +164,10 @@ Lets the phone ride in a pocket or bag while the buzz still works like a compass
 | Step | User | App |
 |---|---|---|
 | 1 | Stands still facing the walking direction, holds the phone pointing forward (flat or upright), taps **Calibrate** | Averages the heading for 0.5 s (h0). Fails if the phone moves. |
-| 2 | Puts the phone away without turning their body (short buzz = go) | Waits at least 2 s, then for 3 s of stillness (10 s timeout) |
+| 2 | Puts the phone where it will be carried (belt, pocket or bag) without turning their body (short buzz = go), then **taps Done** once it is in place and still | Finishes at once from the latest still stretch (at least 1 s), leaving out the last 0.3 s before the tap, which is the tap's own jolt. If it has not been still long enough it asks to hold still and tap again. If the person does not tap, it finishes by itself after 2 s plus 3 s of stillness (10 s timeout). |
 | 3 | — | Picks the more level phone axis (top edge or back camera), locks it, and stores `offset = h0 − h1`. Success or error buzz. |
 
-After calibration, `heading = locked axis heading + offset` with heavier smoothing (no flat/upright switching). If the locked axis tips close to vertical, the heading holds its last value. Guidance is silent while calibrating. Calibration ends with the journey. Settings are in `GlobalStore.CALIBRATION`; the logic is in [`util/calibration.ts`](util/calibration.ts) and tested in `tests/calibration.test.ts`. Walk recordings note `calibration_axis`, `calibration_offset_deg` and `calibrated_at_s`.
+After calibration, `heading = locked axis heading + offset` with heavier smoothing (no flat/upright switching). If the locked axis tips close to vertical, the heading holds its last value. Guidance is silent while calibrating. Calibration does not depend on where the phone sits: it measures the difference between the hand-held forward heading and the heading of whichever axis is most level once placed, so a phone clipped on a belt with the screen facing out works the same as a pocket. Calibration ends with the journey. Settings are in `GlobalStore.CALIBRATION`; the logic is in [`util/calibration.ts`](util/calibration.ts) and tested in `tests/calibration.test.ts`. Walk recordings note `calibration_axis`, `calibration_offset_deg` and `calibrated_at_s`.
 
 Needs a build with the native module: iOS uses `modules/device-attitude` (rebuild after pulling). Android uses the existing sensors. The button is hidden when no source is available (Expo Go on iOS).
 

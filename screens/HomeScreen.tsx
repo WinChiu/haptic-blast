@@ -895,7 +895,12 @@ const gpsWaitLabel = isDebugMode
               <Text style={styles.pocketText}>
                 {pocket.status === 'capturing'
                   ? 'Keep the phone pointing forward…'
-                  : 'Buzz: put the phone in your pocket or bag now, without turning your body. Then keep it still.'}
+                  : 'Buzz: put the phone where you will carry it (belt, pocket or bag) now, without turning your body. When it is in place and still, tap Done.'}
+              </Text>
+            ) : null}
+            {calibrating && pocket.needsStill ? (
+              <Text style={[styles.pocketText, styles.pocketError]}>
+                Hold the phone still for a moment, then tap Done again.
               </Text>
             ) : (
               <>
@@ -909,7 +914,9 @@ const gpsWaitLabel = isDebugMode
                   2. Hold the phone in front of you, top edge pointing forward.{'\n'}
                   3. Tap Calibrate and keep it pointing forward until it buzzes.{'\n'}
                   4. Put the phone away without turning your body, then keep it
-                  still. A success buzz means done; an error buzz means try again.
+                  still and tap Done. (If you do not tap, it finishes by itself
+                  after a few seconds of stillness.) A success buzz means done;
+                  an error buzz means try again.
                 </Text>
                 {pocket.failure && (
                   <Text style={[styles.pocketText, styles.pocketError]}>
@@ -922,12 +929,22 @@ const gpsWaitLabel = isDebugMode
             )}
             <View style={styles.modalButtons}>
               {calibrating ? (
-                <TouchableOpacity
-                  style={[styles.modalButton, styles.confirmModalButton]}
-                  onPress={pocket.clear}
-                >
-                  <Text style={styles.modalButtonText}>Cancel</Text>
-                </TouchableOpacity>
+                <>
+                  {pocket.status === 'placing' && (
+                    <TouchableOpacity
+                      style={[styles.modalButton, styles.confirmModalButton]}
+                      onPress={pocket.finish}
+                    >
+                      <Text style={styles.modalButtonText}>Done</Text>
+                    </TouchableOpacity>
+                  )}
+                  <TouchableOpacity
+                    style={[styles.modalButton, styles.pocketOffButton]}
+                    onPress={pocket.clear}
+                  >
+                    <Text style={styles.modalButtonText}>Cancel</Text>
+                  </TouchableOpacity>
+                </>
               ) : (
                 <>
                   <TouchableOpacity

@@ -4,6 +4,7 @@ import assert from 'node:assert/strict';
 import type { DeviceAxes } from '../hooks/useCompass';
 import {
   CalibrationState,
+  finishCalibrationByHand,
   axisHeading,
   calibratedHeading,
   pickAxis,
@@ -125,4 +126,65 @@ test('calibration waits the minimum placing time even if the phone is still at o
 test('calibratedHeading is null when the locked axis points nearly straight up', () => {
   const cal = { axis: 'top' as const, offset: 0 };
   assert.equal(calibratedHeading(upright(0), cal), null);
+});
+
+// Run until `untilMs` without stopping at done/failed (the person has not tapped)
+function runTo(pose: (t: number) => DeviceAxes, untilMs: number): CalibrationState {
+  let state = startCalibration({ t: 0, axes: pose(0) });
+  for (let t = 20; t <= untilMs; t += 20) state = stepCalibration(state, { t, axes: pose(t) });
+  return state;
+}
+
+test('tap Done: finishes early with the same answer the timer would give', () => {
+  const pose = pocketWalk(flat(40), upright(100, true));
+  const auto = run(pose);
+  assert.equal(auto.phase, 'done');
+  // 0.6 s forward, 0.8 s to put it away, tap at 2.8 s: still for 1.4 s by then
+  // (1.1 s once the 0.3 s before the tap is left out)
+  const placing = runTo(pose, 2800);
+  assert.equal(placing.phase, 'placing');
+  const byHand = finishCalibrationByHand(placing, 2800);
+  assert.ok(byHand && byHand.phase === 'done');
+  if (auto.phase === 'done' && byHand && byHand.phase === 'done') {
+    assert.equal(byHand.calibration.axis, auto.calibration.axis);
+    assert.ok(near(byHand.calibration.offset, auto.calibration.offset, 1));
+  }
+});
+
+test('tap Done too early: not accepted, hold still and tap again', () => {
+  const pose = pocketWalk(flat(40), upright(100, true));
+  const placing = runTo(pose, 1800); // only 0.4 s since it came to rest
+  assert.equal(finishCalibrationByHand(placing, 1800), null);
+});
+
+test('tap Done: the jolt of the tap itself does not spoil the answer', () => {
+  const base = pocketWalk(flat(40), upright(100, true));
+  // at 3.0 s the finger presses and the phone is knocked 25 degrees off
+  const pose = (t: number) => (t >= 3000 ? turn(base(t), 25) : base(t));
+  const placing = runTo(pose, 3100);
+  const byHand = finishCalibrationByHand(placing, 3100);
+  assert.ok(byHand && byHand.phase === 'done');
+  const clean = finishCalibrationByHand(runTo(base, 2900), 2900);
+  assert.ok(clean && clean.phase === 'done');
+  if (byHand && byHand.phase === 'done' && clean && clean.phase === 'done') {
+    assert.ok(near(byHand.calibration.offset, clean.calibration.offset, 1));
+  }
+});
+
+test('tap Done does nothing outside the placing step', () => {
+  const capturing = startCalibration({ t: 0, axes: flat(10) });
+  assert.equal(finishCalibrationByHand(capturing, 100), null);
+});
+
+test('the phone worn upright on a belt, screen facing out, calibrates the same way', () => {
+  // body faces 70; on the belt the back camera points into the body (250)
+  const pose = pocketWalk(flat(70), upright(250));
+  const placing = runTo(pose, 2800);
+  const byHand = finishCalibrationByHand(placing, 2800);
+  assert.ok(byHand && byHand.phase === 'done');
+  if (byHand && byHand.phase === 'done') {
+    const c = byHand.calibration;
+    assert.ok(near(calibratedHeading(upright(250), c)!, 70, 1));
+    assert.ok(near(calibratedHeading(turn(upright(250), 90), c)!, 160, 1)); // follows a body turn
+  }
 });
