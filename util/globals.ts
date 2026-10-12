@@ -8,7 +8,7 @@ export const GlobalStore = {
   },
   BUZZ: {
     // Pulsar frequency is 0..1. The amplitude comes from util/haptics.ts.
-    FREQUENCY: 0.5,
+    FREQUENCY: 1, // sharpest; 0.5 was too soft to feel through a pocket
   },
   DEBUG_MODE: {
     STEP: 0.000001,
