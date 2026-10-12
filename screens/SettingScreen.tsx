@@ -29,6 +29,7 @@ import {
   HAPTIC_SHAPE,
   HapticMode,
   exponentialIntensity,
+  shapeFor,
   planPulse,
 } from '../util/haptics';
 import {
@@ -163,7 +164,7 @@ export default function SettingScreen() {
         at(t, () => pulseBuzz(plan.amplitude, plan.pulseMs));
         t += plan.pulseMs + plan.pauseMs;
       } else {
-        at(t, () => startBuzz(exponentialIntensity(error, haptics.deadband)));
+        at(t, () => startBuzz(exponentialIntensity(error, haptics.deadband, shapeFor(haptics))));
         t += 900;
       }
     }
@@ -563,6 +564,15 @@ export default function SettingScreen() {
             max={HAPTIC_LIMITS.deadband.max}
             step={1}
             onChange={(deadband) => updateHapticSettings({ deadband })}
+          />
+          <Stepper
+            label="Weakest buzz (just outside the zone)"
+            value={haptics.minStrength}
+            unit="%"
+            min={HAPTIC_LIMITS.minStrength.min}
+            max={HAPTIC_LIMITS.minStrength.max}
+            step={5}
+            onChange={(minStrength) => updateHapticSettings({ minStrength })}
           />
           {haptics.mode !== 'continuous' && (
             <>

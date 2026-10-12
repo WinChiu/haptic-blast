@@ -228,6 +228,7 @@ export default function HomeScreen() {
           deadband_deg: String(hapticSettings.deadband),
           pulse_ms: String(hapticSettings.pulseMs),
           confirm_ms: String(hapticSettings.confirmMs),
+          min_strength_pct: String(hapticSettings.minStrength),
           tip: tipShown,
           debug_mode: String(isDebugMode),
           dev_build: String(__DEV__),

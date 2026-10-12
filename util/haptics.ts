@@ -13,6 +13,7 @@ export type HapticSettings = {
   deadband: number; // degrees either side of the target where the phone stays silent
   pulseMs: number; // length of one vibration
   confirmMs: number; // length of the "you are lined up" click
+  minStrength: number; // weakest buzz, just outside the silent zone, in percent
 };
 
 // The ranges the guide recommends; the app keeps every setting inside them
@@ -20,6 +21,8 @@ export const HAPTIC_LIMITS = {
   deadband: { min: 5, max: 15 },
   pulseMs: { min: 500, max: 1000 },
   confirmMs: { min: 50, max: 100 },
+  // 20% was too faint to feel on the first tests; the guide's 20% is the lowest allowed
+  minStrength: { min: 20, max: 70 },
 } as const;
 
 export const DEFAULT_HAPTIC_SETTINGS: HapticSettings = {
@@ -27,6 +30,7 @@ export const DEFAULT_HAPTIC_SETTINGS: HapticSettings = {
   deadband: 15,
   pulseMs: 750,
   confirmMs: 50,
+  minStrength: 40,
 };
 
 // Fixed parts of the shape (not adjustable in the app)
@@ -75,6 +79,7 @@ export function clampSettings(raw: Partial<HapticSettings> | null | undefined): 
     deadband: Math.round(clamp(num(raw?.deadband, d.deadband), HAPTIC_LIMITS.deadband.min, HAPTIC_LIMITS.deadband.max)),
     pulseMs: Math.round(clamp(num(raw?.pulseMs, d.pulseMs), HAPTIC_LIMITS.pulseMs.min, HAPTIC_LIMITS.pulseMs.max)),
     confirmMs: Math.round(clamp(num(raw?.confirmMs, d.confirmMs), HAPTIC_LIMITS.confirmMs.min, HAPTIC_LIMITS.confirmMs.max)),
+    minStrength: Math.round(clamp(num(raw?.minStrength, d.minStrength), HAPTIC_LIMITS.minStrength.min, HAPTIC_LIMITS.minStrength.max)),
   };
 }
 
@@ -110,6 +115,11 @@ export function pauseForDeviation(
   return Math.round(shape.pauseNearMs + t * (shape.pauseFarMs - shape.pauseNearMs));
 }
 
+// The fixed shape with the chosen weakest strength
+export function shapeFor(settings: Pick<HapticSettings, 'minStrength'>) {
+  return { ...HAPTIC_SHAPE, minIntensity: settings.minStrength / 100 };
+}
+
 export type PulsePlan = { amplitude: number; pulseMs: number; pauseMs: number };
 
 // What to do for this angle error: null while on course (silent), otherwise
@@ -118,7 +128,7 @@ export function planPulse(errorDeg: number, settings: HapticSettings): PulsePlan
   const error = Math.abs(errorDeg);
   if (error <= settings.deadband) return null;
   return {
-    amplitude: exponentialIntensity(error, settings.deadband),
+    amplitude: exponentialIntensity(error, settings.deadband, shapeFor(settings)),
     pulseMs: settings.pulseMs,
     pauseMs:
       settings.mode === 'steady'

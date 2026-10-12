@@ -12,6 +12,7 @@ import {
   pauseForDeviation,
   NEW_PULSE_CLOCK,
   planPulse,
+  shapeFor,
   stepPulse,
   shouldConfirm,
 } from '../util/haptics';
@@ -20,7 +21,7 @@ const near = (a: number, b: number, eps = 1e-9) => assert.ok(Math.abs(a - b) <= 
 const { minIntensity, maxIntensity, maxDeviation } = HAPTIC_SHAPE;
 
 test('defaults follow the guide: pulsed, 10 deg, 750 ms, 50 ms click', () => {
-  assert.deepEqual(DEFAULT_HAPTIC_SETTINGS, { mode: 'pulsed', deadband: 15, pulseMs: 750, confirmMs: 50 });
+  assert.deepEqual(DEFAULT_HAPTIC_SETTINGS, { mode: 'pulsed', deadband: 15, pulseMs: 750, confirmMs: 50, minStrength: 40 });
 });
 
 test('exponentialIntensity: silent inside the dead zone', () => {
@@ -230,4 +231,24 @@ test('steady mode: no strength updates in the silence between pulses', () => {
   const err = (t: number) => (t < 800 ? 80 : 30);
   const a = actions(steady, err, 1150).filter((x) => x.kind === 'level');
   assert.ok(a.every((x) => x.t < 750), 'only while the pulse is running');
+});
+
+test('minimum strength: the weakest buzz just outside the zone follows the setting', () => {
+  const weak = { ...DEFAULT_HAPTIC_SETTINGS, minStrength: 20 };
+  const strong = { ...DEFAULT_HAPTIC_SETTINGS, minStrength: 50 };
+  const justOutside = DEFAULT_HAPTIC_SETTINGS.deadband + 1;
+  const a = planPulse(justOutside, weak)!.amplitude;
+  const b = planPulse(justOutside, strong)!.amplitude;
+  assert.ok(Math.abs(a - 0.2) < 0.03, `weak ${a}`);
+  assert.ok(Math.abs(b - 0.5) < 0.03, `strong ${b}`);
+  // still the full strength far off, still rising with the angle
+  assert.ok(Math.abs(planPulse(90, strong)!.amplitude - 1) < 1e-9);
+  assert.ok(planPulse(40, strong)!.amplitude < planPulse(70, strong)!.amplitude);
+});
+
+test('minimum strength is clamped and has a default of 40%', () => {
+  assert.equal(DEFAULT_HAPTIC_SETTINGS.minStrength, 40);
+  assert.equal(clampSettings({ minStrength: 5 }).minStrength, HAPTIC_LIMITS.minStrength.min);
+  assert.equal(clampSettings({ minStrength: 99 }).minStrength, HAPTIC_LIMITS.minStrength.max);
+  assert.equal(shapeFor({ minStrength: 30 }).minIntensity, 0.3);
 });

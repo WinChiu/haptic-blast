@@ -9,6 +9,7 @@ import { useHapticSettings } from '../util/hapticSettings';
 import {
   HAPTIC_SHAPE,
   exponentialIntensity,
+  shapeFor,
   NEW_PULSE_CLOCK,
   stepPulse,
 } from '../util/haptics';
@@ -273,7 +274,7 @@ export function useGuidance(
       angleDiff > zone;
 
     if (shouldBuzz) {
-      startBuzz(exponentialIntensity(angleDiff, zone));
+      startBuzz(exponentialIntensity(angleDiff, zone, shapeFor(haptics)));
       isContinuousBuzzingRef.current = true;
     } else if (isContinuousBuzzingRef.current) {
       stopBuzz();
