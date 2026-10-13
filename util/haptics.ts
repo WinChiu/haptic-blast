@@ -34,7 +34,7 @@ export const DEFAULT_HAPTIC_SETTINGS: HapticSettings = {
   deadband: 15,
   pulseMs: 750,
   confirmMs: 50,
-  minStrength: 50,
+  minStrength: 70,
   sharpness: 100,
 };
 
