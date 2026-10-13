@@ -52,14 +52,15 @@ function turn(a: DeviceAxes, deg: number): DeviceAxes {
 const near = (a: number, b: number, tol = 0.5) =>
   Math.abs(((a - b + 540) % 360) - 180) <= tol;
 
-// Feed poses every 20 ms; `pose(t)` gives the phone's axes at time t (ms)
-function run(pose: (t: number) => DeviceAxes, untilMs = 15000): CalibrationState {
+// Feed poses every 20 ms; `pose(t)` gives the phone's axes at time t (ms).
+// The person taps Done at `tapAt`; there is no automatic finish.
+function run(pose: (t: number) => DeviceAxes, tapAt = 3000): CalibrationState {
   let state = startCalibration({ t: 0, axes: pose(0) });
-  for (let t = 20; t <= untilMs; t += 20) {
+  for (let t = 20; t <= tapAt; t += 20) {
     state = stepCalibration(state, { t, axes: pose(t) });
-    if (state.phase === 'done' || state.phase === 'failed') break;
+    if (state.phase === 'failed') return state;
   }
-  return state;
+  return finishCalibrationByHand(state, tapAt) ?? state;
 }
 
 // Held forward for 0.6 s, moved into the pocket over 0.8 s, then still
@@ -107,20 +108,15 @@ test('calibration fails if the phone moves while measuring forward', () => {
   assert.deepEqual(state, { phase: 'failed', reason: 'moving' });
 });
 
-test('calibration fails if the phone never settles', () => {
-  const state = run((t) => (t < 500 ? flat(0) : flat(t * 0.1)));
-  assert.deepEqual(state, { phase: 'failed', reason: 'not-still' });
+test('calibration does not finish by itself, however long the phone is still', () => {
+  let state = startCalibration({ t: 0, axes: flat(0) });
+  for (let t = 20; t <= 60000; t += 20) state = stepCalibration(state, { t, axes: flat(0) });
+  assert.equal(state.phase, 'placing');
 });
 
-test('calibration waits the minimum placing time even if the phone is still at once', () => {
-  let state = startCalibration({ t: 0, axes: flat(0) });
-  let doneAt: number | null = null;
-  for (let t = 20; t <= 5000 && doneAt === null; t += 20) {
-    state = stepCalibration(state, { t, axes: flat(0) });
-    if (state.phase === 'done') doneAt = t;
-  }
-  // Placing starts at 500 ms, so not done before 2500 ms
-  assert.ok(doneAt !== null && doneAt >= 2500, `done at ${doneAt}`);
+test('tapping Done while the phone is still moving is not accepted', () => {
+  const state = run((t) => (t < 500 ? flat(0) : flat(t * 0.1)));
+  assert.equal(state.phase, 'placing'); // finishCalibrationByHand returned null
 });
 
 test('calibratedHeading is null when the locked axis points nearly straight up', () => {

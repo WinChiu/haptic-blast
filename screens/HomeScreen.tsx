@@ -914,15 +914,12 @@ const gpsWaitLabel = isDebugMode
                   2. Hold the phone in front of you, top edge pointing forward.{'\n'}
                   3. Tap Calibrate and keep it pointing forward until it buzzes.{'\n'}
                   4. Put the phone away without turning your body, then keep it
-                  still and tap Done. (If you do not tap, it finishes by itself
-                  after a few seconds of stillness.) A success buzz means done;
-                  an error buzz means try again.
+                  still and tap Done. A success buzz means done; an error buzz
+                  means try again.
                 </Text>
                 {pocket.failure && (
                   <Text style={[styles.pocketText, styles.pocketError]}>
-                    {pocket.failure === 'moving'
-                      ? 'The phone moved while measuring forward. Hold it steady and try again.'
-                      : 'The phone did not settle within 10 seconds. Try again and keep it still once it is put away.'}
+                    The phone moved while measuring forward. Hold it steady and try again.
                   </Text>
                 )}
               </>

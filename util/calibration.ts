@@ -18,7 +18,7 @@ export type Calibration = {
 
 export type CalibrationSample = { t: number; axes: DeviceAxes };
 
-export type CalibrationFailure = 'moving' | 'not-still';
+export type CalibrationFailure = 'moving';
 
 export type CalibrationState =
   | {
@@ -131,26 +131,13 @@ export function stepCalibration(
     };
   }
 
+  // Placing never ends by itself: the person taps Done (finishCalibrationByHand).
+  // Here we only keep track of how still the phone has been.
   if (state.phase === 'placing') {
-    const elapsed = sample.t - state.placingSince;
-    if (elapsed > c.timeoutMs) return { phase: 'failed', reason: 'not-still' };
-
     const dt = (sample.t - state.prev.t) / 1000;
     const rate = dt > 0 ? rotationBetween(state.prev.axes, sample.axes) / dt : 0;
     const still = rate <= c.stillRateDegPerS ? [...state.still, sample] : [];
 
-    if (
-      elapsed >= c.minPlaceMs &&
-      still.length > 0 &&
-      sample.t - still[0].t >= c.stillMs
-    ) {
-      const axis = pickAxis(sample.axes);
-      const h1 = meanHeading(still.map((s) => axisHeading(s.axes, axis).deg));
-      return {
-        phase: 'done',
-        calibration: { axis, offset: circularDiff(state.h0, h1) },
-      };
-    }
     const longEnough =
       still.length > 0 && sample.t - still[0].t >= c.manualStillMs;
     return {

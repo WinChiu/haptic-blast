@@ -62,14 +62,11 @@ export const GlobalStore = {
   CALIBRATION: {
     captureMs: 500, // forward heading is averaged over this long in the hand
     maxCaptureSpreadDeg: 10, // more spread than this means the hand moved
-    minPlaceMs: 2000, // time to put the phone away before stillness counts
-    stillMs: 3000, // the phone must then be still this long (3 s, from team feedback)
-    // Finishing by hand (tap Done): the phone only needs to have been still this long
+    // The person taps Done to finish; the phone must have been still this long
     manualStillMs: 1000,
     tapGuardMs: 300, // readings this close to the tap are ignored: the tap jolts the phone
     staleStillMs: 4000, // the still stretch used must end no earlier than this before the tap
     stillRateDegPerS: 15, // slower rotation than this counts as still
-    timeoutMs: 10000, // give up if the phone is not still by then
     // The locked heading axis must stay at least this horizontal (0..1,
     // 0.35 = about 20° from vertical); otherwise the phone has turned in the
     // pocket and the heading is not updated
