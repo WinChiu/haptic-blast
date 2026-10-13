@@ -8,7 +8,7 @@ export const GlobalStore = {
   },
   BUZZ: {
     // Pulsar frequency is 0..1. The amplitude comes from util/haptics.ts.
-    FREQUENCY: 1, // sharpest; 0.5 was too soft to feel through a pocket
+    FREQUENCY: 1, // no longer used by the buzz: the sharpness is a setting now (Settings -> Haptic tuning)
   },
   DEBUG_MODE: {
     STEP: 0.000001,

@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react';
 import { Platform, TurboModuleRegistry, Vibration } from 'react-native';
 import { GlobalStore } from '../util/globals';
+import { getHapticSettings } from '../util/hapticSettings';
 import { Buzzer, RealtimeLike, createBuzzer } from '../util/buzzer';
 
 // Pulsar ships native code, so it only exists in a dev build, not in Expo Go.
@@ -43,7 +44,8 @@ export function useBuzz(): Buzzer {
         !PULSAR_AVAILABLE && BUZZ_BACKEND === 'android-vibration'
           ? Vibration
           : null,
-      frequency: () => GlobalStore.BUZZ.FREQUENCY,
+      // Read at every buzz, so a change in Settings is felt at once
+      frequency: () => getHapticSettings().sharpness / 100,
       androidHoldMs: ANDROID_HOLD_MS,
     });
   }

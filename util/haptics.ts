@@ -14,6 +14,7 @@ export type HapticSettings = {
   pulseMs: number; // length of one vibration
   confirmMs: number; // length of the "you are lined up" click
   minStrength: number; // weakest buzz, just outside the silent zone, in percent
+  sharpness: number; // character of the buzz in percent: 0 soft and deep, 100 crisp and buzzy
 };
 
 // The ranges the guide recommends; the app keeps every setting inside them
@@ -24,6 +25,8 @@ export const HAPTIC_LIMITS = {
   // 20% was too faint to feel on the first tests; the guide's 20% is the lowest allowed
   // 100 makes every buzz full strength, so strength no longer says how far off you are
   minStrength: { min: 20, max: 100 },
+  // The library's scale is 0 to 1; 100 is the top, there is nothing above it
+  sharpness: { min: 0, max: 100 },
 } as const;
 
 export const DEFAULT_HAPTIC_SETTINGS: HapticSettings = {
@@ -32,6 +35,7 @@ export const DEFAULT_HAPTIC_SETTINGS: HapticSettings = {
   pulseMs: 750,
   confirmMs: 50,
   minStrength: 50,
+  sharpness: 100,
 };
 
 // Fixed parts of the shape (not adjustable in the app)
@@ -81,6 +85,7 @@ export function clampSettings(raw: Partial<HapticSettings> | null | undefined): 
     pulseMs: Math.round(clamp(num(raw?.pulseMs, d.pulseMs), HAPTIC_LIMITS.pulseMs.min, HAPTIC_LIMITS.pulseMs.max)),
     confirmMs: Math.round(clamp(num(raw?.confirmMs, d.confirmMs), HAPTIC_LIMITS.confirmMs.min, HAPTIC_LIMITS.confirmMs.max)),
     minStrength: Math.round(clamp(num(raw?.minStrength, d.minStrength), HAPTIC_LIMITS.minStrength.min, HAPTIC_LIMITS.minStrength.max)),
+    sharpness: Math.round(clamp(num(raw?.sharpness, d.sharpness), HAPTIC_LIMITS.sharpness.min, HAPTIC_LIMITS.sharpness.max)),
   };
 }
 

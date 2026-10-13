@@ -566,6 +566,15 @@ export default function SettingScreen() {
             onChange={(deadband) => updateHapticSettings({ deadband })}
           />
           <Stepper
+            label="Sharpness (0 soft, 100 crisp)"
+            value={haptics.sharpness}
+            unit="%"
+            min={HAPTIC_LIMITS.sharpness.min}
+            max={HAPTIC_LIMITS.sharpness.max}
+            step={10}
+            onChange={(sharpness) => updateHapticSettings({ sharpness })}
+          />
+          <Stepper
             label="Weakest buzz (just outside the zone)"
             value={haptics.minStrength}
             unit="%"

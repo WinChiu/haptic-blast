@@ -229,6 +229,7 @@ export default function HomeScreen() {
           pulse_ms: String(hapticSettings.pulseMs),
           confirm_ms: String(hapticSettings.confirmMs),
           min_strength_pct: String(hapticSettings.minStrength),
+          sharpness_pct: String(hapticSettings.sharpness),
           tip: tipShown,
           debug_mode: String(isDebugMode),
           dev_build: String(__DEV__),

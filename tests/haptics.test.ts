@@ -21,7 +21,7 @@ const near = (a: number, b: number, eps = 1e-9) => assert.ok(Math.abs(a - b) <= 
 const { minIntensity, maxIntensity, maxDeviation } = HAPTIC_SHAPE;
 
 test('defaults follow the guide: pulsed, 10 deg, 750 ms, 50 ms click', () => {
-  assert.deepEqual(DEFAULT_HAPTIC_SETTINGS, { mode: 'pulsed', deadband: 15, pulseMs: 750, confirmMs: 50, minStrength: 50 });
+  assert.deepEqual(DEFAULT_HAPTIC_SETTINGS, { mode: 'pulsed', deadband: 15, pulseMs: 750, confirmMs: 50, minStrength: 50, sharpness: 100 });
 });
 
 test('exponentialIntensity: silent inside the dead zone', () => {
@@ -259,4 +259,12 @@ test('weakest buzz at 100%: every buzz is full strength, nothing breaks', () => 
     assert.equal(planPulse(e, full)!.amplitude, 1);
   }
   assert.equal(planPulse(10, full), null); // still silent inside the zone
+});
+
+test('sharpness: 0 to 100 percent, default 100, clamped', () => {
+  assert.equal(DEFAULT_HAPTIC_SETTINGS.sharpness, 100);
+  assert.equal(clampSettings({ sharpness: 0 }).sharpness, 0);
+  assert.equal(clampSettings({ sharpness: 250 }).sharpness, 100);
+  assert.equal(clampSettings({ sharpness: -30 }).sharpness, 0);
+  assert.equal(clampSettings({ sharpness: 'x' as any }).sharpness, 100);
 });
