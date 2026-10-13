@@ -892,16 +892,18 @@ const gpsWaitLabel = isDebugMode
           <View style={styles.modalContent}>
             <Text style={styles.modalTitle}>Pocket mode</Text>
             {calibrating ? (
-              <Text style={styles.pocketText}>
-                {pocket.status === 'capturing'
-                  ? 'Keep the phone pointing forward…'
-                  : 'Buzz: put the phone where you will carry it (belt, pocket or bag) now, without turning your body. When it is in place and still, tap Done.'}
-              </Text>
-            ) : null}
-            {calibrating && pocket.needsStill ? (
-              <Text style={[styles.pocketText, styles.pocketError]}>
-                Hold the phone still for a moment, then tap Done again.
-              </Text>
+              <>
+                <Text style={styles.pocketText}>
+                  {pocket.status === 'capturing'
+                    ? 'Keep the phone pointing forward…'
+                    : 'Buzz: put the phone where you will carry it (belt, pocket or bag) now, without turning your body. When it is in place and still, tap Done.'}
+                </Text>
+                {pocket.needsStill && (
+                  <Text style={[styles.pocketText, styles.pocketError]}>
+                    Hold the phone still for a moment, then tap Done again.
+                  </Text>
+                )}
+              </>
             ) : (
               <>
                 <Text style={styles.pocketText}>
