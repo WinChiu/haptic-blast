@@ -249,6 +249,14 @@ test('minimum strength: the weakest buzz just outside the zone follows the setti
 test('minimum strength is clamped and has a default of 50%', () => {
   assert.equal(DEFAULT_HAPTIC_SETTINGS.minStrength, 50);
   assert.equal(clampSettings({ minStrength: 5 }).minStrength, HAPTIC_LIMITS.minStrength.min);
-  assert.equal(clampSettings({ minStrength: 99 }).minStrength, HAPTIC_LIMITS.minStrength.max);
+  assert.equal(clampSettings({ minStrength: 150 }).minStrength, HAPTIC_LIMITS.minStrength.max);
   assert.equal(shapeFor({ minStrength: 30 }).minIntensity, 0.3);
+});
+
+test('weakest buzz at 100%: every buzz is full strength, nothing breaks', () => {
+  const full = { ...DEFAULT_HAPTIC_SETTINGS, minStrength: 100 };
+  for (const e of [16, 25, 45, 70, 90, 170]) {
+    assert.equal(planPulse(e, full)!.amplitude, 1);
+  }
+  assert.equal(planPulse(10, full), null); // still silent inside the zone
 });

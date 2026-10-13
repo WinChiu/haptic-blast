@@ -22,7 +22,8 @@ export const HAPTIC_LIMITS = {
   pulseMs: { min: 500, max: 1000 },
   confirmMs: { min: 50, max: 100 },
   // 20% was too faint to feel on the first tests; the guide's 20% is the lowest allowed
-  minStrength: { min: 20, max: 70 },
+  // 100 makes every buzz full strength, so strength no longer says how far off you are
+  minStrength: { min: 20, max: 100 },
 } as const;
 
 export const DEFAULT_HAPTIC_SETTINGS: HapticSettings = {
