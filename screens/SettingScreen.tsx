@@ -25,6 +25,7 @@ import {
 import { ReminderPreference } from '../util/tipMode';
 import { useBuzz, BUZZ_BACKEND } from '../hooks/useBuzz';
 import { useBeltSettings, updateBeltSettings } from '../util/beltSettings';
+import { connectBelt, disconnectBelt, testMotor, useBeltLink } from '../util/beltLink';
 import { BELT_LIMITS, BELT_PATTERNS, BeltTrigger } from '../util/belt';
 import {
   HAPTIC_LIMITS,
@@ -255,6 +256,7 @@ export default function SettingScreen() {
   };
   const [advancedOpen, setAdvancedOpen] = useState(false);
   const belt = useBeltSettings();
+  const link = useBeltLink();
   const cards = [
     {
       title: 'Haptic Feedback',
@@ -601,6 +603,41 @@ export default function SettingScreen() {
             same pause every time. Taps: each pulse is a quick series of short
             taps. The pulse length is the one in Haptic tuning.
           </Text>
+          <Text style={styles.cardText}>
+            Belt connection:{' '}
+            {link.status === 'connected'
+              ? 'connected'
+              : link.status === 'scanning'
+                ? 'looking for the belt…'
+                : link.status === 'connecting'
+                  ? 'connecting…'
+                  : link.status === 'unavailable'
+                    ? 'not available in this build'
+                    : 'not connected'}
+          </Text>
+          {link.error && link.status !== 'connected' && (
+            <Text style={[styles.cardText, { color: '#eab308' }]}>{link.error}</Text>
+          )}
+          {link.status !== 'unavailable' && (
+            <TouchableOpacity
+              style={styles.saveButton}
+              onPress={() => (link.status === 'connected' ? disconnectBelt() : connectBelt())}
+              disabled={link.status === 'scanning' || link.status === 'connecting'}
+            >
+              <Text style={styles.saveButtonText}>
+                {link.status === 'connected' ? 'Disconnect the belt' : 'Connect the belt'}
+              </Text>
+            </TouchableOpacity>
+          )}
+          {link.status === 'connected' && (
+            <View style={styles.optionRow}>
+              {(['left', 'front', 'right'] as const).map((m) => (
+                <TouchableOpacity key={m} style={styles.optionChip} onPress={() => testMotor(m)}>
+                  <Text style={styles.optionText}>Test {m}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          )}
           <Text style={styles.cardText}>
             Once it has started for a junction it stays on until you pass it.
             By speed never starts closer than 15 m or further than 60 m.

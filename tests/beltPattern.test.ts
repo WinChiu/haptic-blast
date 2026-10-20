@@ -94,3 +94,15 @@ test('beltFrame: left, front, right bytes; all zero when the pattern is in a pau
   assert.deepEqual(beltFrame({ left: 0, main: 1, right: 0.25 }, false), [0, 0, 0]);
   assert.deepEqual(beltFrame({ left: 0, main: 0, right: 0 }, true), [0, 0, 0]);
 });
+
+import { bytesToBase64 } from '../util/beltLink';
+
+test('bytesToBase64 matches the standard encoding (the format the Bluetooth library takes)', () => {
+  const std = (b: number[]) => Buffer.from(b).toString('base64');
+  for (const b of [[0, 0, 0], [255, 0, 0], [0, 255, 0], [0, 0, 255], [0, 255, 128], [255, 255, 255], [1, 2, 3], [124, 80, 255]]) {
+    assert.equal(bytesToBase64(b), std(b));
+  }
+  assert.equal(bytesToBase64([255, 0, 0]), '/wAA');
+  assert.equal(bytesToBase64([1, 2]), Buffer.from([1, 2]).toString('base64'));
+  assert.equal(bytesToBase64([1]), Buffer.from([1]).toString('base64'));
+});

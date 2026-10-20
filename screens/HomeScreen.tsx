@@ -35,6 +35,7 @@ import { useCalibration } from '../hooks/useCalibration';
 import { useBelt } from '../hooks/useBelt';
 import BeltBars from '../components/BeltBars';
 import { useBeltSettings } from '../util/beltSettings';
+import { sendBeltFrame } from '../util/beltLink';
 import type { Junction } from '../util/belt';
 import { useGuidance } from '../hooks/useGuidance';
 import { BUZZ_BACKEND } from '../hooks/useBuzz';
@@ -369,6 +370,7 @@ export default function HomeScreen() {
     junction: guide?.junction ?? null,
     speedMps: speedRef.current,
     zoneDeg: zoneDegrees,
+    onFrame: sendBeltFrame,
   });
 
   // (silent while calibrating: the person is not following it then)
