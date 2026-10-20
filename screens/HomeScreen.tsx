@@ -32,6 +32,10 @@ import { loadRecordingPrefs, saveRecording } from '../util/recordingStorage';
 
 import { useCompass } from '../hooks/useCompass';
 import { useCalibration } from '../hooks/useCalibration';
+import { useBelt } from '../hooks/useBelt';
+import BeltBars from '../components/BeltBars';
+import { useBeltSettings } from '../util/beltSettings';
+import type { Junction } from '../util/belt';
 import { useGuidance } from '../hooks/useGuidance';
 import { BUZZ_BACKEND } from '../hooks/useBuzz';
 import { useHapticSettings } from '../util/hapticSettings';
@@ -92,6 +96,7 @@ export default function HomeScreen() {
     position: Coord;
     snapped: boolean;
     snapDistance: number | null;
+    junction?: Junction | null;
   } | null>(null);
   const [nextCheckpoint, setNextCheckpoint] = useState<{
     latitude: number;
@@ -353,13 +358,26 @@ export default function HomeScreen() {
   const zoneRef = useRef<number | null>(null);
   zoneRef.current = zoneDegrees;
 
+  // Haptic belt (v2): when belt mode is on the phone does not vibrate itself;
+  // the belt does, from the junction ahead.
+  const beltSettings = useBeltSettings();
+  const speedRef = useRef<number | null>(null);
+  const belt = useBelt({
+    settings: beltSettings,
+    running: isNavigating && !calibrating,
+    facing: heading,
+    junction: guide?.junction ?? null,
+    speedMps: speedRef.current,
+    zoneDeg: zoneDegrees,
+  });
+
   // (silent while calibrating: the person is not following it then)
   useGuidance(
     heading,
     targetBearing,
     isNavigating && !calibrating,
-    hapticEnabled,
-    soundEnabled,
+    hapticEnabled && !beltSettings.enabled,
+    soundEnabled && !beltSettings.enabled,
     zoneDegrees
   );
 
@@ -371,6 +389,7 @@ export default function HomeScreen() {
       position: Coord;
       snapped: boolean;
       snapDistance: number | null;
+      junction?: Junction | null;
     }
   ) => {
     checkpointIndexRef.current = index ?? null;
@@ -649,6 +668,7 @@ const gpsWaitLabel = isDebugMode
         centerOnUserTrigger={centerTrigger}
         onUserLocationUpdate={(loc) => {
           setGpsAccuracy(loc.accuracy ?? null);
+          speedRef.current = loc.speed !== null && loc.speed >= 0 ? loc.speed : null;
 
           // Fixes that are too inaccurate must not move the position the
           // route logic uses (they are still recorded below)
@@ -742,12 +762,15 @@ const gpsWaitLabel = isDebugMode
             </TouchableOpacity>
           </View>
           {showCompassContent ? (
-            <HapticCompass
-              targetAngle={targetBearing}
-              heading={heading}
-              calibration={pocket.calibration}
-              zoneDegrees={zoneDegrees}
-            />
+            <>
+              <HapticCompass
+                targetAngle={targetBearing}
+                heading={heading}
+                calibration={pocket.calibration}
+                zoneDegrees={zoneDegrees}
+              />
+              {beltSettings.enabled && <BeltBars state={belt} />}
+            </>
           ) : (
             <View style={styles.hiddenCompassContainer}>
               <Text style={styles.hiddenCompassText}>

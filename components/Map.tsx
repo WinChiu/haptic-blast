@@ -10,6 +10,7 @@ import * as Location from 'expo-location';
 import { API_ENDPOINTS, USE_SELF_HOSTED_TILES } from '../util/config';
 import { GlobalStore } from '../util/globals';
 import { distanceMeters } from '../util/geo';
+import { junctionAt } from '../util/belt';
 import { generateCheckpoints } from '../util/checkpoints';
 import { isFixUsable } from '../util/gps';
 import {
@@ -179,11 +180,14 @@ export default function Map({
     const snap = snapToRoute(userLocation, routeCoordinates, undefined, snapHintRef.current);
     if (snap) snapHintRef.current = snap.segment;
     const here = snap ? snap.point : userLocation;
-    const guide = {
+    const guideFor = (index: number) => ({
       position: here,
       snapped: snap !== null,
       snapDistance: snap ? snap.distance : null,
-    };
+      // For the haptic belt: the junction being approached
+      junction: junctionAt(here, routeCheckpoints, index),
+    });
+    const guide = guideFor(currentCheckpointIndex);
 
     const step = checkpointStep(here, routeCheckpoints, currentCheckpointIndex);
     if (step?.reason === 'skip') {
@@ -214,11 +218,11 @@ export default function Map({
           aimPoint(here, routeCheckpoints, nextIndex),
           nextIndex,
           routeCheckpoints.length,
-          guide
+          guideFor(nextIndex)
         );
       } else {
         // No more checkpoints, target final destination (handled by HomeScreen fallback)
-        onNextCheckpointUpdate(null as any, nextIndex, routeCheckpoints.length, guide);
+        onNextCheckpointUpdate(null as any, nextIndex, routeCheckpoints.length, guideFor(nextIndex));
       }
     } else {
       // Not reached yet, keep targeting this one

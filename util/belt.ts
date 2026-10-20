@@ -1,3 +1,5 @@
+import { Coord, bearingDegrees, distanceMeters } from './geo';
+
 // The haptic belt: which of three motors (left, front, right) should vibrate,
 // and how strongly, to tell the wearer which way to go. Pure functions, so the
 // rules can be tested on a computer.
@@ -109,4 +111,73 @@ export function beltGuidance(input: {
 
   const relative = relativeBearing(junction.legBearing, facing);
   return { mix: beltMix(relative, zoneDeg), active: true, relative, latch };
+}
+
+// The junction being approached at checkpoint `index`, seen from `here`.
+export function junctionAt(
+  here: Coord,
+  checkpoints: Coord[],
+  index: number
+): Junction | null {
+  const cp = checkpoints[index];
+  if (!cp) return null;
+  const next = checkpoints[index + 1];
+  return {
+    index,
+    distanceM: distanceMeters(here, cp),
+    legBearing: next ? bearingDegrees(cp, next) : null,
+  };
+}
+
+// How a motor vibrates while it is on (see util/beltPattern.ts)
+export type BeltPattern = 'continuous' | 'pulsed' | 'steady' | 'taps';
+export const BELT_PATTERNS: { value: BeltPattern; label: string }[] = [
+  { value: 'continuous', label: 'Continuous' },
+  { value: 'pulsed', label: 'Pulsed' },
+  { value: 'steady', label: 'Steady pulse' },
+  { value: 'taps', label: 'Taps' },
+];
+
+export type BeltSettings = {
+  enabled: boolean; // belt mode: the phone does not vibrate itself, the belt does
+  trigger: BeltTrigger;
+  lookAheadM: number;
+  secondsAhead: number;
+  pattern: BeltPattern;
+};
+
+export const BELT_LIMITS = {
+  lookAheadM: { min: 10, max: 80 },
+  secondsAhead: { min: 3, max: 15 },
+} as const;
+
+export const DEFAULT_BELT_SETTINGS: BeltSettings = {
+  enabled: false,
+  trigger: DEFAULT_BELT_TIMING.trigger,
+  lookAheadM: DEFAULT_BELT_TIMING.lookAheadM,
+  secondsAhead: DEFAULT_BELT_TIMING.secondsAhead,
+  pattern: 'steady',
+};
+
+export function clampBeltSettings(raw: Partial<BeltSettings> | null | undefined): BeltSettings {
+  const d = DEFAULT_BELT_SETTINGS;
+  const num = (v: unknown, fb: number) => (typeof v === 'number' && Number.isFinite(v) ? v : fb);
+  const clamp = (v: number, a: number, b: number) => Math.min(b, Math.max(a, v));
+  const patterns: BeltPattern[] = ['continuous', 'pulsed', 'steady', 'taps'];
+  return {
+    enabled: raw?.enabled === true,
+    trigger: raw?.trigger === 'speed' ? 'speed' : 'fixed',
+    lookAheadM: Math.round(clamp(num(raw?.lookAheadM, d.lookAheadM), BELT_LIMITS.lookAheadM.min, BELT_LIMITS.lookAheadM.max)),
+    secondsAhead: Math.round(clamp(num(raw?.secondsAhead, d.secondsAhead), BELT_LIMITS.secondsAhead.min, BELT_LIMITS.secondsAhead.max)),
+    pattern: patterns.includes(raw?.pattern as BeltPattern) ? (raw!.pattern as BeltPattern) : d.pattern,
+  };
+}
+
+export function timingOf(settings: BeltSettings): BeltTiming {
+  return {
+    ...DEFAULT_BELT_TIMING,
+    trigger: settings.trigger,
+    lookAheadM: settings.lookAheadM,
+    secondsAhead: settings.secondsAhead,
+  };
 }

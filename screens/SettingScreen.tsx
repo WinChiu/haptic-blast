@@ -24,6 +24,8 @@ import {
 } from '../util/guidancePrefs';
 import { ReminderPreference } from '../util/tipMode';
 import { useBuzz, BUZZ_BACKEND } from '../hooks/useBuzz';
+import { useBeltSettings, updateBeltSettings } from '../util/beltSettings';
+import { BELT_LIMITS, BeltTrigger } from '../util/belt';
 import {
   HAPTIC_LIMITS,
   HAPTIC_SHAPE,
@@ -252,6 +254,7 @@ export default function SettingScreen() {
     ]);
   };
   const [advancedOpen, setAdvancedOpen] = useState(false);
+  const belt = useBeltSettings();
   const cards = [
     {
       title: 'Haptic Feedback',
@@ -514,6 +517,71 @@ export default function SettingScreen() {
           <TouchableOpacity onPress={confirmClearRecordings}>
             <Text style={styles.linkText}>Delete recordings</Text>
           </TouchableOpacity>
+        </View>
+
+        <View style={styles.card}>
+          <Text style={styles.cardTitle}>Haptic belt</Text>
+          <Text style={styles.cardText}>
+            Belt mode: the phone does not vibrate itself. Three motors (left,
+            front, right) tell you which way the next stretch of the route
+            goes, starting a little before each junction.
+          </Text>
+          <View style={styles.toggleContainer}>
+            <Switch
+              trackColor={{ false: '#404040', true: '#22c55e' }}
+              thumbColor="#fff"
+              ios_backgroundColor="#404040"
+              onValueChange={(enabled) => {
+                updateBeltSettings({ enabled });
+              }}
+              value={belt.enabled}
+            />
+            <Text style={styles.toggleLabel}>{belt.enabled ? 'ON' : 'OFF'}</Text>
+          </View>
+          <Text style={styles.cardText}>When the belt starts before a junction:</Text>
+          <View style={styles.optionRow}>
+            {(
+              [
+                ['fixed', 'Fixed distance'],
+                ['speed', 'By speed'],
+              ] as [BeltTrigger, string][]
+            ).map(([value, label]) => (
+              <TouchableOpacity
+                key={value}
+                style={[styles.optionChip, belt.trigger === value && styles.optionChipActive]}
+                onPress={() => updateBeltSettings({ trigger: value })}
+              >
+                <Text style={[styles.optionText, belt.trigger === value && styles.optionTextActive]}>
+                  {label}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+          {belt.trigger === 'fixed' ? (
+            <Stepper
+              label="Start this far before the junction"
+              value={belt.lookAheadM}
+              unit=" m"
+              min={BELT_LIMITS.lookAheadM.min}
+              max={BELT_LIMITS.lookAheadM.max}
+              step={5}
+              onChange={(lookAheadM) => updateBeltSettings({ lookAheadM })}
+            />
+          ) : (
+            <Stepper
+              label="Start this long before the junction"
+              value={belt.secondsAhead}
+              unit=" s"
+              min={BELT_LIMITS.secondsAhead.min}
+              max={BELT_LIMITS.secondsAhead.max}
+              step={1}
+              onChange={(secondsAhead) => updateBeltSettings({ secondsAhead })}
+            />
+          )}
+          <Text style={styles.cardText}>
+            Once it has started for a junction it stays on until you pass it.
+            By speed never starts closer than 15 m or further than 60 m.
+          </Text>
         </View>
 
         <View style={styles.card}>

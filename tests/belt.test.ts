@@ -135,3 +135,30 @@ test('a straight junction (next stretch where the wearer already faces) stays si
   const g = beltGuidance({ facing: 5, junction: junction(10, 8), speedMps: 3, zoneDeg: 15, latch: NEW_JUNCTION_LATCH });
   assert.deepEqual(g.mix, { left: 0, main: 0, right: 0 });
 });
+
+import { DEFAULT_BELT_SETTINGS, clampBeltSettings, junctionAt, timingOf } from '../util/belt';
+
+test('belt settings: defaults, clamping and bad input', () => {
+  assert.deepEqual(clampBeltSettings(null), DEFAULT_BELT_SETTINGS);
+  assert.equal(DEFAULT_BELT_SETTINGS.enabled, false);
+  assert.equal(clampBeltSettings({ lookAheadM: 1 }).lookAheadM, 10);
+  assert.equal(clampBeltSettings({ lookAheadM: 500 }).lookAheadM, 80);
+  assert.equal(clampBeltSettings({ secondsAhead: 99 }).secondsAhead, 15);
+  assert.equal(clampBeltSettings({ trigger: 'x' as any }).trigger, 'fixed');
+  assert.equal(clampBeltSettings({ pattern: 'taps' }).pattern, 'taps');
+  assert.equal(clampBeltSettings({ pattern: 'zzz' as any }).pattern, 'steady');
+  assert.equal(timingOf({ ...DEFAULT_BELT_SETTINGS, trigger: 'speed', secondsAhead: 6 }).secondsAhead, 6);
+});
+
+test('junctionAt: distance to the checkpoint and the direction of the leg leaving it', () => {
+  const o = { latitude: 59.35, longitude: 18.07 };
+  const north = (m: number) => ({ latitude: o.latitude + m / 111320, longitude: o.longitude });
+  const east = (p: typeof o, m: number) => ({ latitude: p.latitude, longitude: p.longitude + m / (111320 * Math.cos((p.latitude * Math.PI) / 180)) });
+  const corner = north(100);
+  const cps = [corner, east(corner, 100)]; // the route turns right at the corner
+  const j = junctionAt(o, cps, 0)!;
+  assert.ok(Math.abs(j.distanceM - 100) < 1);
+  assert.ok(Math.abs(j.legBearing! - 90) < 1);
+  assert.equal(junctionAt(o, cps, 1)!.legBearing, null); // last checkpoint
+  assert.equal(junctionAt(o, cps, 5), null);
+});
