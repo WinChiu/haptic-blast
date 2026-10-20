@@ -1,6 +1,6 @@
 # Haptic Blast
 
-> **Two versions.** This is v1, the phone-only haptic compass, tagged `v1-haptic-compass`. The haptic belt pivot (v2) is on the branch `v2-haptic-belt` and is documented in [docs/haptic-belt.md](docs/haptic-belt.md).
+> **Versions.** `v1-haptic-compass` (tag) is the phone-only haptic compass. This branch, `v2-haptic-belt`, is the haptic belt version.
 
 ## Install
 
