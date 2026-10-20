@@ -25,7 +25,7 @@ import {
 import { ReminderPreference } from '../util/tipMode';
 import { useBuzz, BUZZ_BACKEND } from '../hooks/useBuzz';
 import { useBeltSettings, updateBeltSettings } from '../util/beltSettings';
-import { BELT_LIMITS, BeltTrigger } from '../util/belt';
+import { BELT_LIMITS, BELT_PATTERNS, BeltTrigger } from '../util/belt';
 import {
   HAPTIC_LIMITS,
   HAPTIC_SHAPE,
@@ -578,6 +578,29 @@ export default function SettingScreen() {
               onChange={(secondsAhead) => updateBeltSettings({ secondsAhead })}
             />
           )}
+          <Text style={styles.cardText}>How each motor vibrates while it is on:</Text>
+          <View style={[styles.optionRow, { flexWrap: 'wrap' }]}>
+            {BELT_PATTERNS.map(({ value, label }) => (
+              <TouchableOpacity
+                key={value}
+                style={[
+                  styles.optionChip,
+                  { flexGrow: 1, flexBasis: '40%' },
+                  belt.pattern === value && styles.optionChipActive,
+                ]}
+                onPress={() => updateBeltSettings({ pattern: value })}
+              >
+                <Text style={[styles.optionText, belt.pattern === value && styles.optionTextActive]}>
+                  {label}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+          <Text style={styles.cardText}>
+            Pulsed: the pause shrinks the further off you are. Steady pulse: the
+            same pause every time. Taps: each pulse is a quick series of short
+            taps. The pulse length is the one in Haptic tuning.
+          </Text>
           <Text style={styles.cardText}>
             Once it has started for a junction it stays on until you pass it.
             By speed never starts closer than 15 m or further than 60 m.
