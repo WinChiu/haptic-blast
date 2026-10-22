@@ -207,8 +207,8 @@ test('beltMix gives the same strengths as the simulator at every angle and silen
 
 test('belt power settings: ranges, defaults, and the strongest never below the weakest', () => {
   assert.equal(DEFAULT_BELT_SETTINGS.maxPower, 100);
-  assert.equal(DEFAULT_BELT_SETTINGS.minPower, 31);
-  assert.equal(clampBeltSettings({ maxPower: 5 }).maxPower, 31); // raised to the weakest
+  assert.equal(DEFAULT_BELT_SETTINGS.minPower, 30);
+  assert.equal(clampBeltSettings({ maxPower: 5 }).maxPower, 30); // raised to the weakest
   assert.equal(clampBeltSettings({ maxPower: 500 }).maxPower, 100);
   assert.equal(clampBeltSettings({ minPower: -5 }).minPower, 0);
   assert.equal(clampBeltSettings({ minPower: 99 }).minPower, 60);

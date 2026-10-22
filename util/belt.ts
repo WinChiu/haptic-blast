@@ -180,7 +180,7 @@ export const DEFAULT_BELT_SETTINGS: BeltSettings = {
   lookAheadM: DEFAULT_BELT_TIMING.lookAheadM,
   secondsAhead: DEFAULT_BELT_TIMING.secondsAhead,
   pattern: 'steady',
-  minPower: 31, // about 80 of 255: small motors do not spin below roughly this
+  minPower: 30, // about 77 of 255: small motors do not spin below roughly this
   maxPower: 100,
   silentZone: 10, // the simulator's value (to be confirmed); the belt's target does not move with GPS error, so it never widens
 };
