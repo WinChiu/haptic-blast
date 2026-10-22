@@ -175,7 +175,7 @@ export const DEFAULT_BELT_SETTINGS: BeltSettings = {
   trigger: DEFAULT_BELT_TIMING.trigger,
   lookAheadM: DEFAULT_BELT_TIMING.lookAheadM,
   secondsAhead: DEFAULT_BELT_TIMING.secondsAhead,
-  pattern: 'steady',
+  pattern: 'continuous', // steady strengths, like the vibration simulator; the pulse patterns stay selectable
   silentZone: 10, // the simulator's value (to be confirmed); the belt's target does not move with GPS error, so it never widens
 };
 

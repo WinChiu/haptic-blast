@@ -161,7 +161,8 @@ test('belt settings: defaults, clamping and bad input', () => {
   assert.equal(DEFAULT_BELT_SETTINGS.silentZone, 10);
   assert.equal(clampBeltSettings({ silentZone: 0 }).silentZone, 1);
   assert.equal(clampBeltSettings({ silentZone: 99 }).silentZone, 20);
-  assert.equal(clampBeltSettings({ pattern: 'zzz' as any }).pattern, 'steady');
+  assert.equal(clampBeltSettings({ pattern: 'zzz' as any }).pattern, 'continuous');
+  assert.equal(DEFAULT_BELT_SETTINGS.pattern, 'continuous');
   assert.equal(timingOf({ ...DEFAULT_BELT_SETTINGS, trigger: 'speed', secondsAhead: 6 }).secondsAhead, 6);
 });
 
