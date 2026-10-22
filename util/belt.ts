@@ -144,11 +144,13 @@ export type BeltSettings = {
   lookAheadM: number;
   secondsAhead: number;
   pattern: BeltPattern;
+  silentZone: number; // degrees either side of the target where the belt is silent
 };
 
 export const BELT_LIMITS = {
   lookAheadM: { min: 10, max: 80 },
   secondsAhead: { min: 3, max: 15 },
+  silentZone: { min: 1, max: 20 },
 } as const;
 
 export const DEFAULT_BELT_SETTINGS: BeltSettings = {
@@ -157,6 +159,7 @@ export const DEFAULT_BELT_SETTINGS: BeltSettings = {
   lookAheadM: DEFAULT_BELT_TIMING.lookAheadM,
   secondsAhead: DEFAULT_BELT_TIMING.secondsAhead,
   pattern: 'steady',
+  silentZone: 10, // the simulator's value (to be confirmed); the belt's target does not move with GPS error, so it never widens
 };
 
 export function clampBeltSettings(raw: Partial<BeltSettings> | null | undefined): BeltSettings {
@@ -170,6 +173,7 @@ export function clampBeltSettings(raw: Partial<BeltSettings> | null | undefined)
     lookAheadM: Math.round(clamp(num(raw?.lookAheadM, d.lookAheadM), BELT_LIMITS.lookAheadM.min, BELT_LIMITS.lookAheadM.max)),
     secondsAhead: Math.round(clamp(num(raw?.secondsAhead, d.secondsAhead), BELT_LIMITS.secondsAhead.min, BELT_LIMITS.secondsAhead.max)),
     pattern: patterns.includes(raw?.pattern as BeltPattern) ? (raw!.pattern as BeltPattern) : d.pattern,
+    silentZone: Math.round(clamp(num(raw?.silentZone, d.silentZone), BELT_LIMITS.silentZone.min, BELT_LIMITS.silentZone.max)),
   };
 }
 

@@ -369,7 +369,7 @@ export default function HomeScreen() {
     facing: heading,
     junction: guide?.junction ?? null,
     speedMps: speedRef.current,
-    zoneDeg: zoneDegrees,
+    zoneDeg: beltSettings.silentZone, // its own zone, not the phone's (which widens with GPS error)
     onFrame: sendBeltFrame,
   });
 

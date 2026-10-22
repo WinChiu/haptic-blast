@@ -25,8 +25,10 @@ import {
 import { ReminderPreference } from '../util/tipMode';
 import { useBuzz, BUZZ_BACKEND } from '../hooks/useBuzz';
 import { useBeltSettings, updateBeltSettings } from '../util/beltSettings';
-import { connectBelt, disconnectBelt, testMotor, useBeltLink } from '../util/beltLink';
-import { BELT_LIMITS, BELT_PATTERNS, BeltTrigger } from '../util/belt';
+import { connectBelt, disconnectBelt, sendBeltFrame, testMotor, useBeltLink } from '../util/beltLink';
+import { BELT_LIMITS, BELT_PATTERNS, BeltTrigger, beltMix } from '../util/belt';
+import { beltFrame, ZERO_FRAME } from '../util/beltPattern';
+import BearingSlider from '../components/BearingSlider';
 import {
   HAPTIC_LIMITS,
   HAPTIC_SHAPE,
@@ -257,6 +259,26 @@ export default function SettingScreen() {
   const [advancedOpen, setAdvancedOpen] = useState(false);
   const belt = useBeltSettings();
   const link = useBeltLink();
+
+  // Bearing test: like the vibration simulator, but it drives the real belt.
+  // The bearing is the angle from where you face to the target (+ = right).
+  const [bearingTestOn, setBearingTestOn] = useState(false);
+  const [testBearing, setTestBearing] = useState(0);
+  const testRef = useRef({ bearing: 0, zone: 10 });
+  testRef.current = { bearing: testBearing, zone: belt.silentZone };
+  const testMix = beltMix(testBearing, belt.silentZone);
+  const testFrame = beltFrame(testMix, true);
+  useEffect(() => {
+    if (!bearingTestOn) return;
+    const timer = setInterval(() => {
+      const { bearing, zone } = testRef.current;
+      sendBeltFrame(beltFrame(beltMix(bearing, zone), true));
+    }, 100);
+    return () => {
+      clearInterval(timer);
+      sendBeltFrame(ZERO_FRAME, true); // never leave a motor running
+    };
+  }, [bearingTestOn]);
   const cards = [
     {
       title: 'Haptic Feedback',
@@ -540,6 +562,15 @@ export default function SettingScreen() {
             />
             <Text style={styles.toggleLabel}>{belt.enabled ? 'ON' : 'OFF'}</Text>
           </View>
+          <Stepper
+            label="Silent zone (± degrees)"
+            value={belt.silentZone}
+            unit="°"
+            min={BELT_LIMITS.silentZone.min}
+            max={BELT_LIMITS.silentZone.max}
+            step={1}
+            onChange={(silentZone) => updateBeltSettings({ silentZone })}
+          />
           <Text style={styles.cardText}>When the belt starts before a junction:</Text>
           <View style={styles.optionRow}>
             {(
@@ -638,6 +669,31 @@ export default function SettingScreen() {
               ))}
             </View>
           )}
+          <Text style={styles.cardText}>
+            Bearing test: set an angle and feel the motors, like the simulator.
+            0° is straight ahead, positive is to the right. The darker ends are
+            behind you (no response); the shaded middle is the silent zone.
+          </Text>
+          <BearingSlider value={testBearing} zone={belt.silentZone} onChange={setTestBearing} />
+          <Text style={styles.cardText}>
+            Bearing {testBearing > 0 ? '+' : ''}
+            {testBearing}°: left {Math.round(testMix.left * 100)}%, main{' '}
+            {Math.round(testMix.main * 100)}%, right {Math.round(testMix.right * 100)}%
+            (sent to the belt as {testFrame.join(', ')})
+          </Text>
+          <TouchableOpacity
+            style={styles.saveButton}
+            onPress={() => setBearingTestOn((v) => !v)}
+            disabled={link.status !== 'connected'}
+          >
+            <Text style={styles.saveButtonText}>
+              {link.status !== 'connected'
+                ? 'Connect the belt to feel the test'
+                : bearingTestOn
+                  ? 'Stop the bearing test'
+                  : 'Start the bearing test'}
+            </Text>
+          </TouchableOpacity>
           <Text style={styles.cardText}>
             Once it has started for a junction it stays on until you pass it.
             By speed never starts closer than 15 m or further than 60 m.

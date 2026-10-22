@@ -146,6 +146,9 @@ test('belt settings: defaults, clamping and bad input', () => {
   assert.equal(clampBeltSettings({ secondsAhead: 99 }).secondsAhead, 15);
   assert.equal(clampBeltSettings({ trigger: 'x' as any }).trigger, 'fixed');
   assert.equal(clampBeltSettings({ pattern: 'taps' }).pattern, 'taps');
+  assert.equal(DEFAULT_BELT_SETTINGS.silentZone, 10);
+  assert.equal(clampBeltSettings({ silentZone: 0 }).silentZone, 1);
+  assert.equal(clampBeltSettings({ silentZone: 99 }).silentZone, 20);
   assert.equal(clampBeltSettings({ pattern: 'zzz' as any }).pattern, 'steady');
   assert.equal(timingOf({ ...DEFAULT_BELT_SETTINGS, trigger: 'speed', secondsAhead: 6 }).secondsAhead, 6);
 });
@@ -161,4 +164,31 @@ test('junctionAt: distance to the checkpoint and the direction of the leg leavin
   assert.ok(Math.abs(j.legBearing! - 90) < 1);
   assert.equal(junctionAt(o, cps, 1)!.legBearing, null); // last checkpoint
   assert.equal(junctionAt(o, cps, 5), null);
+});
+
+// ---- the simulator (subtle-vibration-simulator.html), copied as the reference ----
+// Table rows [angle, main %, side %] with straight-line interpolation between them.
+const SIM_POINTS = [[0, 100, 0], [11.25, 100, 25], [22.5, 100, 50], [33.75, 100, 75], [45, 100, 100], [56.25, 75, 100], [67.5, 50, 100], [80, 22, 100], [90, 0, 100]];
+function simulator(a: number, s: number): [number, number, number] {
+  const b = Math.abs(a);
+  if (b <= s || b > 90) return [0, 0, 0];
+  let i = 1;
+  while (SIM_POINTS[i][0] < b) i++;
+  const p = SIM_POINTS[i - 1], q = SIM_POINTS[i], f = (b - p[0]) / (q[0] - p[0]);
+  const main = p[1] + f * (q[1] - p[1]), side = p[2] + f * (q[2] - p[2]);
+  return a < 0 ? [side, main, 0] : [0, main, side];
+}
+
+test('beltMix gives the same strengths as the simulator at every angle and silent zone', () => {
+  let worst = 0;
+  for (let a = -180; a <= 180; a += 0.25) {
+    for (let s = 1; s <= 10; s += 0.5) {
+      const sim = simulator(a, s);
+      const m = beltMix(a, s);
+      const ours = [m.left * 100, m.main * 100, m.right * 100];
+      for (let k = 0; k < 3; k++) worst = Math.max(worst, Math.abs(ours[k] - sim[k]));
+    }
+  }
+  // the simulator's table rows round 22.2 % to 22 %, so allow a fraction of a percent
+  assert.ok(worst < 0.3, `largest difference ${worst.toFixed(3)} percentage points`);
 });
