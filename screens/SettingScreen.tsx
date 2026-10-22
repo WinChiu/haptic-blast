@@ -318,6 +318,34 @@ export default function SettingScreen() {
         contentContainerStyle={styles.scrollContent}
       >
         {/* Username Section */}
+        <View style={styles.card}>
+          <Text style={styles.cardTitle}>Vibrate with</Text>
+          <Text style={styles.cardText}>
+            Phone: the phone vibrates to guide you, as before. Belt: the haptic
+            belt vibrates instead and the phone stays silent.
+          </Text>
+          <View style={styles.optionRow}>
+            {(
+              [
+                [false, 'Phone'],
+                [true, 'Belt'],
+              ] as [boolean, string][]
+            ).map(([value, label]) => (
+              <TouchableOpacity
+                key={label}
+                style={[styles.optionChip, belt.enabled === value && styles.optionChipActive]}
+                onPress={() => {
+                  updateBeltSettings({ enabled: value });
+                }}
+              >
+                <Text style={[styles.optionText, belt.enabled === value && styles.optionTextActive]}>
+                  {label}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        </View>
+
         {cards.filter((c) => c.title !== 'Debug Mode').map((card, index) => (
           <View key={index} style={styles.card}>
             <Text style={styles.cardTitle}>{card.title}</Text>
@@ -546,22 +574,13 @@ export default function SettingScreen() {
         <View style={styles.card}>
           <Text style={styles.cardTitle}>Haptic belt</Text>
           <Text style={styles.cardText}>
-            Belt mode: the phone does not vibrate itself. Three motors (left,
-            front, right) tell you which way the next stretch of the route
-            goes, starting a little before each junction.
+            With the belt chosen, the phone does not vibrate itself. Three
+            motors (left, front, right) tell you which way the next stretch of
+            the route goes, starting a little before each junction.
           </Text>
-          <View style={styles.toggleContainer}>
-            <Switch
-              trackColor={{ false: '#404040', true: '#22c55e' }}
-              thumbColor="#fff"
-              ios_backgroundColor="#404040"
-              onValueChange={(enabled) => {
-                updateBeltSettings({ enabled });
-              }}
-              value={belt.enabled}
-            />
-            <Text style={styles.toggleLabel}>{belt.enabled ? 'ON' : 'OFF'}</Text>
-          </View>
+          <Text style={styles.cardText}>
+            Switch between the phone and the belt with "Vibrate with" at the top of Settings.
+          </Text>
           <Stepper
             label="Silent zone (± degrees)"
             value={belt.silentZone}

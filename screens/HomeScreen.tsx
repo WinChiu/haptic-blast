@@ -62,12 +62,14 @@ export default function HomeScreen() {
   // How the phone vibrates now (Settings -> Haptic tuning); recorded with every round
   const hapticSettings = useHapticSettings();
   const hapticStyle = hapticStyleOf(BUZZ_BACKEND !== 'none', hapticSettings.mode);
+  const beltSettings = useBeltSettings();
   const feedbackText = useMemo(() => {
+    if (beltSettings.enabled) return 'Belt';
     if (hapticEnabled && soundEnabled) return 'Vibration and sound';
     if (hapticEnabled) return 'Vibration';
     if (soundEnabled) return 'Sound';
     return 'Guidance off';
-  }, [hapticEnabled, soundEnabled]);
+  }, [hapticEnabled, soundEnabled, beltSettings.enabled]);
 
   const [isPreviewMode, setIsPreviewMode] = useState(false);
   const [route, setRoute] = useState<Coord[] | null>(null);
@@ -361,7 +363,6 @@ export default function HomeScreen() {
 
   // Haptic belt (v2): when belt mode is on the phone does not vibrate itself;
   // the belt does, from the junction ahead.
-  const beltSettings = useBeltSettings();
   const speedRef = useRef<number | null>(null);
   const belt = useBelt({
     settings: beltSettings,
