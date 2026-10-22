@@ -16,6 +16,7 @@ import {
   NEW_BELT_CLOCK,
   ZERO_FRAME,
   beltFrame,
+  powerRange,
   stepBeltGate,
 } from '../util/beltPattern';
 import { getHapticSettings } from '../util/hapticSettings';
@@ -83,7 +84,8 @@ export function useBelt(input: {
         zoneDeg: i.zoneDeg,
       });
       clock = step.clock;
-      i.onFrame?.(beltFrame(g.mix, step.gate));
+      const range = powerRange(i.settings.minPower, i.settings.maxPower);
+      i.onFrame?.(beltFrame(g.mix, step.gate, range.floor, range.ceiling));
       const changed =
         !last ||
         lastDistance !== distanceM ||
