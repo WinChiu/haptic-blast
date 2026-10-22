@@ -8,6 +8,7 @@ import {
   SILENT_MIX,
   beltGuidance,
   timingOf,
+  triggerDistance,
 } from '../util/belt';
 import {
   BeltFrame,
@@ -22,9 +23,11 @@ export type BeltState = {
   mix: BeltMix;
   active: boolean; // the belt has started for the junction ahead
   relative: number | null; // degrees to the next stretch of the route
+  distanceM: number | null; // distance to the junction ahead
+  triggerM: number | null; // the belt starts when the junction is this close
 };
 
-const IDLE: BeltState = { mix: SILENT_MIX, active: false, relative: null };
+const IDLE: BeltState = { mix: SILENT_MIX, active: false, relative: null, distanceM: null, triggerM: null };
 const TICK_MS = 50;
 
 // Works out what the belt should do, twenty times a second, from the wearer's
@@ -55,6 +58,7 @@ export function useBelt(input: {
     let latch = NEW_JUNCTION_LATCH;
     let clock = NEW_BELT_CLOCK;
     let last: BeltGuidance | null = null;
+    let lastDistance: number | null = null;
     const tick = () => {
       const i = ref.current;
       const g = beltGuidance({
@@ -66,6 +70,8 @@ export function useBelt(input: {
         timing: timingOf(i.settings),
       });
       latch = g.latch;
+      const distanceM = i.junction ? Math.round(i.junction.distanceM) : null;
+      const triggerM = i.junction ? Math.round(triggerDistance(timingOf(i.settings), i.speedMps)) : null;
       const anyOn = g.mix.left + g.mix.main + g.mix.right > 0;
       const step = stepBeltGate(clock, Date.now(), anyOn, Math.abs(g.relative ?? 0), {
         pattern: i.settings.pattern,
@@ -76,12 +82,14 @@ export function useBelt(input: {
       i.onFrame?.(beltFrame(g.mix, step.gate));
       const changed =
         !last ||
+        lastDistance !== distanceM ||
         last.active !== g.active ||
         Math.round(last.mix.left * 100) !== Math.round(g.mix.left * 100) ||
         Math.round(last.mix.main * 100) !== Math.round(g.mix.main * 100) ||
         Math.round(last.mix.right * 100) !== Math.round(g.mix.right * 100);
       last = g;
-      if (changed) setState({ mix: g.mix, active: g.active, relative: g.relative });
+      lastDistance = distanceM;
+      if (changed) setState({ mix: g.mix, active: g.active, relative: g.relative, distanceM, triggerM });
     };
     tick();
     const timer = setInterval(tick, TICK_MS);

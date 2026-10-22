@@ -28,7 +28,9 @@ export default function BeltBars({ state }: { state: BeltState }) {
           ? state.relative === null
             ? 'Junction ahead'
             : `Next stretch ${Math.round(state.relative)}° (${state.relative >= 0 ? 'right' : 'left'})`
-          : 'Waiting for the next junction'}
+          : state.distanceM === null
+            ? 'No junction ahead (no route, or the last stretch)'
+            : `Waiting: the next junction is ${state.distanceM} m away. The belt starts at ${state.triggerM} m.`}
       </Text>
     </View>
   );
