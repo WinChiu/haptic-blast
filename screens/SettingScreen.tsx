@@ -27,7 +27,7 @@ import { useBuzz, BUZZ_BACKEND } from '../hooks/useBuzz';
 import { useBeltSettings, updateBeltSettings } from '../util/beltSettings';
 import { connectBelt, disconnectBelt, sendBeltFrame, testMotor, useBeltLink } from '../util/beltLink';
 import { BELT_LIMITS, BELT_PATTERNS, BeltTrigger, beltMix } from '../util/belt';
-import { beltFrame, ZERO_FRAME } from '../util/beltPattern';
+import { beltFrame, powerRange, ZERO_FRAME } from '../util/beltPattern';
 import BearingSlider from '../components/BearingSlider';
 import {
   HAPTIC_LIMITS,
@@ -264,15 +264,17 @@ export default function SettingScreen() {
   // The bearing is the angle from where you face to the target (+ = right).
   const [bearingTestOn, setBearingTestOn] = useState(false);
   const [testBearing, setTestBearing] = useState(0);
-  const testRef = useRef({ bearing: 0, zone: 10 });
-  testRef.current = { bearing: testBearing, zone: belt.silentZone };
+  const testRef = useRef({ bearing: 0, zone: 10, minPower: 31, maxPower: 100 });
+  testRef.current = { bearing: testBearing, zone: belt.silentZone, minPower: belt.minPower, maxPower: belt.maxPower };
   const testMix = beltMix(testBearing, belt.silentZone);
-  const testFrame = beltFrame(testMix, true);
+  const testRange = powerRange(belt.minPower, belt.maxPower);
+  const testFrame = beltFrame(testMix, true, testRange.floor, testRange.ceiling);
   useEffect(() => {
     if (!bearingTestOn) return;
     const timer = setInterval(() => {
-      const { bearing, zone } = testRef.current;
-      sendBeltFrame(beltFrame(beltMix(bearing, zone), true));
+      const { bearing, zone, minPower, maxPower } = testRef.current;
+      const range = powerRange(minPower, maxPower);
+      sendBeltFrame(beltFrame(beltMix(bearing, zone), true, range.floor, range.ceiling));
     }, 100);
     return () => {
       clearInterval(timer);
@@ -596,6 +598,28 @@ export default function SettingScreen() {
             max={BELT_LIMITS.silentZone.max}
             step={1}
             onChange={(silentZone) => updateBeltSettings({ silentZone })}
+          />
+          <Text style={styles.cardText}>
+            Strength of the motors. The strengths themselves (angle to percent) follow the
+            simulator and do not change; these two set what 0% and 100% mean for the motors.
+          </Text>
+          <Stepper
+            label="Strongest buzz (power at 100% strength)"
+            value={belt.maxPower}
+            unit="%"
+            min={BELT_LIMITS.maxPower.min}
+            max={BELT_LIMITS.maxPower.max}
+            step={5}
+            onChange={(maxPower) => updateBeltSettings({ maxPower })}
+          />
+          <Stepper
+            label="Weakest buzz (power just above 0%)"
+            value={belt.minPower}
+            unit="%"
+            min={BELT_LIMITS.minPower.min}
+            max={BELT_LIMITS.minPower.max}
+            step={1}
+            onChange={(minPower) => updateBeltSettings({ minPower })}
           />
           <Text style={styles.cardText}>When the turn direction takes over before a junction:</Text>
           <View style={styles.optionRow}>

@@ -77,16 +77,35 @@ export function stepBeltGate(
 // about 30 % power, so 0 stays 0 and anything above 0 maps to floor..255.
 export const MOTOR_FLOOR = 80;
 
-export function motorByte(strength: number, floor: number = MOTOR_FLOOR): number {
+// The usable range can be set: `floor` is the power just above 0 %, `ceiling` the
+// power at 100 % strength. The simulator's strengths are not changed by this.
+export function motorByte(strength: number, floor: number = MOTOR_FLOOR, ceiling: number = 255): number {
   if (!(strength > 0)) return 0;
-  return Math.min(255, Math.round(floor + Math.min(1, strength) * (255 - floor)));
+  const hi = Math.max(floor, Math.min(255, ceiling));
+  return Math.min(255, Math.round(floor + Math.min(1, strength) * (hi - floor)));
+}
+
+// Power range in bytes from the two percentages in Settings
+export function powerRange(minPowerPct: number, maxPowerPct: number): { floor: number; ceiling: number } {
+  const floor = Math.round((minPowerPct / 100) * 255);
+  const ceiling = Math.max(floor, Math.round((maxPowerPct / 100) * 255));
+  return { floor, ceiling };
 }
 
 // The three bytes (left, front, right) for one moment
 export type BeltFrame = [number, number, number];
 export const ZERO_FRAME: BeltFrame = [0, 0, 0];
 
-export function beltFrame(mix: BeltMix, gate: boolean, floor: number = MOTOR_FLOOR): BeltFrame {
+export function beltFrame(
+  mix: BeltMix,
+  gate: boolean,
+  floor: number = MOTOR_FLOOR,
+  ceiling: number = 255
+): BeltFrame {
   if (!gate) return ZERO_FRAME;
-  return [motorByte(mix.left, floor), motorByte(mix.main, floor), motorByte(mix.right, floor)];
+  return [
+    motorByte(mix.left, floor, ceiling),
+    motorByte(mix.main, floor, ceiling),
+    motorByte(mix.right, floor, ceiling),
+  ];
 }

@@ -163,12 +163,16 @@ export type BeltSettings = {
   secondsAhead: number;
   pattern: BeltPattern;
   silentZone: number; // degrees either side of the target where the belt is silent
+  minPower: number; // motor power just above 0 % strength, in percent of full power
+  maxPower: number; // motor power at 100 % strength, in percent of full power
 };
 
 export const BELT_LIMITS = {
   lookAheadM: { min: 10, max: 80 },
   secondsAhead: { min: 3, max: 15 },
   silentZone: { min: 1, max: 20 },
+  minPower: { min: 0, max: 60 },
+  maxPower: { min: 20, max: 100 },
 } as const;
 
 export const DEFAULT_BELT_SETTINGS: BeltSettings = {
@@ -177,8 +181,20 @@ export const DEFAULT_BELT_SETTINGS: BeltSettings = {
   lookAheadM: DEFAULT_BELT_TIMING.lookAheadM,
   secondsAhead: DEFAULT_BELT_TIMING.secondsAhead,
   pattern: 'continuous', // steady strengths, like the vibration simulator; the pulse patterns stay selectable
+  minPower: 31, // about 80 of 255: small motors do not spin below roughly this
+  maxPower: 100,
   silentZone: 10, // the simulator's value (to be confirmed); the belt's target does not move with GPS error, so it never widens
 };
+
+// minPower and maxPower, each inside its range, and never maxPower below minPower
+function powerLimits(raw: Partial<BeltSettings> | null | undefined) {
+  const d = DEFAULT_BELT_SETTINGS;
+  const num = (v: unknown, fb: number) => (typeof v === 'number' && Number.isFinite(v) ? v : fb);
+  const clamp = (v: number, a: number, b: number) => Math.min(b, Math.max(a, v));
+  const minPower = Math.round(clamp(num(raw?.minPower, d.minPower), BELT_LIMITS.minPower.min, BELT_LIMITS.minPower.max));
+  const maxPower = Math.max(minPower, Math.round(clamp(num(raw?.maxPower, d.maxPower), BELT_LIMITS.maxPower.min, BELT_LIMITS.maxPower.max)));
+  return { minPower, maxPower };
+}
 
 export function clampBeltSettings(raw: Partial<BeltSettings> | null | undefined): BeltSettings {
   const d = DEFAULT_BELT_SETTINGS;
@@ -192,6 +208,7 @@ export function clampBeltSettings(raw: Partial<BeltSettings> | null | undefined)
     secondsAhead: Math.round(clamp(num(raw?.secondsAhead, d.secondsAhead), BELT_LIMITS.secondsAhead.min, BELT_LIMITS.secondsAhead.max)),
     pattern: patterns.includes(raw?.pattern as BeltPattern) ? (raw!.pattern as BeltPattern) : d.pattern,
     silentZone: Math.round(clamp(num(raw?.silentZone, d.silentZone), BELT_LIMITS.silentZone.min, BELT_LIMITS.silentZone.max)),
+    ...powerLimits(raw),
   };
 }
 

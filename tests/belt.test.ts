@@ -205,3 +205,14 @@ test('beltMix gives the same strengths as the simulator at every angle and silen
   // the simulator's table rows round 22.2 % to 22 %, so allow a fraction of a percent
   assert.ok(worst < 0.3, `largest difference ${worst.toFixed(3)} percentage points`);
 });
+
+test('belt power settings: ranges, defaults, and the strongest never below the weakest', () => {
+  assert.equal(DEFAULT_BELT_SETTINGS.maxPower, 100);
+  assert.equal(DEFAULT_BELT_SETTINGS.minPower, 31);
+  assert.equal(clampBeltSettings({ maxPower: 5 }).maxPower, 31); // raised to the weakest
+  assert.equal(clampBeltSettings({ maxPower: 500 }).maxPower, 100);
+  assert.equal(clampBeltSettings({ minPower: -5 }).minPower, 0);
+  assert.equal(clampBeltSettings({ minPower: 99 }).minPower, 60);
+  const r = clampBeltSettings({ minPower: 50, maxPower: 30 });
+  assert.ok(r.maxPower >= r.minPower);
+});
