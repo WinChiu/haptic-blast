@@ -24,12 +24,13 @@ export type BeltState = {
   mix: BeltMix;
   active: boolean; // the belt has a target
   phase: BeltPhase;
-  relative: number | null; // degrees to the next stretch of the route
+  target: number | null; // the bearing the belt points at (the cone follows it in belt mode)
+  relative: number | null; // degrees to the target
   distanceM: number | null; // distance to the junction ahead
   triggerM: number | null; // the belt starts when the junction is this close
 };
 
-const IDLE: BeltState = { mix: SILENT_MIX, active: false, phase: 'none', relative: null, distanceM: null, triggerM: null };
+const IDLE: BeltState = { mix: SILENT_MIX, active: false, phase: 'none', target: null, relative: null, distanceM: null, triggerM: null };
 const TICK_MS = 50;
 
 // Works out what the belt should do, twenty times a second, from the wearer's
@@ -89,12 +90,13 @@ export function useBelt(input: {
         lastDistance !== distanceM ||
         last.active !== g.active ||
         last.phase !== g.phase ||
+        Math.round(last.target ?? -1) !== Math.round(g.target ?? -1) ||
         Math.round(last.mix.left * 100) !== Math.round(g.mix.left * 100) ||
         Math.round(last.mix.main * 100) !== Math.round(g.mix.main * 100) ||
         Math.round(last.mix.right * 100) !== Math.round(g.mix.right * 100);
       last = g;
       lastDistance = distanceM;
-      if (changed) setState({ mix: g.mix, active: g.active, phase: g.phase, relative: g.relative, distanceM, triggerM });
+      if (changed) setState({ mix: g.mix, active: g.active, phase: g.phase, target: g.target, relative: g.relative, distanceM, triggerM });
     };
     tick();
     const timer = setInterval(tick, TICK_MS);

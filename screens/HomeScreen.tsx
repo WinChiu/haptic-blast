@@ -771,10 +771,12 @@ const gpsWaitLabel = isDebugMode
           {showCompassContent ? (
             <>
               <HapticCompass
-                targetAngle={targetBearing}
+                // In belt mode the cone points at what the belt points at, so the
+                // picture and the motors agree
+                targetAngle={beltSettings.enabled && belt.target !== null ? belt.target : targetBearing}
                 heading={heading}
                 calibration={pocket.calibration}
-                zoneDegrees={zoneDegrees}
+                zoneDegrees={beltSettings.enabled ? beltSettings.silentZone : zoneDegrees}
               />
               {beltSettings.enabled && <BeltBars state={belt} facing={heading} />}
             </>

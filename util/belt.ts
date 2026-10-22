@@ -90,6 +90,7 @@ export type BeltGuidance = {
   mix: BeltMix;
   active: boolean; // the belt has a target (phase is not 'none')
   phase: BeltPhase;
+  target: number | null; // the bearing the belt is pointing at (route direction or the turn)
   relative: number | null; // degrees from where the wearer faces to the target
   latch: JunctionLatch;
 };
@@ -124,10 +125,10 @@ export function beltGuidance(input: {
   const phase: BeltPhase = turnTarget !== null ? 'junction' : routeTarget !== null ? 'route' : 'none';
   const target = turnTarget ?? routeTarget;
   if (target === null) {
-    return { mix: SILENT_MIX, active: false, phase: 'none', relative: null, latch };
+    return { mix: SILENT_MIX, active: false, phase: 'none', target: null, relative: null, latch };
   }
   const relative = relativeBearing(target, facing);
-  return { mix: beltMix(relative, zoneDeg), active: true, phase, relative, latch };
+  return { mix: beltMix(relative, zoneDeg), active: true, phase, target, relative, latch };
 }
 
 // The junction being approached at checkpoint `index`, seen from `here`.
