@@ -154,7 +154,7 @@ export const BELT_LIMITS = {
 } as const;
 
 export const DEFAULT_BELT_SETTINGS: BeltSettings = {
-  enabled: false,
+  enabled: true, // the belt is the main product; the phone is the other option
   trigger: DEFAULT_BELT_TIMING.trigger,
   lookAheadM: DEFAULT_BELT_TIMING.lookAheadM,
   secondsAhead: DEFAULT_BELT_TIMING.secondsAhead,
@@ -168,7 +168,7 @@ export function clampBeltSettings(raw: Partial<BeltSettings> | null | undefined)
   const clamp = (v: number, a: number, b: number) => Math.min(b, Math.max(a, v));
   const patterns: BeltPattern[] = ['continuous', 'pulsed', 'steady', 'taps'];
   return {
-    enabled: raw?.enabled === true,
+    enabled: typeof raw?.enabled === 'boolean' ? raw.enabled : d.enabled,
     trigger: raw?.trigger === 'speed' ? 'speed' : 'fixed',
     lookAheadM: Math.round(clamp(num(raw?.lookAheadM, d.lookAheadM), BELT_LIMITS.lookAheadM.min, BELT_LIMITS.lookAheadM.max)),
     secondsAhead: Math.round(clamp(num(raw?.secondsAhead, d.secondsAhead), BELT_LIMITS.secondsAhead.min, BELT_LIMITS.secondsAhead.max)),

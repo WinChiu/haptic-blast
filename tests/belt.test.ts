@@ -140,7 +140,9 @@ import { DEFAULT_BELT_SETTINGS, clampBeltSettings, junctionAt, timingOf } from '
 
 test('belt settings: defaults, clamping and bad input', () => {
   assert.deepEqual(clampBeltSettings(null), DEFAULT_BELT_SETTINGS);
-  assert.equal(DEFAULT_BELT_SETTINGS.enabled, false);
+  assert.equal(DEFAULT_BELT_SETTINGS.enabled, true); // the belt is the main product
+  assert.equal(clampBeltSettings({ enabled: false }).enabled, false); // the phone option is kept
+  assert.equal(clampBeltSettings({ enabled: 'x' as any }).enabled, true);
   assert.equal(clampBeltSettings({ lookAheadM: 1 }).lookAheadM, 10);
   assert.equal(clampBeltSettings({ lookAheadM: 500 }).lookAheadM, 80);
   assert.equal(clampBeltSettings({ secondsAhead: 99 }).secondsAhead, 15);

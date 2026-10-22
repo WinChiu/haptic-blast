@@ -321,14 +321,14 @@ export default function SettingScreen() {
         <View style={styles.card}>
           <Text style={styles.cardTitle}>Vibrate with</Text>
           <Text style={styles.cardText}>
-            Phone: the phone vibrates to guide you, as before. Belt: the haptic
-            belt vibrates instead and the phone stays silent.
+            Belt (the main option): the haptic belt vibrates and the phone stays
+            silent. Phone: the phone vibrates to guide you, as in version 1.
           </Text>
           <View style={styles.optionRow}>
             {(
               [
-                [false, 'Phone'],
                 [true, 'Belt'],
+                [false, 'Phone'],
               ] as [boolean, string][]
             ).map(([value, label]) => (
               <TouchableOpacity
@@ -344,6 +344,12 @@ export default function SettingScreen() {
               </TouchableOpacity>
             ))}
           </View>
+          {belt.enabled && link.status !== 'connected' && (
+            <Text style={[styles.cardText, { color: '#eab308' }]}>
+              The belt is chosen but not connected, so nothing will vibrate. Connect it in
+              Haptic belt below (advanced settings), or choose Phone.
+            </Text>
+          )}
         </View>
 
         {cards.filter((c) => c.title !== 'Debug Mode').map((card, index) => (

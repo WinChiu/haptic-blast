@@ -35,7 +35,7 @@ import { useCalibration } from '../hooks/useCalibration';
 import { useBelt } from '../hooks/useBelt';
 import BeltBars from '../components/BeltBars';
 import { useBeltSettings } from '../util/beltSettings';
-import { sendBeltFrame } from '../util/beltLink';
+import { sendBeltFrame, useBeltLink } from '../util/beltLink';
 import type { Junction } from '../util/belt';
 import { useGuidance } from '../hooks/useGuidance';
 import { BUZZ_BACKEND } from '../hooks/useBuzz';
@@ -63,13 +63,14 @@ export default function HomeScreen() {
   const hapticSettings = useHapticSettings();
   const hapticStyle = hapticStyleOf(BUZZ_BACKEND !== 'none', hapticSettings.mode);
   const beltSettings = useBeltSettings();
+  const beltLink = useBeltLink();
   const feedbackText = useMemo(() => {
-    if (beltSettings.enabled) return 'Belt';
+    if (beltSettings.enabled) return beltLink.status === 'connected' ? 'Belt' : 'Belt (not connected)';
     if (hapticEnabled && soundEnabled) return 'Vibration and sound';
     if (hapticEnabled) return 'Vibration';
     if (soundEnabled) return 'Sound';
     return 'Guidance off';
-  }, [hapticEnabled, soundEnabled, beltSettings.enabled]);
+  }, [hapticEnabled, soundEnabled, beltSettings.enabled, beltLink.status]);
 
   const [isPreviewMode, setIsPreviewMode] = useState(false);
   const [route, setRoute] = useState<Coord[] | null>(null);
