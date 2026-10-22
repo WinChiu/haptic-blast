@@ -3,7 +3,7 @@ import { StyleSheet, Text, View } from 'react-native';
 import { BeltState } from '../hooks/useBelt';
 
 // Debug view of the three belt motors: how strongly each would vibrate now.
-export default function BeltBars({ state }: { state: BeltState }) {
+export default function BeltBars({ state, facing }: { state: BeltState; facing?: number }) {
   const bars: [string, number][] = [
     ['Left', state.mix.left],
     ['Front', state.mix.main],
@@ -28,6 +28,12 @@ export default function BeltBars({ state }: { state: BeltState }) {
           ? 'No target yet (no route or journey)'
           : `${state.phase === 'junction' ? 'Junction ahead: next stretch' : 'Following the route'} ${Math.round(state.relative ?? 0)}° (${(state.relative ?? 0) >= 0 ? 'right' : 'left'})`}
       </Text>
+      {state.relative !== null && facing !== undefined && (
+        <Text style={styles.status}>
+          You face {Math.round(facing)}°, target {Math.round((((facing + state.relative) % 360) + 360) % 360)}°, angle {state.relative > 0 ? '+' : ''}
+          {Math.round(state.relative * 10) / 10}° (the simulator's relative bearing)
+        </Text>
+      )}
       {state.distanceM !== null && (
         <Text style={styles.status}>
           Next junction {state.distanceM} m away; the turn direction takes over at {state.triggerM} m

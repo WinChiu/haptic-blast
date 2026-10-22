@@ -176,7 +176,10 @@ export function addAxesListener(
 // Heading is always where the phone points (users turn the phone to find the
 // direction), never the GPS course of movement. With a pocket calibration it
 // is where the body faces: the locked axis plus the calibrated offset.
-export function useCompass(calibration: Calibration | null = null) {
+// systemAlpha is how strongly the iPhone system heading is smoothed when the phone
+// is not calibrated: 0.1 is very smooth and slow (the version 1 setting, about a
+// second of lag), higher follows turns faster. The belt uses a higher value.
+export function useCompass(calibration: Calibration | null = null, systemAlpha = 0.1) {
   const [heading, setHeading] = useState(0);
 
   useEffect(() => {
@@ -247,7 +250,7 @@ export function useCompass(calibration: Calibration | null = null) {
         // True north when iOS can provide it (routes use true north); magnetic
         // north reads about 7 to 9 degrees low in Stockholm
         const sub = await Location.watchHeadingAsync((obj) =>
-          smooth(pickHeading(obj.trueHeading, obj.magHeading), 0.1)
+          smooth(pickHeading(obj.trueHeading, obj.magHeading), systemAlpha)
         );
         remove = () => sub.remove();
       }
@@ -259,7 +262,7 @@ export function useCompass(calibration: Calibration | null = null) {
       cancelled = true;
       remove?.();
     };
-  }, [calibration]);
+  }, [calibration, systemAlpha]);
 
   return heading;
 }

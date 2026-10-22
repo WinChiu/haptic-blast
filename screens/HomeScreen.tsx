@@ -175,7 +175,9 @@ export default function HomeScreen() {
   const [showPocketModal, setShowPocketModal] = useState(false);
   const calibrating =
     pocket.status === 'capturing' || pocket.status === 'placing';
-  const heading = useCompass(pocket.calibration);
+  // The belt follows turns much faster than the phone guidance did (0.1 lagged by
+  // about a second); with the phone chosen the heading is exactly as in version 1
+  const heading = useCompass(pocket.calibration, beltSettings.enabled ? 0.4 : 0.1);
 
   // Journey recording (Settings -> Walk recording). The refs hold the latest
   // values so the location callback can read them without re-rendering.
@@ -774,7 +776,7 @@ const gpsWaitLabel = isDebugMode
                 calibration={pocket.calibration}
                 zoneDegrees={zoneDegrees}
               />
-              {beltSettings.enabled && <BeltBars state={belt} />}
+              {beltSettings.enabled && <BeltBars state={belt} facing={heading} />}
             </>
           ) : (
             <View style={styles.hiddenCompassContainer}>
