@@ -264,7 +264,7 @@ export default function SettingScreen() {
   // The bearing is the angle from where you face to the target (+ = right).
   const [bearingTestOn, setBearingTestOn] = useState(false);
   const [testBearing, setTestBearing] = useState(0);
-  const testRef = useRef({ bearing: 0, zone: 10, minPower: 31, maxPower: 100 });
+  const testRef = useRef({ bearing: 0, zone: 10, minPower: 30, maxPower: 100 });
   testRef.current = { bearing: testBearing, zone: belt.silentZone, minPower: belt.minPower, maxPower: belt.maxPower };
   const testMix = beltMix(testBearing, belt.silentZone);
   const testRange = powerRange(belt.minPower, belt.maxPower);

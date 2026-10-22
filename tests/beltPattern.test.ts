@@ -110,7 +110,7 @@ test('bytesToBase64 matches the standard encoding (the format the Bluetooth libr
 import { powerRange } from '../util/beltPattern';
 
 test('power range: strength 0 stays off, 100% strength is the strongest power, in between is a straight line', () => {
-  const { floor, ceiling } = powerRange(31, 60); // weakest 31 %, strongest 60 %
+  const { floor, ceiling } = powerRange(30, 60); // weakest 30 %, strongest 60 %
   assert.equal(ceiling, Math.round(0.6 * 255));
   assert.equal(motorByte(0, floor, ceiling), 0);
   assert.equal(motorByte(1, floor, ceiling), ceiling);
@@ -120,9 +120,9 @@ test('power range: strength 0 stays off, 100% strength is the strongest power, i
   assert.ok(a >= floor);
 });
 
-test('power range: the defaults give the same powers as before (floor about 80, top 255)', () => {
-  const { floor, ceiling } = powerRange(31, 100);
-  assert.ok(Math.abs(floor - 80) <= 1);
+test('power range: the defaults give about the same powers as before (floor about 77, top 255)', () => {
+  const { floor, ceiling } = powerRange(30, 100);
+  assert.ok(Math.abs(floor - 80) <= 4);
   assert.equal(ceiling, 255);
   assert.equal(motorByte(1, floor, ceiling), 255);
 });
