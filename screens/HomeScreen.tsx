@@ -369,6 +369,7 @@ export default function HomeScreen() {
     settings: beltSettings,
     running: isNavigating && !calibrating,
     facing: heading,
+    routeTarget: nextCheckpoint ? targetBearing : null,
     junction: guide?.junction ?? null,
     speedMps: speedRef.current,
     zoneDeg: beltSettings.silentZone, // its own zone, not the phone's (which widens with GPS error)

@@ -69,14 +69,24 @@ test('just outside a 15 degree zone: front at full strength, side partly', () =>
 // ---- when the belt starts ----
 const junction = (distanceM: number, legBearing: number | null = 90, index = 4) => ({ index, distanceM, legBearing });
 
-test('silent far from the junction, starts within the fixed distance, then points at the next stretch', () => {
+test('far from the junction the belt follows the route like version 1; within the distance it points at the turn', () => {
   let latch = NEW_JUNCTION_LATCH;
-  const far = beltGuidance({ facing: 0, junction: junction(80), speedMps: 3, zoneDeg: 15, latch });
-  assert.equal(far.active, false);
-  assert.deepEqual(far.mix, { left: 0, main: 0, right: 0 });
-  latch = far.latch;
-  const near = beltGuidance({ facing: 0, junction: junction(29), speedMps: 3, zoneDeg: 15, latch });
-  assert.equal(near.active, true);
+  // no route target and far from a junction: nothing to follow
+  const none = beltGuidance({ facing: 0, junction: junction(80), speedMps: 3, zoneDeg: 15, latch });
+  assert.equal(none.phase, 'none');
+  assert.deepEqual(none.mix, { left: 0, main: 0, right: 0 });
+  // far from the junction, facing 40 degrees left of the route direction: buzz like version 1
+  const far = beltGuidance({ facing: 320, routeTarget: 0, junction: junction(80), speedMps: 3, zoneDeg: 10, latch });
+  assert.equal(far.phase, 'route');
+  assert.equal(far.relative, 40);
+  assert.ok(far.mix.right > 0.85 && far.mix.main === 1 && far.mix.left === 0);
+  // facing the route direction: silent
+  const aligned = beltGuidance({ facing: 3, routeTarget: 0, junction: junction(80), speedMps: 3, zoneDeg: 10, latch: far.latch });
+  assert.deepEqual(aligned.mix, { left: 0, main: 0, right: 0 });
+  assert.equal(aligned.phase, 'route');
+  // within 30 m the target becomes the turn
+  const near = beltGuidance({ facing: 0, routeTarget: 0, junction: junction(29), speedMps: 3, zoneDeg: 15, latch: far.latch });
+  assert.equal(near.phase, 'junction');
   assert.equal(near.relative, 90); // the route turns right
   assert.equal(near.mix.right, 1);
 });
@@ -114,9 +124,9 @@ test('a new junction starts afresh; the last checkpoint (no next stretch) is sil
   let g = beltGuidance({ facing: 0, junction: junction(10, 90, 4), speedMps: 3, zoneDeg: 15, latch: NEW_JUNCTION_LATCH });
   assert.equal(g.active, true);
   g = beltGuidance({ facing: 0, junction: junction(70, 180, 5), speedMps: 3, zoneDeg: 15, latch: g.latch });
-  assert.equal(g.active, false);
-  g = beltGuidance({ facing: 0, junction: junction(5, null, 9), speedMps: 3, zoneDeg: 15, latch: g.latch });
-  assert.equal(g.active, false);
+  assert.equal(g.phase, 'none'); // far from the new junction, no route target given
+  g = beltGuidance({ facing: 0, routeTarget: 0, junction: junction(5, null, 9), speedMps: 3, zoneDeg: 15, latch: g.latch });
+  assert.equal(g.phase, 'route'); // the last checkpoint has no next stretch: just follow the route
   assert.equal(g.latch.started, false);
 });
 

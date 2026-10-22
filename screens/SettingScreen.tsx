@@ -581,8 +581,9 @@ export default function SettingScreen() {
           <Text style={styles.cardTitle}>Haptic belt</Text>
           <Text style={styles.cardText}>
             With the belt chosen, the phone does not vibrate itself. Three
-            motors (left, front, right) tell you which way the next stretch of
-            the route goes, starting a little before each junction.
+            motors (left, front, right) buzz whenever you face away from the
+            route, and from a little before each junction they point to the
+            direction of the turn.
           </Text>
           <Text style={styles.cardText}>
             Switch between the phone and the belt with "Vibrate with" at the top of Settings.
@@ -596,7 +597,7 @@ export default function SettingScreen() {
             step={1}
             onChange={(silentZone) => updateBeltSettings({ silentZone })}
           />
-          <Text style={styles.cardText}>When the belt starts before a junction:</Text>
+          <Text style={styles.cardText}>When the turn direction takes over before a junction:</Text>
           <View style={styles.optionRow}>
             {(
               [

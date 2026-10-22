@@ -24,14 +24,15 @@ export default function BeltBars({ state }: { state: BeltState }) {
         ))}
       </View>
       <Text style={styles.status}>
-        {state.active
-          ? state.relative === null
-            ? 'Junction ahead'
-            : `Next stretch ${Math.round(state.relative)}° (${state.relative >= 0 ? 'right' : 'left'})`
-          : state.distanceM === null
-            ? 'No junction ahead (no route, or the last stretch)'
-            : `Waiting: the next junction is ${state.distanceM} m away. The belt starts at ${state.triggerM} m.`}
+        {state.phase === 'none'
+          ? 'No target yet (no route or journey)'
+          : `${state.phase === 'junction' ? 'Junction ahead: next stretch' : 'Following the route'} ${Math.round(state.relative ?? 0)}° (${(state.relative ?? 0) >= 0 ? 'right' : 'left'})`}
       </Text>
+      {state.distanceM !== null && (
+        <Text style={styles.status}>
+          Next junction {state.distanceM} m away; the turn direction takes over at {state.triggerM} m
+        </Text>
+      )}
     </View>
   );
 }

@@ -78,15 +78,25 @@ export type Junction = {
 export type JunctionLatch = { index: number | null; started: boolean };
 export const NEW_JUNCTION_LATCH: JunctionLatch = { index: null, started: false };
 
+// What the belt is following:
+//   'route'     the direction along the route (like version 1): it buzzes
+//               whenever the wearer faces away from it
+//   'junction'  within the trigger distance of a junction: the direction of the
+//               next stretch, so the wearer learns about the turn early
+//   'none'      no target yet (no route, or no journey)
+export type BeltPhase = 'route' | 'junction' | 'none';
+
 export type BeltGuidance = {
   mix: BeltMix;
-  active: boolean; // the belt has started for this junction
-  relative: number | null; // degrees to the next stretch, when active
+  active: boolean; // the belt has a target (phase is not 'none')
+  phase: BeltPhase;
+  relative: number | null; // degrees from where the wearer faces to the target
   latch: JunctionLatch;
 };
 
 export function beltGuidance(input: {
   facing: number; // the wearer's heading in degrees
+  routeTarget?: number | null; // bearing along the route (version 1's target), if any
   junction: Junction | null;
   speedMps: number | null;
   zoneDeg: number;
@@ -94,23 +104,30 @@ export function beltGuidance(input: {
   timing?: BeltTiming;
 }): BeltGuidance {
   const { facing, junction, speedMps, zoneDeg } = input;
+  const routeTarget = input.routeTarget ?? null;
   const timing = input.timing ?? DEFAULT_BELT_TIMING;
 
-  if (!junction || junction.legBearing === null) {
-    return { mix: SILENT_MIX, active: false, relative: null, latch: NEW_JUNCTION_LATCH };
-  }
-
+  // Has the belt switched to the junction's turn direction? Once started it
+  // stays on until the junction is passed, so slowing down cannot end it.
   let latch = input.latch;
-  if (latch.index !== junction.index) latch = { index: junction.index, started: false };
-  if (!latch.started && junction.distanceM <= triggerDistance(timing, speedMps)) {
-    latch = { index: junction.index, started: true };
-  }
-  if (!latch.started) {
-    return { mix: SILENT_MIX, active: false, relative: null, latch };
+  let turnTarget: number | null = null;
+  if (junction && junction.legBearing !== null) {
+    if (latch.index !== junction.index) latch = { index: junction.index, started: false };
+    if (!latch.started && junction.distanceM <= triggerDistance(timing, speedMps)) {
+      latch = { index: junction.index, started: true };
+    }
+    if (latch.started) turnTarget = junction.legBearing;
+  } else {
+    latch = NEW_JUNCTION_LATCH;
   }
 
-  const relative = relativeBearing(junction.legBearing, facing);
-  return { mix: beltMix(relative, zoneDeg), active: true, relative, latch };
+  const phase: BeltPhase = turnTarget !== null ? 'junction' : routeTarget !== null ? 'route' : 'none';
+  const target = turnTarget ?? routeTarget;
+  if (target === null) {
+    return { mix: SILENT_MIX, active: false, phase: 'none', relative: null, latch };
+  }
+  const relative = relativeBearing(target, facing);
+  return { mix: beltMix(relative, zoneDeg), active: true, phase, relative, latch };
 }
 
 // The junction being approached at checkpoint `index`, seen from `here`.

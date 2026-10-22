@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import {
   BeltGuidance,
   BeltMix,
+  BeltPhase,
   BeltSettings,
   Junction,
   NEW_JUNCTION_LATCH,
@@ -21,13 +22,14 @@ import { getHapticSettings } from '../util/hapticSettings';
 
 export type BeltState = {
   mix: BeltMix;
-  active: boolean; // the belt has started for the junction ahead
+  active: boolean; // the belt has a target
+  phase: BeltPhase;
   relative: number | null; // degrees to the next stretch of the route
   distanceM: number | null; // distance to the junction ahead
   triggerM: number | null; // the belt starts when the junction is this close
 };
 
-const IDLE: BeltState = { mix: SILENT_MIX, active: false, relative: null, distanceM: null, triggerM: null };
+const IDLE: BeltState = { mix: SILENT_MIX, active: false, phase: 'none', relative: null, distanceM: null, triggerM: null };
 const TICK_MS = 50;
 
 // Works out what the belt should do, twenty times a second, from the wearer's
@@ -40,6 +42,7 @@ export function useBelt(input: {
   settings: BeltSettings;
   running: boolean; // a journey is on and the user is not calibrating
   facing: number;
+  routeTarget: number | null; // the direction along the route (version 1's target)
   junction: Junction | null;
   speedMps: number | null;
   zoneDeg: number;
@@ -63,6 +66,7 @@ export function useBelt(input: {
       const i = ref.current;
       const g = beltGuidance({
         facing: i.facing,
+        routeTarget: i.routeTarget,
         junction: i.junction,
         speedMps: i.speedMps,
         zoneDeg: i.zoneDeg,
@@ -84,12 +88,13 @@ export function useBelt(input: {
         !last ||
         lastDistance !== distanceM ||
         last.active !== g.active ||
+        last.phase !== g.phase ||
         Math.round(last.mix.left * 100) !== Math.round(g.mix.left * 100) ||
         Math.round(last.mix.main * 100) !== Math.round(g.mix.main * 100) ||
         Math.round(last.mix.right * 100) !== Math.round(g.mix.right * 100);
       last = g;
       lastDistance = distanceM;
-      if (changed) setState({ mix: g.mix, active: g.active, relative: g.relative, distanceM, triggerM });
+      if (changed) setState({ mix: g.mix, active: g.active, phase: g.phase, relative: g.relative, distanceM, triggerM });
     };
     tick();
     const timer = setInterval(tick, TICK_MS);
