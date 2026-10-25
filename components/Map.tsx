@@ -346,10 +346,9 @@ export default function Map({
             const usable = isFixUsable(accuracy);
 
             if (usable) {
-              // Low-Pass Filter for Smoothing
-              // alpha = 0.2 means 20% new data, 80% old data (very smooth, more lag)
-              // alpha = 0.5 means 50% new data, 50% old data (balanced)
-              const alpha = 0.5;
+              // Use 80% new position and 20% previous position to reduce lag
+              // while retaining light smoothing against GPS jitter.
+              const alpha = 0.8;
 
               if (lastLocationRef.current) {
                 latitude =

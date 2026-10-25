@@ -54,16 +54,42 @@ test('beltMix mirrors for negative angles (left and right swap, main stays)', ()
   }
 });
 
-test('beltMix: silent inside the zone, silent behind, at most two motors at once', () => {
+test('beltMix: silent inside the zone, side motor behind, at most two motors at once', () => {
   assert.deepEqual(mixPct(10, 15), [0, 0, 0]);
   assert.deepEqual(mixPct(-15, 15), [0, 0, 0]); // the zone edge is still silent
-  assert.deepEqual(mixPct(91), [0, 0, 0]);
-  assert.deepEqual(mixPct(-135), [0, 0, 0]);
+  assert.deepEqual(mixPct(91), [0, 0, 100]);
+  assert.deepEqual(mixPct(-135), [100, 0, 0]);
   for (let a = -180; a <= 180; a += 0.5) {
     const m = beltMix(a, 15);
     const on = [m.left, m.main, m.right].filter((x) => x > 0).length;
     assert.ok(on <= 2, `${on} motors at ${a}`);
   }
+});
+
+test('rear sectors retain configured maximum strength continuously past 90 degrees', () => {
+  for (const sign of [-1, 1]) {
+    for (const angle of [90, 90.001, 135, 175, 180]) {
+      assert.deepEqual(beltMix(sign * angle, 15, { minStrength: 20, maxStrength: 70 }),
+        sign < 0 ? { left: 0.7, main: 0, right: 0 } : { left: 0, main: 0, right: 0.7 });
+    }
+  }
+});
+
+test('rear turn direction survives heading jitter and resets for a new target or stopped guidance', () => {
+  const base = { facing: 0, speedMps: null, zoneDeg: 15 };
+  let latch = NEW_JUNCTION_LATCH;
+  for (const [angle, side] of [[170, 'right'], [179, 'right'], [180, 'right'], [184, 'right'], [186, 'left'], [179, 'left'], [174, 'right']] as const) {
+    const g = beltGuidance({ ...base, junction: junction(10, angle), latch });
+    assert.equal(g.mix[side], 1, `angle ${angle}`);
+    assert.equal(g.mix.main, 0);
+    latch = g.latch;
+  }
+  const fresh = beltGuidance({ ...base, junction: junction(10, 181, 5), latch });
+  assert.equal(fresh.mix.left, 1);
+  const stopped = beltGuidance({ ...base, junction: null, latch: fresh.latch });
+  assert.deepEqual(stopped.latch, NEW_JUNCTION_LATCH);
+  const resumed = beltGuidance({ ...base, junction: junction(10, 179, 5), latch: stopped.latch });
+  assert.equal(resumed.mix.right, 1);
 });
 
 test('just outside a 15 degree zone: front at full strength, side partly', () => {

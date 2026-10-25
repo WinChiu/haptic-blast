@@ -3,7 +3,7 @@ import { StyleSheet, Text, View } from 'react-native';
 
 // A slider for a bearing from -180 to +180 degrees (positive = to the right),
 // like the one in the vibration simulator. Tap or drag anywhere on the bar.
-// The darker ends are behind the wearer (beyond 90 degrees: no response) and
+// The darker ends are behind the wearer (only the side motor responds) and
 // the shaded middle is the silent zone.
 export default function BearingSlider({
   value,

@@ -22,7 +22,7 @@ export function relativeBearing(targetDeg: number, facingDeg: number): number {
 // the front stays strongest up to 45 degrees, then fades towards 90 degrees.
 export function beltMix(relDeg: number, zoneDeg: number, strengths = { minStrength: 32, maxStrength: 100 }): BeltMix {
   const a = Math.abs(relDeg);
-  if (a <= zoneDeg || a > 90) return SILENT_MIX;
+  if (a <= zoneDeg) return SILENT_MIX;
   const low = strengths.minStrength / 100;
   const high = strengths.maxStrength / 100;
   const side = low + (high - low) * Math.min(1, (a - zoneDeg) / (45 - zoneDeg));
@@ -71,7 +71,7 @@ export type Junction = {
 };
 
 // Current preview state; recalculated from distance on every update.
-export type JunctionLatch = { index: number | null; started: boolean };
+export type JunctionLatch = { index: number | null; started: boolean; turnSide?: 'left' | 'right' };
 export const NEW_JUNCTION_LATCH: JunctionLatch = { index: null, started: false };
 
 export type BeltGuidance = {
@@ -100,9 +100,17 @@ export function beltGuidance(input: {
   const preview = junction.legBearing !== null && junction.distanceM <= triggerDistance(timing, speedMps);
   const target = preview ? junction.legBearing! : junction.approachBearing;
   const relative = relativeBearing(target, facing);
+  // Keep the last turn direction within five degrees of directly behind.
+  // A different checkpoint or preview target starts a fresh decision.
+  const previousSide = input.latch.index === junction.index && input.latch.started === preview
+    ? input.latch.turnSide : undefined;
+  const turnSide = Math.abs(relative) >= 175 && previousSide
+    ? previousSide : relative < 0 ? 'left' : 'right';
+  const motorAngle = Math.abs(relative) >= 175
+    ? (turnSide === 'left' ? -1 : 1) * Math.abs(relative) : relative;
   return {
-    mix: beltMix(relative, zoneDeg, input.strengths), active: true, relative, targetBearing: target,
-    latch: { index: junction.index, started: preview },
+    mix: beltMix(motorAngle, zoneDeg, input.strengths), active: true, relative, targetBearing: target,
+    latch: { index: junction.index, started: preview, turnSide },
   };
 }
 

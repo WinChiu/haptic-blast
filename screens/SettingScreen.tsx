@@ -683,7 +683,8 @@ export default function SettingScreen() {
           <Text style={styles.cardText}>
             Bearing test: set an angle and feel the motors, like the simulator.
             0° is straight ahead, positive is to the right. The darker ends are
-            behind you (no response); the shaded middle is the silent zone.
+            behind you: only the side motor vibrates at your maximum strength.
+            The shaded middle is the silent zone.
           </Text>
           <BearingSlider value={testBearing} zone={haptics.deadband} onChange={setTestBearing} />
           <Text style={styles.cardText}>
