@@ -43,8 +43,6 @@ import {
   useHapticSettings,
 } from '../util/hapticSettings';
 import {
-  PHONE_POSITIONS,
-  PhonePosition,
   RecordingPrefs,
   clearRecordings,
   loadRecordingPrefs,
@@ -79,7 +77,6 @@ export default function SettingScreen() {
   // Walk recording: sensor data for working out hands-free guidance
   const [recPrefs, setRecPrefs] = useState<RecordingPrefs>({
     enabled: false,
-    phonePosition: 'pocket',
     label: '',
     motion: false,
   });
@@ -264,15 +261,15 @@ export default function SettingScreen() {
   // The bearing is the angle from where you face to the target (+ = right).
   const [bearingTestOn, setBearingTestOn] = useState(false);
   const [testBearing, setTestBearing] = useState(0);
-  const testRef = useRef({ bearing: 0, zone: 10 });
-  testRef.current = { bearing: testBearing, zone: belt.silentZone };
-  const testMix = beltMix(testBearing, belt.silentZone);
-  const testFrame = beltFrame(testMix, true);
+  const testRef = useRef({ bearing: 0, zone: haptics.deadband, strengths: belt });
+  testRef.current = { bearing: testBearing, zone: haptics.deadband, strengths: belt };
+  const testMix = beltMix(testBearing, haptics.deadband, belt);
+  const testFrame = beltFrame(testMix, true, 0);
   useEffect(() => {
     if (!bearingTestOn) return;
     const timer = setInterval(() => {
-      const { bearing, zone } = testRef.current;
-      sendBeltFrame(beltFrame(beltMix(bearing, zone), true));
+      const { bearing, zone, strengths } = testRef.current;
+      sendBeltFrame(beltFrame(beltMix(bearing, zone, strengths), true, 0));
     }, 100);
     return () => {
       clearInterval(timer);
@@ -512,31 +509,6 @@ export default function SettingScreen() {
               {recPrefs.enabled ? 'ON' : 'OFF'}
             </Text>
           </View>
-          <Text style={styles.cardText}>Where is the phone carried?</Text>
-          <View style={[styles.optionRow, { flexWrap: 'wrap' }]}>
-            {PHONE_POSITIONS.map(({ value, label }) => (
-              <TouchableOpacity
-                key={value}
-                style={[
-                  styles.optionChip,
-                  { flexGrow: 1, flexBasis: '30%' },
-                  recPrefs.phonePosition === value && styles.optionChipActive,
-                ]}
-                onPress={() =>
-                  updateRecPrefs({ phonePosition: value as PhonePosition })
-                }
-              >
-                <Text
-                  style={[
-                    styles.optionText,
-                    recPrefs.phonePosition === value && styles.optionTextActive,
-                  ]}
-                >
-                  {label}
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </View>
           <View style={styles.toggleContainer}>
             <Switch
               trackColor={{ false: '#404040', true: '#22c55e' }}
@@ -578,25 +550,39 @@ export default function SettingScreen() {
         </View>
 
         <View style={styles.card}>
+          <Text style={styles.cardTitle}>Silent zone (phone and belt)</Text>
+          <Stepper
+            label="Silent zone (± degrees)"
+            value={haptics.deadband}
+            unit="°"
+            min={HAPTIC_LIMITS.deadband.min}
+            max={HAPTIC_LIMITS.deadband.max}
+            step={1}
+            onChange={(deadband) => updateHapticSettings({ deadband })}
+          />
+        </View>
+
+        <View style={styles.card}>
           <Text style={styles.cardTitle}>Haptic belt</Text>
           <Text style={styles.cardText}>
             With the belt chosen, the phone does not vibrate itself. Three
-            motors (left, front, right) tell you which way the next stretch of
-            the route goes, starting a little before each junction.
+            motors (left, front, right) guide you to the current checkpoint,
+            then preview the next stretch when you enter the warning distance.
           </Text>
           <Text style={styles.cardText}>
             Switch between the phone and the belt with "Vibrate with" at the top of Settings.
           </Text>
           <Stepper
-            label="Silent zone (± degrees)"
-            value={belt.silentZone}
-            unit="°"
-            min={BELT_LIMITS.silentZone.min}
-            max={BELT_LIMITS.silentZone.max}
-            step={1}
-            onChange={(silentZone) => updateBeltSettings({ silentZone })}
+            label="Strongest buzz"
+            value={belt.maxStrength} unit="%" min={belt.minStrength} max={100} step={1}
+            onChange={(maxStrength) => updateBeltSettings({ maxStrength })}
           />
-          <Text style={styles.cardText}>When the belt starts before a junction:</Text>
+          <Stepper
+            label="Weakest buzz (side motor at the silent zone edge)"
+            value={belt.minStrength} unit="%" min={1} max={belt.maxStrength} step={1}
+            onChange={(minStrength) => updateBeltSettings({ minStrength })}
+          />
+          <Text style={styles.cardText}>When the belt previews the next stretch:</Text>
           <View style={styles.optionRow}>
             {(
               [
@@ -688,7 +674,7 @@ export default function SettingScreen() {
           {link.status === 'connected' && (
             <View style={styles.optionRow}>
               {(['left', 'front', 'right'] as const).map((m) => (
-                <TouchableOpacity key={m} style={styles.optionChip} onPress={() => testMotor(m)}>
+                <TouchableOpacity key={m} style={styles.optionChip} onPress={() => testMotor(m, Math.round(belt.maxStrength / 100 * 255))}>
                   <Text style={styles.optionText}>Test {m}</Text>
                 </TouchableOpacity>
               ))}
@@ -699,7 +685,7 @@ export default function SettingScreen() {
             0° is straight ahead, positive is to the right. The darker ends are
             behind you (no response); the shaded middle is the silent zone.
           </Text>
-          <BearingSlider value={testBearing} zone={belt.silentZone} onChange={setTestBearing} />
+          <BearingSlider value={testBearing} zone={haptics.deadband} onChange={setTestBearing} />
           <Text style={styles.cardText}>
             Bearing {testBearing > 0 ? '+' : ''}
             {testBearing}°: left {Math.round(testMix.left * 100)}%, main{' '}
@@ -720,8 +706,9 @@ export default function SettingScreen() {
             </Text>
           </TouchableOpacity>
           <Text style={styles.cardText}>
-            Once it has started for a junction it stays on until you pass it.
-            By speed never starts closer than 15 m or further than 60 m.
+            Outside the preview distance the belt points to the current checkpoint.
+            Inside it, it points along the next stretch. Moving back outside restores
+            the current checkpoint. Speed-based preview uses a distance of 15 to 60 m.
           </Text>
         </View>
 
@@ -765,15 +752,8 @@ export default function SettingScreen() {
               </TouchableOpacity>
             ))}
           </View>
-          <Stepper
-            label="Silent zone (± degrees)"
-            value={haptics.deadband}
-            unit="°"
-            min={HAPTIC_LIMITS.deadband.min}
-            max={HAPTIC_LIMITS.deadband.max}
-            step={1}
-            onChange={(deadband) => updateHapticSettings({ deadband })}
-          />
+          {!belt.enabled && (
+            <>
           <Stepper
             label="Sharpness (0 soft, 100 crisp)"
             value={haptics.sharpness}
@@ -792,6 +772,8 @@ export default function SettingScreen() {
             step={5}
             onChange={(minStrength) => updateHapticSettings({ minStrength })}
           />
+            </>
+          )}
           {haptics.mode !== 'continuous' && (
             <>
               <Stepper

@@ -5,8 +5,8 @@ import { Coord, bearingDegrees, distanceMeters } from './geo';
 // rules can be tested on a computer.
 //
 // The belt points at the direction of the NEXT STRETCH of the route after the
-// junction the wearer is approaching, so the wearer learns about the turn
-// before reaching it. Along a straight street the belt is silent.
+// junction when within the preview distance; otherwise it points at the
+// current checkpoint. Leaving the distance restores the approach direction.
 
 export type BeltMix = { left: number; main: number; right: number }; // each 0..1
 
@@ -18,19 +18,16 @@ export function relativeBearing(targetDeg: number, facingDeg: number): number {
   return ((((targetDeg - facingDeg) % 360) + 540) % 360) - 180;
 }
 
-// Motor strengths for a target `relDeg` degrees to the right (+) or left (-).
-//   side  = min(1, |a| / 45)           the motor on that side
-//   main  = min(1, (90 - |a|) / 45)    the front motor
-// Silent inside the silent zone and for targets behind the wearer (|a| > 90,
-// a limit of this prototype). At most two motors vibrate at once.
-export function beltMix(relDeg: number, zoneDeg: number): BeltMix {
+// Actual motor amplitude fractions. The side reaches weakest at the zone edge;
+// the front stays strongest up to 45 degrees, then fades towards 90 degrees.
+export function beltMix(relDeg: number, zoneDeg: number, strengths = { minStrength: 32, maxStrength: 100 }): BeltMix {
   const a = Math.abs(relDeg);
   if (a <= zoneDeg || a > 90) return SILENT_MIX;
-  const side = Math.min(1, a / 45);
-  const main = Math.min(1, (90 - a) / 45);
-  return relDeg < 0
-    ? { left: side, main, right: 0 }
-    : { left: 0, main, right: side };
+  const low = strengths.minStrength / 100;
+  const high = strengths.maxStrength / 100;
+  const side = low + (high - low) * Math.min(1, (a - zoneDeg) / (45 - zoneDeg));
+  const main = a <= 45 ? high : a >= 90 ? 0 : low + (high - low) * (90 - a) / 45;
+  return relDeg < 0 ? { left: side, main, right: 0 } : { left: 0, main, right: side };
 }
 
 // When the belt starts telling the wearer about the next junction.
@@ -70,18 +67,18 @@ export type Junction = {
   index: number;
   distanceM: number;
   legBearing: number | null;
+  approachBearing: number;
 };
 
-// Remembers that the belt has started for one junction. Once started it stays
-// on until the junction is passed (the index changes), so slowing down cannot
-// switch it off.
+// Current preview state; recalculated from distance on every update.
 export type JunctionLatch = { index: number | null; started: boolean };
 export const NEW_JUNCTION_LATCH: JunctionLatch = { index: null, started: false };
 
 export type BeltGuidance = {
   mix: BeltMix;
-  active: boolean; // the belt has started for this junction
-  relative: number | null; // degrees to the next stretch, when active
+  active: boolean; // navigation has a target
+  relative: number | null; // degrees to the current guidance target
+  targetBearing: number | null;
   latch: JunctionLatch;
 };
 
@@ -92,25 +89,21 @@ export function beltGuidance(input: {
   zoneDeg: number;
   latch: JunctionLatch;
   timing?: BeltTiming;
+  strengths?: Pick<BeltSettings, 'minStrength' | 'maxStrength'>;
 }): BeltGuidance {
   const { facing, junction, speedMps, zoneDeg } = input;
   const timing = input.timing ?? DEFAULT_BELT_TIMING;
 
-  if (!junction || junction.legBearing === null) {
-    return { mix: SILENT_MIX, active: false, relative: null, latch: NEW_JUNCTION_LATCH };
+  if (!junction) {
+    return { mix: SILENT_MIX, active: false, relative: null, targetBearing: null, latch: NEW_JUNCTION_LATCH };
   }
-
-  let latch = input.latch;
-  if (latch.index !== junction.index) latch = { index: junction.index, started: false };
-  if (!latch.started && junction.distanceM <= triggerDistance(timing, speedMps)) {
-    latch = { index: junction.index, started: true };
-  }
-  if (!latch.started) {
-    return { mix: SILENT_MIX, active: false, relative: null, latch };
-  }
-
-  const relative = relativeBearing(junction.legBearing, facing);
-  return { mix: beltMix(relative, zoneDeg), active: true, relative, latch };
+  const preview = junction.legBearing !== null && junction.distanceM <= triggerDistance(timing, speedMps);
+  const target = preview ? junction.legBearing! : junction.approachBearing;
+  const relative = relativeBearing(target, facing);
+  return {
+    mix: beltMix(relative, zoneDeg, input.strengths), active: true, relative, targetBearing: target,
+    latch: { index: junction.index, started: preview },
+  };
 }
 
 // The junction being approached at checkpoint `index`, seen from `here`.
@@ -125,6 +118,7 @@ export function junctionAt(
   return {
     index,
     distanceM: distanceMeters(here, cp),
+    approachBearing: bearingDegrees(here, cp),
     legBearing: next ? bearingDegrees(cp, next) : null,
   };
 }
@@ -144,13 +138,15 @@ export type BeltSettings = {
   lookAheadM: number;
   secondsAhead: number;
   pattern: BeltPattern;
-  silentZone: number; // degrees either side of the target where the belt is silent
+  minStrength: number;
+  maxStrength: number;
 };
 
 export const BELT_LIMITS = {
   lookAheadM: { min: 10, max: 80 },
   secondsAhead: { min: 3, max: 15 },
-  silentZone: { min: 1, max: 20 },
+  minStrength: { min: 1, max: 100 },
+  maxStrength: { min: 1, max: 100 },
 } as const;
 
 export const DEFAULT_BELT_SETTINGS: BeltSettings = {
@@ -159,7 +155,8 @@ export const DEFAULT_BELT_SETTINGS: BeltSettings = {
   lookAheadM: DEFAULT_BELT_TIMING.lookAheadM,
   secondsAhead: DEFAULT_BELT_TIMING.secondsAhead,
   pattern: 'steady',
-  silentZone: 10, // the simulator's value (to be confirmed); the belt's target does not move with GPS error, so it never widens
+  minStrength: 32,
+  maxStrength: 100,
 };
 
 export function clampBeltSettings(raw: Partial<BeltSettings> | null | undefined): BeltSettings {
@@ -173,7 +170,8 @@ export function clampBeltSettings(raw: Partial<BeltSettings> | null | undefined)
     lookAheadM: Math.round(clamp(num(raw?.lookAheadM, d.lookAheadM), BELT_LIMITS.lookAheadM.min, BELT_LIMITS.lookAheadM.max)),
     secondsAhead: Math.round(clamp(num(raw?.secondsAhead, d.secondsAhead), BELT_LIMITS.secondsAhead.min, BELT_LIMITS.secondsAhead.max)),
     pattern: patterns.includes(raw?.pattern as BeltPattern) ? (raw!.pattern as BeltPattern) : d.pattern,
-    silentZone: Math.round(clamp(num(raw?.silentZone, d.silentZone), BELT_LIMITS.silentZone.min, BELT_LIMITS.silentZone.max)),
+    maxStrength: Math.round(clamp(num(raw?.maxStrength, d.maxStrength), 1, 100)),
+    minStrength: Math.round(clamp(num(raw?.minStrength, d.minStrength), 1, Math.round(clamp(num(raw?.maxStrength, d.maxStrength), 1, 100)))),
   };
 }
 

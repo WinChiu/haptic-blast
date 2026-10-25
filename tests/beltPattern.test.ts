@@ -106,3 +106,8 @@ test('bytesToBase64 matches the standard encoding (the format the Bluetooth libr
   assert.equal(bytesToBase64([1, 2]), Buffer.from([1, 2]).toString('base64'));
   assert.equal(bytesToBase64([1]), Buffer.from([1]).toString('base64'));
 });
+
+test('configured amplitudes reach Bluetooth bytes without applying the old motor floor twice', () => {
+  assert.deepEqual(beltFrame({ left: 0.25, main: 0.8, right: 0 }, true, 0), [64, 204, 0]);
+  assert.deepEqual(beltFrame({ left: 0.25, main: 0.8, right: 0 }, false, 0), [0, 0, 0]);
+});

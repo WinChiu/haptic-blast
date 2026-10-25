@@ -228,7 +228,6 @@ export default function HomeScreen() {
       recording: {
         meta: {
           started: new Date(now).toISOString(),
-          phone_position: prefs.phonePosition,
           label: prefs.label.replace(/[\r\n=]/g, ' ').trim() || 'unlabelled',
           haptic: String(hapticEnabled),
           sound: String(soundEnabled),
@@ -252,7 +251,7 @@ export default function HomeScreen() {
       startMotionCapture();
     }
     console.log(
-      `[rec] started (phone position: ${prefs.phonePosition}${prefs.motion ? ', with motion sensors' : ''})`
+      `[rec] started (phone position: unspecified${prefs.motion ? ', with motion sensors' : ''})`
     );
   };
 
@@ -371,7 +370,7 @@ export default function HomeScreen() {
     facing: heading,
     junction: guide?.junction ?? null,
     speedMps: speedRef.current,
-    zoneDeg: beltSettings.silentZone, // its own zone, not the phone's (which widens with GPS error)
+    zoneDeg: hapticSettings.deadband,
     onFrame: sendBeltFrame,
   });
 
@@ -768,10 +767,11 @@ const gpsWaitLabel = isDebugMode
           {showCompassContent ? (
             <>
               <HapticCompass
-                targetAngle={targetBearing}
+                targetAngle={beltSettings.enabled ? belt.targetBearing ?? targetBearing : targetBearing}
                 heading={heading}
                 calibration={pocket.calibration}
-                zoneDegrees={zoneDegrees}
+                followHeading={beltSettings.enabled}
+                zoneDegrees={beltSettings.enabled ? hapticSettings.deadband : zoneDegrees}
               />
               {beltSettings.enabled && <BeltBars state={belt} />}
             </>

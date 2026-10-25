@@ -21,10 +21,11 @@ import { getHapticSettings } from '../util/hapticSettings';
 export type BeltState = {
   mix: BeltMix;
   active: boolean; // the belt has started for the junction ahead
-  relative: number | null; // degrees to the next stretch of the route
+  relative: number | null; // degrees to the guidance target
+  targetBearing: number | null;
 };
 
-const IDLE: BeltState = { mix: SILENT_MIX, active: false, relative: null };
+const IDLE: BeltState = { mix: SILENT_MIX, active: false, relative: null, targetBearing: null };
 const TICK_MS = 50;
 
 // Works out what the belt should do, twenty times a second, from the wearer's
@@ -64,6 +65,7 @@ export function useBelt(input: {
         zoneDeg: i.zoneDeg,
         latch,
         timing: timingOf(i.settings),
+        strengths: i.settings,
       });
       latch = g.latch;
       const anyOn = g.mix.left + g.mix.main + g.mix.right > 0;
@@ -73,15 +75,17 @@ export function useBelt(input: {
         zoneDeg: i.zoneDeg,
       });
       clock = step.clock;
-      i.onFrame?.(beltFrame(g.mix, step.gate));
+      i.onFrame?.(beltFrame(g.mix, step.gate, 0));
       const changed =
         !last ||
         last.active !== g.active ||
+        last.relative !== g.relative ||
+        last.targetBearing !== g.targetBearing ||
         Math.round(last.mix.left * 100) !== Math.round(g.mix.left * 100) ||
         Math.round(last.mix.main * 100) !== Math.round(g.mix.main * 100) ||
         Math.round(last.mix.right * 100) !== Math.round(g.mix.right * 100);
       last = g;
-      if (changed) setState({ mix: g.mix, active: g.active, relative: g.relative });
+      if (changed) setState({ mix: g.mix, active: g.active, relative: g.relative, targetBearing: g.targetBearing });
     };
     tick();
     const timer = setInterval(tick, TICK_MS);

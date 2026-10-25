@@ -25,16 +25,23 @@ test('relativeBearing: positive to the right, wraps around north', () => {
   assert.equal(relativeBearing(180, 0), -180);
 });
 
-// The table from the specification (silent zone small enough not to hide the 11.25 row)
-test('beltMix reproduces every row of the specification table', () => {
-  assert.deepEqual(mixPct(90), [0, 0, 100]);
-  assert.deepEqual(mixPct(80), [0, 22, 100]);
-  assert.deepEqual(mixPct(67.5), [0, 50, 100]);
-  assert.deepEqual(mixPct(56.25), [0, 75, 100]);
-  assert.deepEqual(mixPct(45), [0, 100, 100]);
-  assert.deepEqual(mixPct(33.75), [0, 100, 75]);
-  assert.deepEqual(mixPct(22.5), [0, 100, 50]);
-  assert.deepEqual(mixPct(11.25), [0, 100, 25]);
+test('belt strengths reach configured endpoints on both sides of the silent zone', () => {
+  for (const zone of [1, 10, 20]) {
+    for (const sign of [-1, 1]) {
+      const strengths = { minStrength: 25, maxStrength: 80 };
+      const edge = beltMix(sign * (zone + 0.00001), zone, strengths);
+      const side = sign < 0 ? edge.left : edge.right;
+      assert.ok(Math.abs(side - 0.25) < 0.00001);
+      assert.equal(edge.main, 0.8);
+      const mid = beltMix(sign * 45, zone, strengths);
+      assert.equal(mid.main, 0.8);
+      assert.equal(sign < 0 ? mid.left : mid.right, 0.8);
+      const far = beltMix(sign * 90, zone, strengths);
+      assert.equal(far.main, 0);
+      assert.equal(sign < 0 ? far.left : far.right, 0.8);
+      assert.deepEqual(beltMix(sign * zone, zone, strengths), { left: 0, main: 0, right: 0 });
+    }
+  }
 });
 
 test('beltMix mirrors for negative angles (left and right swap, main stays)', () => {
@@ -62,18 +69,18 @@ test('beltMix: silent inside the zone, silent behind, at most two motors at once
 test('just outside a 15 degree zone: front at full strength, side partly', () => {
   const m = beltMix(16, 15);
   assert.equal(m.main, 1);
-  assert.ok(m.right > 0.3 && m.right < 0.4);
+  assert.ok(m.right > 0.32 && m.right < 0.35);
   assert.equal(m.left, 0);
 });
 
 // ---- when the belt starts ----
-const junction = (distanceM: number, legBearing: number | null = 90, index = 4) => ({ index, distanceM, legBearing });
+const junction = (distanceM: number, legBearing: number | null = 90, index = 4) => ({ index, distanceM, legBearing, approachBearing: 30 });
 
-test('silent far from the junction, starts within the fixed distance, then points at the next stretch', () => {
+test('outside the fixed distance points at A, inside points along A to B', () => {
   let latch = NEW_JUNCTION_LATCH;
   const far = beltGuidance({ facing: 0, junction: junction(80), speedMps: 3, zoneDeg: 15, latch });
-  assert.equal(far.active, false);
-  assert.deepEqual(far.mix, { left: 0, main: 0, right: 0 });
+  assert.equal(far.active, true);
+  assert.equal(far.relative, 30);
   latch = far.latch;
   const near = beltGuidance({ facing: 0, junction: junction(29), speedMps: 3, zoneDeg: 15, latch });
   assert.equal(near.active, true);
@@ -81,14 +88,15 @@ test('silent far from the junction, starts within the fixed distance, then point
   assert.equal(near.mix.right, 1);
 });
 
-test('the belt stays on after it has started, even if the distance rule would now say no', () => {
+test('speed mode restores approach direction when the preview distance shrinks', () => {
   const timing = { ...DEFAULT_BELT_TIMING, trigger: 'speed' as const };
   // running at 3 m/s: 24 m is inside the 24 m trigger, so it starts
   let g = beltGuidance({ facing: 0, junction: junction(20), speedMps: 3, zoneDeg: 15, latch: NEW_JUNCTION_LATCH, timing });
   assert.equal(g.active, true);
   // slows to a crawl: the trigger shrinks to its 15 m floor, but 20 m > 15 m
   g = beltGuidance({ facing: 0, junction: junction(20), speedMps: 0.3, zoneDeg: 15, latch: g.latch, timing });
-  assert.equal(g.active, true, 'slowing down must not switch it off');
+  assert.equal(g.active, true);
+  assert.equal(g.relative, 30);
   // standing still
   g = beltGuidance({ facing: 0, junction: junction(20), speedMps: 0, zoneDeg: 15, latch: g.latch, timing });
   assert.equal(g.active, true);
@@ -110,13 +118,15 @@ test('a stopped wearer inside the floor distance is warned (speed mode)', () => 
   assert.equal(g.active, true);
 });
 
-test('a new junction starts afresh; the last checkpoint (no next stretch) is silent', () => {
+test('a new junction and the final checkpoint use their approach direction', () => {
   let g = beltGuidance({ facing: 0, junction: junction(10, 90, 4), speedMps: 3, zoneDeg: 15, latch: NEW_JUNCTION_LATCH });
   assert.equal(g.active, true);
   g = beltGuidance({ facing: 0, junction: junction(70, 180, 5), speedMps: 3, zoneDeg: 15, latch: g.latch });
-  assert.equal(g.active, false);
+  assert.equal(g.active, true);
+  assert.equal(g.relative, 30);
   g = beltGuidance({ facing: 0, junction: junction(5, null, 9), speedMps: 3, zoneDeg: 15, latch: g.latch });
-  assert.equal(g.active, false);
+  assert.equal(g.active, true);
+  assert.equal(g.relative, 30);
   assert.equal(g.latch.started, false);
 });
 
@@ -148,9 +158,9 @@ test('belt settings: defaults, clamping and bad input', () => {
   assert.equal(clampBeltSettings({ secondsAhead: 99 }).secondsAhead, 15);
   assert.equal(clampBeltSettings({ trigger: 'x' as any }).trigger, 'fixed');
   assert.equal(clampBeltSettings({ pattern: 'taps' }).pattern, 'taps');
-  assert.equal(DEFAULT_BELT_SETTINGS.silentZone, 10);
-  assert.equal(clampBeltSettings({ silentZone: 0 }).silentZone, 1);
-  assert.equal(clampBeltSettings({ silentZone: 99 }).silentZone, 20);
+  assert.equal(clampBeltSettings({ minStrength: 90, maxStrength: 60 }).minStrength, 60);
+  assert.equal(clampBeltSettings({ minStrength: 0 }).minStrength, 1);
+  assert.equal(clampBeltSettings({ maxStrength: 150 }).maxStrength, 100);
   assert.equal(clampBeltSettings({ pattern: 'zzz' as any }).pattern, 'steady');
   assert.equal(timingOf({ ...DEFAULT_BELT_SETTINGS, trigger: 'speed', secondsAhead: 6 }).secondsAhead, 6);
 });
@@ -168,29 +178,30 @@ test('junctionAt: distance to the checkpoint and the direction of the leg leavin
   assert.equal(junctionAt(o, cps, 5), null);
 });
 
-// ---- the simulator (subtle-vibration-simulator.html), copied as the reference ----
-// Table rows [angle, main %, side %] with straight-line interpolation between them.
-const SIM_POINTS = [[0, 100, 0], [11.25, 100, 25], [22.5, 100, 50], [33.75, 100, 75], [45, 100, 100], [56.25, 75, 100], [67.5, 50, 100], [80, 22, 100], [90, 0, 100]];
-function simulator(a: number, s: number): [number, number, number] {
-  const b = Math.abs(a);
-  if (b <= s || b > 90) return [0, 0, 0];
-  let i = 1;
-  while (SIM_POINTS[i][0] < b) i++;
-  const p = SIM_POINTS[i - 1], q = SIM_POINTS[i], f = (b - p[0]) / (q[0] - p[0]);
-  const main = p[1] + f * (q[1] - p[1]), side = p[2] + f * (q[2] - p[2]);
-  return a < 0 ? [side, main, 0] : [0, main, side];
-}
+test('retreat outside the fixed boundary restores A without a latched preview', () => {
+  const base = { facing: 0, speedMps: null, zoneDeg: 10 };
+  let g = beltGuidance({ ...base, junction: junction(30), latch: NEW_JUNCTION_LATCH });
+  assert.equal(g.relative, 90);
+  g = beltGuidance({ ...base, junction: junction(30.01), latch: g.latch });
+  assert.equal(g.relative, 30);
+  assert.equal(g.latch.started, false);
+  g = beltGuidance({ ...base, junction: junction(29), latch: g.latch });
+  assert.equal(g.relative, 90);
+});
 
-test('beltMix gives the same strengths as the simulator at every angle and silent zone', () => {
-  let worst = 0;
-  for (let a = -180; a <= 180; a += 0.25) {
-    for (let s = 1; s <= 10; s += 0.5) {
-      const sim = simulator(a, s);
-      const m = beltMix(a, s);
-      const ours = [m.left * 100, m.main * 100, m.right * 100];
-      for (let k = 0; k < 3; k++) worst = Math.max(worst, Math.abs(ours[k] - sim[k]));
+test('side strength increases monotonically from each chosen silent zone to 45 degrees', () => {
+  for (const zone of [1, 10, 20]) {
+    let previous = 0;
+    for (let a = zone + 0.01; a <= 45; a += 0.25) {
+      const m = beltMix(a, zone, { minStrength: 20, maxStrength: 70 });
+      assert.equal(m.main, 0.7);
+      assert.ok(m.right >= previous && m.right <= 0.7);
+      previous = m.right;
     }
   }
-  // the simulator's table rows round 22.2 % to 22 %, so allow a fraction of a percent
-  assert.ok(worst < 0.3, `largest difference ${worst.toFixed(3)} percentage points`);
+});
+
+test('the common zone changes whether an otherwise identical belt target vibrates', () => {
+  assert.ok(beltMix(12, 10).right > 0);
+  assert.deepEqual(beltMix(12, 15), { left: 0, main: 0, right: 0 });
 });

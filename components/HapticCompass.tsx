@@ -76,6 +76,7 @@ interface HapticCompassProps {
   // The silent zone the guidance really uses (wider than the setting when GPS
   // is poor), so the triangle always matches when the phone buzzes
   zoneDegrees?: number;
+  followHeading?: boolean;
 }
 
 export default function HapticCompass({
@@ -83,8 +84,9 @@ export default function HapticCompass({
   heading = 0,
   calibration = null,
   zoneDegrees,
+  followHeading = false,
 }: HapticCompassProps) {
-  const directHeading = DIRECT_HEADING && !calibration;
+  const directHeading = DIRECT_HEADING && !calibration && !followHeading;
   const directSV = useSharedValue(directHeading);
   useEffect(() => {
     directSV.value = directHeading;
@@ -98,7 +100,7 @@ export default function HapticCompass({
 
   // Angle Spans (Degrees)
   const { deadband: chosenDeadband } = useHapticSettings();
-  const deadband = Math.max(chosenDeadband, zoneDegrees ?? 0);
+  const deadband = zoneDegrees ?? chosenDeadband;
   const coneWidth = deadband * 2;
   const arcWidth = 0; // 🟢 Smaller arc length (was 60 to match cone)
 

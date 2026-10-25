@@ -9,7 +9,7 @@ import {
 // The current haptic settings, kept in memory so every screen (the guidance on
 // Home, the compass, the Settings card) sees a change at once, and saved on the
 // phone so they survive a restart.
-const KEY = 'haptics.settings.v1';
+const KEY = 'haptics.settings.v2';
 
 let current: HapticSettings = DEFAULT_HAPTIC_SETTINGS;
 const listeners = new Set<() => void>();
@@ -26,8 +26,18 @@ export function getHapticSettings(): HapticSettings {
 
 export async function loadHapticSettings(): Promise<HapticSettings> {
   try {
-    const raw = await AsyncStorage.getItem(KEY);
-    set(clampSettings(raw ? JSON.parse(raw) : null));
+    let raw = await AsyncStorage.getItem(KEY);
+    if (raw === null) {
+      const oldPhone = await AsyncStorage.getItem('haptics.settings.v1');
+      const oldBelt = await AsyncStorage.getItem('belt.settings.v1');
+      const phone = oldPhone ? JSON.parse(oldPhone) : {};
+      const belt = oldBelt ? JSON.parse(oldBelt) : {};
+      // Preserve the selected output's zone when merging the two settings.
+      const deadband = belt.enabled !== false ? (belt.silentZone ?? 10) : phone.deadband;
+      raw = JSON.stringify(clampSettings({ ...phone, ...(deadband === undefined ? {} : { deadband }) }));
+      await AsyncStorage.setItem(KEY, raw);
+    }
+    set(clampSettings(JSON.parse(raw)));
   } catch {
     set(DEFAULT_HAPTIC_SETTINGS);
   }

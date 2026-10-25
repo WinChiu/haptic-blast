@@ -24,7 +24,7 @@ export const PHONE_POSITIONS: { value: PhonePosition; label: string }[] = [
 
 export type RecordingPrefs = {
   enabled: boolean;
-  phonePosition: PhonePosition;
+  phonePosition?: PhonePosition;
   // Free text saved in every recording, for example "angel-lappis-pocket-1"
   // (person, route, condition, repeat). Used to tell walks apart in the analysis.
   label: string;
@@ -33,7 +33,6 @@ export type RecordingPrefs = {
 };
 const DEFAULT_PREFS: RecordingPrefs = {
   enabled: false,
-  phonePosition: 'pocket',
   label: '',
   motion: false,
 };

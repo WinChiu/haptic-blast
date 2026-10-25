@@ -145,8 +145,9 @@ export function sendBeltFrame(frame: BeltFrame, force = false): void {
 }
 
 // Buzz one motor for a moment, to check the wiring from the Settings screen
-export function testMotor(which: 'left' | 'front' | 'right'): void {
-  const frame: BeltFrame = which === 'left' ? [255, 0, 0] : which === 'front' ? [0, 255, 0] : [0, 0, 255];
+export function testMotor(which: 'left' | 'front' | 'right', strength = 255): void {
+  const level = Math.max(0, Math.min(255, Math.round(strength)));
+  const frame: BeltFrame = which === 'left' ? [level, 0, 0] : which === 'front' ? [0, level, 0] : [0, 0, level];
   sendBeltFrame(frame, true);
   setTimeout(() => sendBeltFrame(ZERO_FRAME, true), 800);
 }

@@ -26,9 +26,9 @@ export default function BeltBars({ state }: { state: BeltState }) {
       <Text style={styles.status}>
         {state.active
           ? state.relative === null
-            ? 'Junction ahead'
-            : `Next stretch ${Math.round(state.relative)}° (${state.relative >= 0 ? 'right' : 'left'})`
-          : 'Waiting for the next junction'}
+            ? 'Belt guidance'
+            : `Target ${Math.round(state.relative)}° (${state.relative >= 0 ? 'right' : 'left'})`
+          : 'Waiting for navigation'}
       </Text>
     </View>
   );

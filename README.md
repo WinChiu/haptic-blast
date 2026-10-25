@@ -1,6 +1,13 @@
 # Haptic Blast
 
-> **Versions.** `v1-haptic-compass` (tag) is the phone-only haptic compass. This branch, `v2-haptic-belt`, is the haptic belt version.
+> **Versions.** `v1-haptic-compass` (tag) is the phone-only haptic compass. This branch, `v2.1-haptic-belt`, is the haptic belt version.
+
+**v2.1 belt behavior.** Outside the preview distance, the belt points from the user to the next checkpoint A. Inside it, it previews the direction A to B. Moving back outside restores A, without latching the preview. The final checkpoint uses approach guidance. Fixed-distance and speed-based preview both follow this rule.
+
+**Belt strength.** Strongest and Weakest are configurable motor-output percentages (defaults 100% and 32%). From 45 degrees towards the silent-zone edge, the side motor decreases to Weakest while the front motor stays at Strongest. Inside the zone all motors stop. Percentages map directly to bytes 0 to 255; the old motor floor is not applied again.
+
+**Shared silent zone.** Phone, belt and the bearing test share one setting (1 to 20 degrees per side). The compass cone and target follow the selected output's actual guidance. The phone retains its existing GPS-based widening, shown by the cone; belt uses the chosen angle. Existing settings migrate from the previously selected output. Calibration is unchanged. Carry-position selection is removed; old recording labels remain, and new recordings do not claim a carry position.
+
 
 ## Install
 
@@ -211,9 +218,9 @@ npm run analyse-recording -- --table walk1.csv walk2.csv walk3.csv
 It prints one row per walk (minutes, walking samples, offset and spread, share of time within 25° of the target by phone heading and by GPS direction, separate stretches of guidance per minute, GPS accuracy), then groups the walks by **carry position and feedback** and shows the **median across walks with the range**. Debug-mode recordings are left out. A group with fewer than 3 walks is marked as anecdotal, because the walk, not the sample, is the unit of analysis (see "How to collect meaningful test data").
 
 **Suggested protocol** (Release build, outdoors, haptics on):
-1. Settings → switch recording on, choose where the phone is carried.
+1. Settings → switch recording on; use the label field to describe the walk.
 2. Walk a route of at least a few hundred metres at a normal pace, in a mostly steady direction for at least 20 seconds at a time.
-3. Do one walk per carry position (hand flat, pocket, bag), changing the setting between walks.
+3. Do one walk per carry position (hand flat, pocket, bag), noting the position in the label between walks.
 4. Note by hand: could you feel the buzz through your clothing? Did the phone move around?
 5. Share the recordings before deleting or reinstalling the app.
 
@@ -231,7 +238,7 @@ Copy or adapt this when asking someone to take part in a walk. Adjust it to the 
 1. Charge the phone. Cold weather drains the battery quickly, and recording uses GPS the whole time.
 2. Make sure the phone has mobile data. Route requests need it.
 3. Open the app, tap the tag at the top of the map to open **Settings**, and switch on **Haptic Feedback** (and **Audio Feedback** if you want beeps). These switches reset when the app restarts, so check them every time.
-4. If you are helping with the research, switch on **Walk recording** and choose where the phone will be carried. **First delete any old recordings** (Settings → Walk recording → **Delete recordings**, after sharing anything you want to keep). The app keeps the last 5 recordings, and test runs, debug-mode runs and real walks all end up in the same list, so old ones mix with the real data. Each recording says `debug_mode` and `dev_build` in its header, and the analysis tool warns about debug-mode ones, but a clean list is simpler.
+4. If you are helping with the research, switch on **Walk recording** and describe the carry position in the label. **First delete any old recordings** (Settings → Walk recording → **Delete recordings**, after sharing anything you want to keep). The app keeps the last 5 recordings, and test runs, debug-mode runs and real walks all end up in the same list, so old ones mix with the real data. Each recording says `debug_mode` and `dev_build` in its header, and the analysis tool warns about debug-mode ones, but a clean list is simpler.
    Use a **separate username** for real walks (for example `yourname-walk-1`) so the rounds saved to Firebase are not mixed with desk tests either. Tell the team which usernames are test data.
 5. Turn the volume up if you use beeps. Turn on Do Not Disturb so calls do not interrupt.
 6. Allow location access when asked, and choose "While using the app" or "Always".
