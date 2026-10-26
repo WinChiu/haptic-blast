@@ -13,6 +13,7 @@ import { Coord, bearingDegrees, distanceMeters } from '../util/geo';
 import { junctionAt } from '../util/belt';
 import { generateCheckpoints } from '../util/checkpoints';
 import { isFixUsable } from '../util/gps';
+import { getStartAccuracy } from '../util/gpsSettings';
 import {
   distanceToRoute,
   aimPoint,
@@ -358,7 +359,7 @@ export default function Map({
           (location) => {
             let { latitude, longitude } = location.coords;
             const { heading, speed, accuracy } = location.coords;
-            const usable = isFixUsable(accuracy);
+            const usable = isFixUsable(accuracy, getStartAccuracy());
 
             if (usable) {
               // Use 80% new position and 20% previous position to reduce lag

@@ -10,6 +10,9 @@ let revision = 0;
 const listeners = new Set<() => void>();
 const notify = () => listeners.forEach(listener => listener());
 
+// The current value, for code that is not a React component (the map's location callback)
+export const getStartAccuracy = () => current;
+
 export function updateStartAccuracy(value: number): void {
   revision++;
   current = clampStartAccuracy(value);

@@ -9,14 +9,24 @@ export function accuracyOk(
   return accuracy === null || accuracy === undefined || accuracy <= max;
 }
 
-// Fixes worse than this are ignored for route progress: standing still with a
-// poor fix, the position wanders by tens of metres and moves the route on.
-export const isFixUsable = (accuracy: number | null | undefined) =>
-  accuracyOk(accuracy, GlobalStore.GPS.maxUsableAccuracy);
-
 // A journey is only planned or started from a fix at least this good: the
 // route begins at the GPS position, so a wandering fix gives a wrong start.
-export const GPS_START_LIMITS = { min: 5, max: GlobalStore.GPS.maxUsableAccuracy, step: 5 };
+// The user can allow up to 50 m (for a wet day or a poor sky view); the default
+// stays at GlobalStore.GPS.maxStartAccuracy.
+export const GPS_START_LIMITS = { min: 5, max: 50, step: 5 };
+
+// Fixes worse than this are ignored for route progress: standing still with a
+// poor fix, the position wanders by tens of metres and moves the route on.
+// It is 20 m, or the allowed start error if the user raised that above 20 m:
+// a start that is allowed at 40 m must not then freeze because every later fix
+// is also worse than 20 m.
+export const usableAccuracyFor = (startAccuracy: unknown) =>
+  Math.max(GlobalStore.GPS.maxUsableAccuracy, clampStartAccuracy(startAccuracy));
+
+export const isFixUsable = (
+  accuracy: number | null | undefined,
+  startAccuracy: unknown = GlobalStore.GPS.maxStartAccuracy
+) => accuracyOk(accuracy, usableAccuracyFor(startAccuracy));
 
 export function clampStartAccuracy(value: unknown): number {
   if (typeof value !== 'number' || !Number.isFinite(value)) return GlobalStore.GPS.maxStartAccuracy;

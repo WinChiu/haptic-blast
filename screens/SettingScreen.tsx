@@ -378,7 +378,15 @@ export default function SettingScreen() {
             onChange={updateStartAccuracy} />
           <Text style={styles.cardText}>
             Higher values allow planning with a less precise location. Saved automatically.
+            The default is 10 m.
           </Text>
+          {startAccuracy > 20 && (
+            <Text style={[styles.cardText, { color: '#eab308' }]}>
+              Above 20 m the position can be off by tens of metres: the route may start from the wrong
+              street, checkpoints can count late or early, and the belt's angle before a checkpoint is
+              less accurate. Use it when waiting for a better fix is not possible.
+            </Text>
+          )}
         </View>
 
         <View style={styles.card}>

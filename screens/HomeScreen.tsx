@@ -671,6 +671,8 @@ export default function HomeScreen() {
 
   // The joystick position (debug mode) has no GPS accuracy, so it never waits
   const gpsGood = finalMockLocation ? true : isFixGoodToStart(gpsAccuracy, startAccuracy);
+  // Allowed above 20 m by the GPS accuracy setting: say so on the button
+  const poorFix = gpsGood && gpsAccuracy !== null && gpsAccuracy > 20;
   const gpsWaitLabel = `GPS ±${Math.round(gpsAccuracy ?? 0)} m / limit ${startAccuracy} m`;
 
   const handleMockMove = (direction: 'up' | 'down' | 'left' | 'right') => {
@@ -882,7 +884,7 @@ export default function HomeScreen() {
                       numberOfLines={1}
                       adjustsFontSizeToFit
                     >
-                      {gpsGood ? 'Start' : gpsWaitLabel}
+                      {gpsGood ? (poorFix ? `Start (GPS ±${Math.round(gpsAccuracy ?? 0)} m)` : 'Start') : gpsWaitLabel}
                     </Text>
                   </TouchableOpacity>
                   <TouchableOpacity
@@ -929,7 +931,7 @@ export default function HomeScreen() {
                           numberOfLines={1}
                           adjustsFontSizeToFit
                         >
-                          {gpsGood ? customRoute ? `Confirm ${waypoints.length} point${waypoints.length === 1 ? '' : 's'}` : 'Preview Route' : gpsWaitLabel}
+                          {gpsGood ? (customRoute ? `Confirm ${waypoints.length} point${waypoints.length === 1 ? '' : 's'}` : 'Preview Route') + (poorFix ? ` (GPS ±${Math.round(gpsAccuracy ?? 0)} m)` : '') : gpsWaitLabel}
                         </Text>
                       )}
                     </TouchableOpacity>
