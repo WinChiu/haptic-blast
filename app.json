@@ -40,14 +40,14 @@
       ],
       "expo-font",
       "expo-asset",
+      "expo-sharing",
       [
         "react-native-ble-plx",
         {
           "isBackgroundEnabled": false,
           "bluetoothAlwaysPermission": "Haptic Blast connects to the haptic belt over Bluetooth."
         }
-      ],
-      "./plugins/withIosSceneLifecycle"
+      ]
     ]
   }
 }
