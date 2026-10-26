@@ -28,6 +28,7 @@ import { chooseTipMode, TipMode } from '../util/tipMode';
 import { Recording, Sample, motionRow } from '../util/recorder';
 import { DeviceMotion } from 'expo-sensors';
 import { isFixGoodToStart } from '../util/gps';
+import { useStartAccuracy } from '../util/gpsSettings';
 import { loadRecordingPrefs, saveRecording } from '../util/recordingStorage';
 
 import { useCompass } from '../hooks/useCompass';
@@ -45,6 +46,7 @@ import { useFeedback } from '../hooks/FeedbackContext';
 import { GlobalStore } from '../util/globals';
 import { addRound, updateRoundTiming } from '../util/store';
 import { fetchRoute, Coord, RouteError } from '../util/routing';
+import { editWaypoint, planWaypoints, WaypointPlan } from '../util/waypoints';
 import { distanceMeters } from '../util/geo';
 
 import { useAudioPlayer } from 'expo-audio';
@@ -61,6 +63,7 @@ export default function HomeScreen() {
   const { hapticEnabled, soundEnabled } = useFeedback();
   // How the phone vibrates now (Settings -> Haptic tuning); recorded with every round
   const hapticSettings = useHapticSettings();
+  const startAccuracy = useStartAccuracy();
   const hapticStyle = hapticStyleOf(BUZZ_BACKEND !== 'none', hapticSettings.mode);
   const beltSettings = useBeltSettings();
   const beltLink = useBeltLink();
@@ -76,6 +79,19 @@ export default function HomeScreen() {
   const [route, setRoute] = useState<Coord[] | null>(null);
   const [destination, setDestination] = useState<Coord | null>(null);
   const [isLoadingRoute, setIsLoadingRoute] = useState(false);
+  const [customRoute, setCustomRoute] = useState(false);
+  const [waypoints, setWaypoints] = useState<Coord[]>([]);
+  const [waypointPlan, setWaypointPlan] = useState<WaypointPlan | null>(null);
+  const [activeLeg, setActiveLeg] = useState(0);
+  const activeLegRef = useRef(0);
+  const routeRequestRef = useRef(0);
+  const onWaypointSelect = (coordinate: Coord, index?: number) => {
+    if (isLoadingRoute) return;
+    const next = editWaypoint(waypoints, coordinate, index);
+    setWaypoints(next);
+    setDestination(next[next.length - 1] ?? null);
+    setWaypointPlan(null);
+  };
   const [showCompletionModal, setShowCompletionModal] = useState(false);
 
   // "How to follow the guidance": a full tip before the journey, or a small
@@ -399,7 +415,15 @@ export default function HomeScreen() {
     setNextCheckpoint(checkpoint);
     if (guideInfo) setGuide(guideInfo);
     if (checkpoint === null && isNavigating) {
+      if (customRoute && waypointPlan && activeLegRef.current < waypointPlan.legs.length - 1) {
+        const next = activeLegRef.current + 1;
+        activeLegRef.current = next;
+        setActiveLeg(next);
+        setGuide(null);
+        return;
+      }
       // Reached destination
+      routeRequestRef.current++;
 
       // Only update round timing if user is logged in
       if (userUid) {
@@ -456,24 +480,31 @@ export default function HomeScreen() {
       return;
     }
     if (!gpsGood) {
-      Alert.alert('GPS not accurate yet', 'Wait a moment for a better GPS signal.');
+      Alert.alert('GPS not accurate yet', `Current accuracy: ±${Math.round(gpsAccuracy ?? 0)} m. Required: ±${startAccuracy} m. You can adjust the limit in Settings.`);
       return;
     }
 
-    if (distanceMeters(start, destination) < 15) {
+    if (!customRoute && distanceMeters(start, destination) < 15) {
       Alert.alert('Already there', 'The destination is right next to you.');
       return;
     }
 
     setIsLoadingRoute(true);
+    const request = ++routeRequestRef.current;
     try {
-      const fetched = await fetchRoute(start, destination);
+      const plan = customRoute ? await planWaypoints(start, waypoints) : null;
+      const fetched = plan ? plan.route : await fetchRoute(start, destination);
+      if (request !== routeRequestRef.current) return;
+      setWaypointPlan(plan);
+      activeLegRef.current = 0;
+      setActiveLeg(0);
       console.log(
         `[route] loaded ${fetched.length} points, ${distanceMeters(start, destination).toFixed(0)} m straight line`
       );
       setRoute(fetched);
       setIsPreviewMode(true);
     } catch (e: any) {
+      if (request !== routeRequestRef.current) return;
       const routeError = e instanceof RouteError ? e : null;
       console.log(`[route] failed: ${routeError?.kind ?? 'unknown'} - ${e?.message}`);
       const title =
@@ -491,7 +522,7 @@ export default function HomeScreen() {
         : [{ text: 'OK' }];
       Alert.alert(title, e?.message ?? 'Unknown error', buttons);
     } finally {
-      setIsLoadingRoute(false);
+      if (request === routeRequestRef.current) setIsLoadingRoute(false);
     }
   };
 
@@ -500,13 +531,30 @@ export default function HomeScreen() {
   const handleOffRoute = async (location: Coord) => {
     if (!destination || isReroutingRef.current) return;
     isReroutingRef.current = true;
+    const request = ++routeRequestRef.current;
+    const legAtRequest = activeLegRef.current;
     try {
-      const fresh = await fetchRoute(location, destination);
+      const plan = customRoute ? await planWaypoints(location, waypoints.slice(legAtRequest), legAtRequest) : null;
+      const fresh = plan ? plan.route : await fetchRoute(location, destination);
+      if (request !== routeRequestRef.current || legAtRequest !== activeLegRef.current) return;
+      if (plan && waypointPlan) {
+        // Keep completed stops in place; replace only the remaining geometry.
+        setWaypointPlan({
+          legs: [...waypointPlan.legs.slice(0, legAtRequest), ...plan.legs],
+          stops: [...waypointPlan.stops.slice(0, legAtRequest), ...plan.stops],
+          route: fresh,
+        });
+      }
       console.log(`[route] re-routed: ${fresh.length} new points`);
       setRoute(fresh);
     } catch (e: any) {
+      if (request !== routeRequestRef.current || legAtRequest !== activeLegRef.current) return;
       // Keep the old route; the map will try again after its cooldown
       console.log(`[route] re-route failed: ${e?.message}`);
+      if (customRoute) Alert.alert('Could not update route', e?.message ?? 'Your route points have been kept.', [
+        { text: 'Keep route', style: 'cancel' },
+        { text: 'Edit points', onPress: handleCloseOverlay },
+      ]);
     } finally {
       isReroutingRef.current = false;
     }
@@ -581,6 +629,8 @@ export default function HomeScreen() {
   };
 
   const handleCloseOverlay = () => {
+    routeRequestRef.current++;
+    setIsLoadingRoute(false);
     console.log(`[nav] cancelled (was navigating=${isNavigating})`);
     setGuide(null);
     hideReminder();
@@ -620,11 +670,8 @@ export default function HomeScreen() {
   }, [isDebugMode, mockLocation, heading]);
 
   // The joystick position (debug mode) has no GPS accuracy, so it never waits
-  const gpsGood = finalMockLocation ? true : isFixGoodToStart(gpsAccuracy);
-  // Plain words for the walker; the accuracy number is only for research mode
-const gpsWaitLabel = isDebugMode
-    ? `Waiting for GPS (±${Math.round(gpsAccuracy ?? 0)} m)`
-    : 'Finding your location…';
+  const gpsGood = finalMockLocation ? true : isFixGoodToStart(gpsAccuracy, startAccuracy);
+  const gpsWaitLabel = `GPS ±${Math.round(gpsAccuracy ?? 0)} m / limit ${startAccuracy} m`;
 
   const handleMockMove = (direction: 'up' | 'down' | 'left' | 'right') => {
     setMockLocation((prev) => {
@@ -694,11 +741,18 @@ const gpsWaitLabel = isDebugMode
         heading={heading}
         onNextCheckpointUpdate={handleCheckpointUpdate}
         mockUserLocation={finalMockLocation}
-        route={isPreviewMode ? route : null}
+        route={isPreviewMode ? customRoute && waypointPlan && isNavigating ? waypointPlan.legs[activeLeg] : route : null}
+        plannedRoute={customRoute && isNavigating ? route : null}
+        nextLegPoint={customRoute && waypointPlan && isNavigating
+          ? waypointPlan.legs[activeLeg + 1]?.find(p => distanceMeters(p, waypointPlan.stops[activeLeg]) >= 5)
+          : undefined}
+        waypoints={customRoute ? waypoints : []}
+        snappedStops={customRoute && isPreviewMode ? waypointPlan?.stops : []}
+        onWaypointSelect={customRoute && !isPreviewMode && !isNavigating && !isLoadingRoute ? onWaypointSelect : undefined}
         destination={destination}
         onOffRoute={isNavigating && destination ? handleOffRoute : undefined}
         onDestinationSelect={
-          isPreviewMode || isNavigating ? undefined : setDestination
+          customRoute || isPreviewMode || isNavigating || isLoadingRoute ? undefined : setDestination
         }
       />
 
@@ -789,6 +843,33 @@ const gpsWaitLabel = isDebugMode
         <>
           {!isNavigating && (
             <View style={styles.bottomNav}>
+              {isPreviewMode && customRoute && (
+                <Text style={{ color: '#fff', backgroundColor: '#262626', padding: 8, borderRadius: 8, marginBottom: 8 }}>
+                  Orange: selected points. Green: actual route stops.
+                </Text>
+              )}
+              {!isPreviewMode && (
+                <View style={{ width: '100%', gap: 8, marginBottom: 8 }}>
+                  <View style={{ flexDirection: 'row', gap: 8 }}>
+                    {['Automatic', 'Custom route'].map((label, i) => (
+                      <TouchableOpacity key={label} disabled={isLoadingRoute}
+                        style={{ flex: 1, padding: 12, borderRadius: 10, backgroundColor: customRoute === (i === 1) ? '#0369a1' : '#262626' }}
+                        onPress={() => {
+                          routeRequestRef.current++;
+                          setCustomRoute(i === 1);
+                          setDestination(i === 1 ? waypoints[waypoints.length - 1] ?? null : null);
+                          setWaypointPlan(null);
+                          setRoute(null);
+                        }}>
+                        <Text style={{ color: '#fff', textAlign: 'center' }}>{label}</Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                  {customRoute && <Text style={{ color: '#d4d4d4', textAlign: 'center' }}>
+                    Tap to add. Tap a numbered point to remove it and all later points.
+                  </Text>}
+                </View>
+              )}
               {isPreviewMode ? (
                 <View style={styles.selectedLocationContainer}>
                   <TouchableOpacity
@@ -808,7 +889,7 @@ const gpsWaitLabel = isDebugMode
                     style={styles.cancelButton}
                     onPress={handleCloseOverlay}
                   >
-                    <Ionicons name="close" size={24} color="#fff" />
+                    <Ionicons name={customRoute ? 'pencil' : 'close'} size={24} color="#fff" />
                   </TouchableOpacity>
                   <TouchableOpacity
                     style={styles.locateButton}
@@ -823,10 +904,10 @@ const gpsWaitLabel = isDebugMode
                     // Step 1: choose where to go. No button yet, just what to do.
                     <View style={styles.stepPrompt}>
                       <Text style={styles.stepPromptTitle}>
-                        Where do you want to go?
+                        {customRoute ? 'Choose your route points' : 'Where do you want to go?'}
                       </Text>
                       <Text style={styles.stepPromptText}>
-                        Press and hold on the map to choose a place.
+                        {customRoute ? 'The last point is your destination.' : 'Press and hold on the map to choose a place.'}
                       </Text>
                     </View>
                   ) : (
@@ -848,7 +929,7 @@ const gpsWaitLabel = isDebugMode
                           numberOfLines={1}
                           adjustsFontSizeToFit
                         >
-                          {gpsGood ? 'Preview Route' : gpsWaitLabel}
+                          {gpsGood ? customRoute ? `Confirm ${waypoints.length} point${waypoints.length === 1 ? '' : 's'}` : 'Preview Route' : gpsWaitLabel}
                         </Text>
                       )}
                     </TouchableOpacity>

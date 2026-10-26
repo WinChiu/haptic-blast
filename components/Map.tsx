@@ -9,7 +9,7 @@ import MapView, {
 import * as Location from 'expo-location';
 import { API_ENDPOINTS, USE_SELF_HOSTED_TILES } from '../util/config';
 import { GlobalStore } from '../util/globals';
-import { distanceMeters } from '../util/geo';
+import { Coord, bearingDegrees, distanceMeters } from '../util/geo';
 import { junctionAt } from '../util/belt';
 import { generateCheckpoints } from '../util/checkpoints';
 import { isFixUsable } from '../util/gps';
@@ -21,6 +21,11 @@ import {
 } from '../util/progress';
 
 interface MapProps {
+  plannedRoute?: Coord[] | null;
+  waypoints?: Coord[];
+  snappedStops?: Coord[];
+  onWaypointSelect?: (coordinate: Coord, index?: number) => void;
+  nextLegPoint?: Coord;
   route: { latitude: number; longitude: number }[] | null;
   // Where the user wants to go. Shown as a pin until a route is drawn.
   destination?: { latitude: number; longitude: number } | null;
@@ -68,6 +73,11 @@ interface MapProps {
 }
 
 export default function Map({
+  plannedRoute,
+  waypoints = [],
+  snappedStops = [],
+  onWaypointSelect,
+  nextLegPoint,
   route,
   destination = null,
   onOffRoute,
@@ -157,6 +167,7 @@ export default function Map({
   // Calculate Next Checkpoint
   useEffect(() => {
     if (
+      routeCoordinates !== route ||
       !userLocation ||
       routeCheckpoints.length === 0 ||
       !onNextCheckpointUpdate
@@ -185,7 +196,11 @@ export default function Map({
       snapped: snap !== null,
       snapDistance: snap ? snap.distance : null,
       // For the haptic belt: the junction being approached
-      junction: junctionAt(here, routeCheckpoints, index),
+      junction: (() => {
+        const j = junctionAt(here, routeCheckpoints, index);
+        return j && j.legBearing === null && nextLegPoint
+          ? { ...j, legBearing: bearingDegrees(routeCheckpoints[index], nextLegPoint) } : j;
+      })(),
     });
     const guide = guideFor(currentCheckpointIndex);
 
@@ -237,7 +252,7 @@ export default function Map({
 
   // Off route for a while? Ask the parent for a new route from here.
   useEffect(() => {
-    if (!onOffRoute || !userLocation || routeCoordinates.length < 2) {
+    if (routeCoordinates !== route || !onOffRoute || !userLocation || routeCoordinates.length < 2) {
       offRouteSinceRef.current = null;
       return;
     }
@@ -406,6 +421,9 @@ export default function Map({
         style={styles.map}
         provider={PROVIDER_DEFAULT}
         showsUserLocation={!mockUserLocation} // Only show native blue dot if NOT mocking
+        onPress={onWaypointSelect ? (e) => {
+          if (e.nativeEvent.action !== 'marker-press') onWaypointSelect(e.nativeEvent.coordinate);
+        } : undefined}
         onLongPress={
           onDestinationSelect
             ? (e) => onDestinationSelect(e.nativeEvent.coordinate)
@@ -430,6 +448,22 @@ export default function Map({
         )}
 
         {/* Route Polyline */}
+        {plannedRoute && plannedRoute.length > 0 && (
+          <Polyline coordinates={plannedRoute} strokeColor="#64748b" strokeWidth={4} />
+        )}
+        {waypoints.map((point, index) => (
+          <Marker key={`waypoint-${index}`} coordinate={point} stopPropagation
+            zIndex={2000} onPress={onWaypointSelect ? () => onWaypointSelect(point, index) : undefined}
+            pinColor="#f59e0b" title={`Point ${index + 1}`}>
+            <View style={{ backgroundColor: '#b45309', borderRadius: 18, padding: 9, borderWidth: 2, borderColor: '#fff' }}>
+              <Text style={{ color: '#fff', fontWeight: '700' }}>{index + 1}</Text>
+            </View>
+          </Marker>
+        ))}
+        {snappedStops.map((point, index) => (
+          <Marker key={`snap-${index}`} coordinate={point} pinColor="#22c55e"
+            title={`Route stop ${index + 1}`} stopPropagation />
+        ))}
         {routeCoordinates.length > 0 && (
           <Polyline
             coordinates={routeCoordinates}
@@ -470,7 +504,7 @@ export default function Map({
         )}
 
         {/* Destination Marker - Only show if NO route is loaded (otherwise the last checkpoint covers it) */}
-        {destination && routeCoordinates.length === 0 && (
+        {destination && waypoints.length === 0 && routeCoordinates.length === 0 && (
           <Marker coordinate={destination} pinColor="#EF4444" />
         )}
       </MapView>

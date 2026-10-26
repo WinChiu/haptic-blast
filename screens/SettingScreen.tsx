@@ -29,6 +29,8 @@ import { connectBelt, disconnectBelt, sendBeltFrame, testMotor, useBeltLink } fr
 import { BELT_LIMITS, BELT_PATTERNS, BeltTrigger, beltMix } from '../util/belt';
 import { beltFrame, ZERO_FRAME } from '../util/beltPattern';
 import BearingSlider from '../components/BearingSlider';
+import { GPS_START_LIMITS } from '../util/gps';
+import { updateStartAccuracy, useStartAccuracy } from '../util/gpsSettings';
 import {
   HAPTIC_LIMITS,
   HAPTIC_SHAPE,
@@ -142,6 +144,7 @@ export default function SettingScreen() {
   };
   // Haptic tuning: how the phone vibrates (util/haptics.ts, from the team's guide)
   const haptics = useHapticSettings();
+  const startAccuracy = useStartAccuracy();
   const { pulse: pulseBuzz, start: startBuzz, stop: stopBuzz } = useBuzz();
   const demoTimers = useRef<ReturnType<typeof setTimeout>[]>([]);
   const [demoRunning, setDemoRunning] = useState(false);
@@ -367,6 +370,16 @@ export default function SettingScreen() {
             </View>
           </View>
         ))}
+
+        <View style={styles.card}>
+          <Text style={styles.cardTitle}>GPS accuracy</Text>
+          <Stepper label="Allowed error to plan and start" value={startAccuracy} unit=" m"
+            min={GPS_START_LIMITS.min} max={GPS_START_LIMITS.max} step={GPS_START_LIMITS.step}
+            onChange={updateStartAccuracy} />
+          <Text style={styles.cardText}>
+            Higher values allow planning with a less precise location. Saved automatically.
+          </Text>
+        </View>
 
         <View style={styles.card}>
           <Text style={styles.cardTitle}>How to follow the guidance</Text>

@@ -1,7 +1,7 @@
 /// <reference types="node" />
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { accuracyOk, isFixGoodToStart, isFixUsable, pickHeading } from '../util/gps';
+import { accuracyOk, clampStartAccuracy, isFixGoodToStart, isFixUsable, pickHeading } from '../util/gps';
 import { GlobalStore } from '../util/globals';
 
 const { maxUsableAccuracy, maxStartAccuracy } = GlobalStore.GPS;
@@ -29,6 +29,23 @@ test('the poor fixes seen at the start of the real walks are rejected', () => {
   for (const a of [21.4, 23.7, 28.3, 29.3]) assert.equal(isFixUsable(a), false);
   // the typical walking accuracy is accepted
   for (const a of [5.4, 6.7, 8.2]) assert.equal(isFixUsable(a), true);
+});
+
+test('custom planning threshold unlocks usable fixes without admitting fixes navigation rejects', () => {
+  assert.equal(isFixGoodToStart(15, 10), false);
+  assert.equal(isFixGoodToStart(15, 15), true);
+  assert.equal(isFixGoodToStart(20, 20), true);
+  assert.equal(isFixGoodToStart(20.1, 20), false);
+  assert.equal(isFixGoodToStart(25, 50), false);
+});
+
+test('planning threshold handles saved invalid values and clamps to five metre steps', () => {
+  for (const value of [null, undefined, '20', NaN, Infinity]) {
+    assert.equal(clampStartAccuracy(value), maxStartAccuracy);
+  }
+  assert.equal(clampStartAccuracy(-1), 5);
+  assert.equal(clampStartAccuracy(99), maxUsableAccuracy);
+  assert.equal(clampStartAccuracy(13), 15);
 });
 
 test('pickHeading: true north when available, otherwise magnetic', () => {

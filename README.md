@@ -1,5 +1,9 @@
 # Haptic Blast
 
+**v2.2 custom routes.** Choose Custom route, then tap the map to add numbered points in order. Tap an existing numbered point to remove it and all later points. The last point is the destination. Confirm to preview the full walking route; orange markers show the selected coordinates and green markers show the road positions the router actually uses. The pencil returns to editing. Automatic routing still uses a long press to choose a destination.
+
+Custom navigation follows one leg at a time, so checkpoint simplification and skipping cannot bypass a manual stop. At each stop it advances to the next leg, with the existing belt preview available before the turn. Off-route requests keep all remaining selected points in order. Failed requests preserve the points and identify the failing point; reroute errors offer a return to editing. Points that snap more than 20 m from a walkable route are rejected. Planning makes one routing request per leg.
+
 > **Versions.** `v1-haptic-compass` (tag) is the phone-only haptic compass. This branch, `v2.1-haptic-belt`, is the haptic belt version.
 
 **v2.1 belt behavior.** Outside the preview distance, the belt points from the user to the next checkpoint A. Inside it, it previews the direction A to B. Moving back outside restores A, without latching the preview. The final checkpoint uses approach guidance. Fixed-distance and speed-based preview both follow this rule.
