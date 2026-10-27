@@ -111,6 +111,21 @@ test('clampSettings: missing, wrong or corrupt saved data gives the defaults', (
   assert.equal(clampSettings({ deadband: 7.6 }).deadband, 8); // whole degrees
 });
 
+test('45 degree silent zone is saved and supported by phone pulse and intensity calculations', () => {
+  const settings = clampSettings({ deadband: 45 });
+  assert.equal(settings.deadband, 45);
+  assert.equal(clampSettings({ deadband: 99 }).deadband, 45);
+  for (const sign of [-1, 1]) {
+    assert.equal(planPulse(sign * 45, settings), null);
+    assert.equal(planPulse(sign * 25, settings), null);
+    const pulse = planPulse(sign * 46, settings)!;
+    assert.ok(Number.isFinite(pulse.amplitude) && pulse.amplitude > 0);
+    assert.ok(Number.isFinite(pulse.pauseMs));
+    assert.equal(exponentialIntensity(sign * 45, 45), 0);
+    assert.equal(exponentialIntensity(sign * 90, 45), 1);
+  }
+});
+
 test('hapticStyleOf: tap when the phone cannot buzz, otherwise the mode', () => {
   assert.equal(hapticStyleOf(false, 'pulsed'), 'tap');
   assert.equal(hapticStyleOf(true, 'pulsed'), 'pulse');

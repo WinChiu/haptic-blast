@@ -19,7 +19,7 @@ export type HapticSettings = {
 
 // The ranges the guide recommends; the app keeps every setting inside them
 export const HAPTIC_LIMITS = {
-  deadband: { min: 1, max: 20 },
+  deadband: { min: 1, max: 45 },
   pulseMs: { min: 500, max: 1000 },
   confirmMs: { min: 50, max: 100 },
   // 20% was too faint to feel on the first tests; the guide's 20% is the lowest allowed

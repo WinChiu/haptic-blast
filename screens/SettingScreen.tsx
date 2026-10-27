@@ -165,7 +165,11 @@ export default function SettingScreen() {
     let t = 0;
     for (const error of [25, 50, 90]) {
       if (haptics.mode !== 'continuous') {
-        const plan = planPulse(error, haptics)!;
+        const plan = planPulse(error, haptics);
+        if (!plan) {
+          t += haptics.pulseMs;
+          continue;
+        }
         at(t, () => pulseBuzz(plan.amplitude, plan.pulseMs));
         t += plan.pulseMs + plan.pauseMs;
       } else {
@@ -585,6 +589,20 @@ export default function SettingScreen() {
 
         <View style={styles.card}>
           <Text style={styles.cardTitle}>Haptic belt</Text>
+          <View style={styles.toggleContainer}>
+            <Text style={[styles.toggleLabel, { flex: 1 }]}>Front motor</Text>
+            <Switch
+              accessibilityLabel="Front motor"
+              trackColor={{ false: '#404040', true: '#22c55e' }}
+              thumbColor="#fff"
+              ios_backgroundColor="#404040"
+              value={belt.frontMotorEnabled}
+              onValueChange={(frontMotorEnabled) => {
+                updateBeltSettings({ frontMotorEnabled });
+                if (!frontMotorEnabled) sendBeltFrame(ZERO_FRAME, true);
+              }}
+            />
+          </View>
           <Text style={styles.cardText}>
             With the belt chosen, the phone does not vibrate itself. Three
             motors (left, front, right) guide you to the current checkpoint,
@@ -695,7 +713,9 @@ export default function SettingScreen() {
           {link.status === 'connected' && (
             <View style={styles.optionRow}>
               {(['left', 'front', 'right'] as const).map((m) => (
-                <TouchableOpacity key={m} style={styles.optionChip} onPress={() => testMotor(m, Math.round(belt.maxStrength / 100 * 255))}>
+                <TouchableOpacity key={m} style={[styles.optionChip, m === 'front' && !belt.frontMotorEnabled && { opacity: 0.4 }]}
+                  disabled={m === 'front' && !belt.frontMotorEnabled}
+                  onPress={() => testMotor(m, Math.round(belt.maxStrength / 100 * 255))}>
                   <Text style={styles.optionText}>Test {m}</Text>
                 </TouchableOpacity>
               ))}

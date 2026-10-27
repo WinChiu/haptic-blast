@@ -20,13 +20,19 @@ export function relativeBearing(targetDeg: number, facingDeg: number): number {
 
 // Actual motor amplitude fractions. The side reaches weakest at the zone edge;
 // the front stays strongest up to 45 degrees, then fades towards 90 degrees.
-export function beltMix(relDeg: number, zoneDeg: number, strengths = { minStrength: 32, maxStrength: 100 }): BeltMix {
+export function beltMix(relDeg: number, zoneDeg: number,
+  strengths: Pick<BeltSettings, 'minStrength' | 'maxStrength'> & Partial<Pick<BeltSettings, 'frontMotorEnabled'>> = { minStrength: 32, maxStrength: 100 }
+): BeltMix {
   const a = Math.abs(relDeg);
   if (a <= zoneDeg) return SILENT_MIX;
   const low = strengths.minStrength / 100;
   const high = strengths.maxStrength / 100;
-  const side = low + (high - low) * Math.min(1, (a - zoneDeg) / (45 - zoneDeg));
-  const main = a <= 45 ? high : a >= 90 ? 0 : low + (high - low) * (90 - a) / 45;
+  // Keep the existing curve through 20 degrees, and retain a 25-degree ramp
+  // for wider zones rather than collapsing it at a 45-degree silent zone.
+  const sidePeak = Math.max(45, zoneDeg + 25);
+  const side = low + (high - low) * Math.min(1, (a - zoneDeg) / (sidePeak - zoneDeg));
+  const main = strengths.frontMotorEnabled === false ? 0
+    : a <= 45 ? high : a >= 90 ? 0 : low + (high - low) * (90 - a) / 45;
   return relDeg < 0 ? { left: side, main, right: 0 } : { left: 0, main, right: side };
 }
 
@@ -89,7 +95,7 @@ export function beltGuidance(input: {
   zoneDeg: number;
   latch: JunctionLatch;
   timing?: BeltTiming;
-  strengths?: Pick<BeltSettings, 'minStrength' | 'maxStrength'>;
+  strengths?: Pick<BeltSettings, 'minStrength' | 'maxStrength'> & Partial<Pick<BeltSettings, 'frontMotorEnabled'>>;
 }): BeltGuidance {
   const { facing, junction, speedMps, zoneDeg } = input;
   const timing = input.timing ?? DEFAULT_BELT_TIMING;
@@ -142,6 +148,7 @@ export const BELT_PATTERNS: { value: BeltPattern; label: string }[] = [
 
 export type BeltSettings = {
   enabled: boolean; // belt mode: the phone does not vibrate itself, the belt does
+  frontMotorEnabled: boolean;
   trigger: BeltTrigger;
   lookAheadM: number;
   secondsAhead: number;
@@ -159,6 +166,7 @@ export const BELT_LIMITS = {
 
 export const DEFAULT_BELT_SETTINGS: BeltSettings = {
   enabled: true, // the belt is the main product; the phone is the other option
+  frontMotorEnabled: true,
   trigger: DEFAULT_BELT_TIMING.trigger,
   lookAheadM: DEFAULT_BELT_TIMING.lookAheadM,
   secondsAhead: DEFAULT_BELT_TIMING.secondsAhead,
@@ -174,6 +182,7 @@ export function clampBeltSettings(raw: Partial<BeltSettings> | null | undefined)
   const patterns: BeltPattern[] = ['continuous', 'pulsed', 'steady', 'taps'];
   return {
     enabled: typeof raw?.enabled === 'boolean' ? raw.enabled : d.enabled,
+    frontMotorEnabled: typeof raw?.frontMotorEnabled === 'boolean' ? raw.frontMotorEnabled : d.frontMotorEnabled,
     trigger: raw?.trigger === 'speed' ? 'speed' : 'fixed',
     lookAheadM: Math.round(clamp(num(raw?.lookAheadM, d.lookAheadM), BELT_LIMITS.lookAheadM.min, BELT_LIMITS.lookAheadM.max)),
     secondsAhead: Math.round(clamp(num(raw?.secondsAhead, d.secondsAhead), BELT_LIMITS.secondsAhead.min, BELT_LIMITS.secondsAhead.max)),

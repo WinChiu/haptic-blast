@@ -8,9 +8,9 @@ Custom navigation follows one leg at a time, so checkpoint simplification and sk
 
 **v2.1 belt behavior.** Outside the preview distance, the belt points from the user to the next checkpoint A. Inside it, it previews the direction A to B. Moving back outside restores A, without latching the preview. The final checkpoint uses approach guidance. Fixed-distance and speed-based preview both follow this rule.
 
-**Belt strength.** Strongest and Weakest are configurable motor-output percentages (defaults 100% and 32%). From 45 degrees towards the silent-zone edge, the side motor decreases to Weakest while the front motor stays at Strongest. Inside the zone all motors stop. Percentages map directly to bytes 0 to 255; the old motor floor is not applied again.
+**Belt strength.** Strongest and Weakest are configurable motor-output percentages (defaults 100% and 32%). The side motor rises from Weakest just outside the silent zone to Strongest at 45 degrees, or 25 degrees beyond the zone for zones wider than 20 degrees. The front motor stays strongest up to 45 degrees and fades towards 90 degrees. The Front motor switch defaults on; switching it off removes front output from navigation and the bearing test, and disables the individual front test. Inside the zone all motors stop. Percentages map directly to bytes 0 to 255; the old motor floor is not applied again.
 
-**Shared silent zone.** Phone, belt and the bearing test share one setting (1 to 20 degrees per side). The compass cone and target follow the selected output's actual guidance. The phone retains its existing GPS-based widening, shown by the cone; belt uses the chosen angle. Existing settings migrate from the previously selected output. Calibration is unchanged. Carry-position selection is removed; old recording labels remain, and new recordings do not claim a carry position.
+**Shared silent zone.** Phone, belt and the bearing test share one setting (1 to 45 degrees per side). The compass cone and target follow the selected output's actual guidance. The phone retains its existing GPS-based widening, shown by the cone; belt uses the chosen angle. Existing settings migrate from the previously selected output. Calibration is unchanged. Carry-position selection is removed; old recording labels remain, and new recordings do not claim a carry position.
 
 
 ## Install

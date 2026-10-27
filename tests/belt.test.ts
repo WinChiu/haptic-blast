@@ -231,3 +231,45 @@ test('the common zone changes whether an otherwise identical belt target vibrate
   assert.ok(beltMix(12, 10).right > 0);
   assert.deepEqual(beltMix(12, 15), { left: 0, main: 0, right: 0 });
 });
+
+test('zones up to 45 degrees stay silent at their boundary and ramp smoothly outside it', () => {
+  for (const zone of [20, 21, 30, 44, 45]) {
+    for (const sign of [-1, 1]) {
+      const strengths = { minStrength: 25, maxStrength: 80 };
+      assert.deepEqual(beltMix(sign * zone, zone, strengths), { left: 0, main: 0, right: 0 });
+      const edge = beltMix(sign * (zone + 0.00001), zone, strengths);
+      assert.ok(Math.abs((sign < 0 ? edge.left : edge.right) - 0.25) < 0.00001);
+      let previous = 0;
+      for (let angle = zone + 0.5; angle <= 180; angle += 0.5) {
+        const mix = beltMix(sign * angle, zone, strengths);
+        const side = sign < 0 ? mix.left : mix.right;
+        assert.ok(side >= previous && side <= 0.8);
+        assert.ok(Object.values(mix).every(v => Number.isFinite(v) && v >= 0 && v <= 0.8));
+        previous = side;
+      }
+      assert.equal(previous, 0.8);
+    }
+  }
+});
+
+test('disabling the front motor preserves side guidance at every supported zone', () => {
+  for (const zone of [1, 15, 30, 45]) {
+    for (let angle = -180; angle <= 180; angle += 1) {
+      const enabled = beltMix(angle, zone);
+      const disabled = beltMix(angle, zone, { minStrength: 32, maxStrength: 100, frontMotorEnabled: false });
+      assert.deepEqual(disabled, { ...enabled, main: 0 });
+    }
+  }
+});
+
+test('front motor preference defaults on for old settings and survives saved settings', () => {
+  assert.equal(clampBeltSettings({ minStrength: 30 }).frontMotorEnabled, true);
+  assert.equal(clampBeltSettings({ frontMotorEnabled: 'invalid' as any }).frontMotorEnabled, true);
+  const saved = JSON.parse(JSON.stringify(clampBeltSettings({ frontMotorEnabled: false })));
+  assert.equal(clampBeltSettings(saved).frontMotorEnabled, false);
+  const base = { facing: 0, junction: junction(10, 30), speedMps: null, zoneDeg: 15, latch: NEW_JUNCTION_LATCH };
+  assert.ok(beltGuidance(base).mix.main > 0);
+  const off = beltGuidance({ ...base, strengths: saved });
+  assert.equal(off.mix.main, 0);
+  assert.ok(off.mix.right > 0);
+});
